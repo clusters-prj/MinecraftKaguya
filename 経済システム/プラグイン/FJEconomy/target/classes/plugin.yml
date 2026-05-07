@@ -1,5 +1,5 @@
-name: FJEconomy
-version: 1.0.3
+name: FJ Economy
+version: 1.0.2
 description: Integrated economy system for Paper servers with database sync
 author: Clusters-Prj
 website: https://clusters-prj.com
@@ -18,16 +18,36 @@ commands:
     usage: /fjeadmin <subcommand> [args]
     permission: fj.admin
 
+  shop:
+    description: Shop management commands
+    usage: /shop <subcommand> [args]
+    aliases: [s]
+
 permissions:
   fj.use:
     description: Use FJ Economy commands
     default: true
+  
   fj.pay:
     description: Send money to other players
     default: true
+  
   fj.admin:
     description: Admin commands for FJ Economy
     default: op
+  
   fj.reload:
     description: Reload FJ Economy config
     default: op
+
+  fj.shop.create:
+    description: Create a shop
+    default: true
+
+  fj.shop.delete:
+    description: Delete a shop
+    default: op
+
+  fj.shop.manage:
+    description: Manage shops (price, stock)
+    default: true

@@ -22,16 +22,11 @@ public class DatabaseManager {
     /**
      * Initialize database connection pool
      */
-        /**
-     * Initialize database connection pool
-     */
     public void initialize() throws Exception {
         HikariConfig config = new HikariConfig();
         
-        // --- ここを追加 ---
         // pom.xml の <shadedPattern> で指定した名前に合わせます
         config.setDriverClassName("com.clustersprj.fjeconomy.libs.mariadb.Driver");
-        // ------------------
 
         config.setJdbcUrl(configManager.getDatabaseUrl());
         config.setUsername(configManager.getDatabaseUsername());
@@ -48,12 +43,10 @@ public class DatabaseManager {
             testConnection();
             plugin.getLogger().info("✓ データベース接続に成功しました");
         } catch (Exception e) {
-            // ここでエラーが出た際、リロケート後の名前でドライバを探しているかログで確認できます
             plugin.getLogger().log(Level.SEVERE, "データベース接続エラー", e);
             throw e;
         }
     }
-
 
     /**
      * Test database connection
@@ -73,11 +66,11 @@ public class DatabaseManager {
             // fje_balances
             executeUpdate(conn,
                     "CREATE TABLE IF NOT EXISTS fje_balances (" +
-                    "  uuid VARCHAR(36) PRIMARY KEY," +
-                    "  player_name VARCHAR(16) NOT NULL," +
-                    "  balance INT NOT NULL DEFAULT 0," +
-                    "  last_update TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
-                    "  INDEX idx_player_name (player_name)" +
+                    "  uuid UUID PRIMARY KEY DEFAULT '00000000-0000-0000-0000-000000000000'," +
+                    "  name VARCHAR(255) NOT NULL," +
+                    "  balance BIGINT NOT NULL DEFAULT 0," +
+                    "  last_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
+                    "  INDEX idx_name (name)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
             // fje_shops
@@ -85,11 +78,11 @@ public class DatabaseManager {
                     "CREATE TABLE IF NOT EXISTS fje_shops (" +
                     "  npc_id INT NOT NULL," +
                     "  server_id VARCHAR(20) NOT NULL," +
-                    "  owner_uuid VARCHAR(36) NOT NULL," +
-                    "  item_material VARCHAR(64) NOT NULL," +
+                    "  owner_uuid UUID NOT NULL," +
+                    "  item_material VARCHAR(255) NOT NULL," +
+                    "  item_nbt TEXT," +
                     "  price INT NOT NULL DEFAULT 0," +
                     "  stock INT NOT NULL DEFAULT 0," +
-                    "  last_update TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
                     "  PRIMARY KEY (npc_id, server_id)," +
                     "  INDEX idx_owner (owner_uuid)," +
                     "  INDEX idx_item (item_material)," +
@@ -102,12 +95,13 @@ public class DatabaseManager {
                     "  id INT AUTO_INCREMENT PRIMARY KEY," +
                     "  timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                     "  server_id VARCHAR(20) NOT NULL," +
-                    "  buyer_uuid VARCHAR(36) NOT NULL," +
-                    "  owner_uuid VARCHAR(36) NOT NULL," +
-                    "  item_id VARCHAR(64) NOT NULL," +
-                    "  price_total INT NOT NULL," +
-                    "  tax_amount INT NOT NULL," +
-                    "  net_profit INT NOT NULL," +
+                    "  buyer_uuid UUID NOT NULL," +
+                    "  owner_uuid UUID NOT NULL," +
+                    "  item_id VARCHAR(255) NOT NULL," +
+                    "  amount INT NOT NULL DEFAULT 1," +
+                    "  price_total INT NOT NULL DEFAULT 0," +
+                    "  tax_amount INT NOT NULL DEFAULT 0," +
+                    "  net_profit INT NOT NULL DEFAULT 0," +
                     "  INDEX idx_timestamp (timestamp)," +
                     "  INDEX idx_buyer (buyer_uuid)," +
                     "  INDEX idx_owner (owner_uuid)," +
@@ -121,7 +115,7 @@ public class DatabaseManager {
                     "  id INT AUTO_INCREMENT PRIMARY KEY," +
                     "  timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                     "  type VARCHAR(20) NOT NULL," +
-                    "  amount INT NOT NULL DEFAULT 0," +
+                    "  amount BIGINT NOT NULL DEFAULT 0," +
                     "  description TEXT," +
                     "  INDEX idx_timestamp (timestamp)," +
                     "  INDEX idx_type (type)" +

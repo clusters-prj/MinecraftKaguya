@@ -1,8 +1,11 @@
+com\clustersprj\fjeconomy\database\DatabaseManager.class
+com\clustersprj\fjeconomy\shop\ShopManager.class
+com\clustersprj\fjeconomy\FJEconomy.class
+com\clustersprj\fjeconomy\listener\PlayerListener.class
 com\clustersprj\fjeconomy\command\CommandManager.class
 com\clustersprj\fjeconomy\economy\EconomyManager.class
-com\clustersprj\fjeconomy\database\DatabaseManager.class
-com\clustersprj\fjeconomy\FJEconomy.class
 com\clustersprj\fjeconomy\config\ConfigManager.class
-com\clustersprj\fjeconomy\listener\PlayerListener.class
 com\clustersprj\fjeconomy\database\DatabaseManager$QueryCallback.class
 com\clustersprj\fjeconomy\database\DatabaseManager$UpdateCallback.class
+com\clustersprj\fjeconomy\shop\ShopManager$Shop.class
+com\clustersprj\fjeconomy\command\ShopCommand.class
