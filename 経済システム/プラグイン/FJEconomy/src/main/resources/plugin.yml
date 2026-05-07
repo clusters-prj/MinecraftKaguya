@@ -1,4 +1,4 @@
-name: FJ Economy
+name: FJEconomy
 version: ${project.version}
 description: Integrated economy system for Paper servers with database sync
 author: Clusters-Prj

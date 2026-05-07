@@ -4,7 +4,7 @@
   <groupId>com.clusters-prj</groupId>
   <artifactId>fj-economy</artifactId>
   <name>FJ Economy</name>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
   <description>Integrated economy system for Paper Minecraft servers</description>
   <url>https://clusters-prj.com</url>
   <build>
