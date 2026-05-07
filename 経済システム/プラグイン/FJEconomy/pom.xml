@@ -130,10 +130,10 @@
                 <version>3.3.0</version>
                 <configuration>
                     <archive>
-                        <entries>
+                        <manifestEntries>
                             <Implementation-Title>${project.name}</Implementation-Title>
                             <Implementation-Version>${project.version}</Implementation-Version>
-                        </entries>
+                        </manifestEntries>
                     </archive>
                 </configuration>
             </plugin>
