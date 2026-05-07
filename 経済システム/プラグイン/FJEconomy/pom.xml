@@ -106,34 +106,41 @@
                         <goals>
                             <goal>shade</goal>
                         </goals>
-                        <configuration>
-                            <createDependencyReducedPom>false</createDependencyReducedPom>
-                            <filters>
-                                <filter>
-                                    <artifact>*:*</artifact>
-                                    <excludes>
-                                        <exclude>META-INF/*.SF</exclude>
-                                        <exclude>META-INF/*.DSA</exclude>
-                                        <exclude>META-INF/*.RSA</exclude>
-                                        <exclude>META-INF/MANIFEST.MF</exclude>
-                                    </excludes>
-                                </filter>
-                            </filters>
-                            <relocations>
-                                <relocation>
-                                    <pattern>com.zaxxer.hikari</pattern>
-                                    <shadedPattern>com.clustersprj.fjeconomy.libs.hikari</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>org.mariadb.jdbc</pattern>
-                                    <shadedPattern>com.clustersprj.fjeconomy.libs.mariadb</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>org.slf4j</pattern>
-                                    <shadedPattern>com.clustersprj.fjeconomy.libs.slf4j</shadedPattern>
-                                </relocation>
-                            </relocations>
-                        </configuration>
+												<configuration>
+												    <createDependencyReducedPom>false</createDependencyReducedPom>
+												    <!-- ここから追加 -->
+												    <transformers>
+												        <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+												    </transformers>
+												    <!-- ここまで追加 -->
+												    <filters>
+												        <filter>
+												            <artifact>*:*</artifact>
+												            <excludes>
+												                <exclude>META-INF/*.SF</exclude>
+												                <exclude>META-INF/*.DSA</exclude>
+												                <exclude>META-INF/*.RSA</exclude>
+												                <!-- MANIFEST.MFの除外はやめておいた方が安全な場合があります（一旦残してもOK） -->
+												                <exclude>META-INF/MANIFEST.MF</exclude>
+												            </excludes>
+												        </filter>
+												    </filters>
+												    <relocations>
+												        <relocation>
+												            <pattern>com.zaxxer.hikari</pattern>
+												            <shadedPattern>com.clustersprj.fjeconomy.libs.hikari</shadedPattern>
+												        </relocation>
+												        <relocation>
+												            <pattern>org.mariadb.jdbc</pattern>
+												            <shadedPattern>com.clustersprj.fjeconomy.libs.mariadb</shadedPattern>
+												        </relocation>
+												        <relocation>
+												            <pattern>org.slf4j</pattern>
+												            <shadedPattern>com.clustersprj.fjeconomy.libs.slf4j</shadedPattern>
+												        </relocation>
+												    </relocations>
+												</configuration>
+
                     </execution>
                 </executions>
             </plugin>
