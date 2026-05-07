@@ -22,8 +22,17 @@ public class DatabaseManager {
     /**
      * Initialize database connection pool
      */
+        /**
+     * Initialize database connection pool
+     */
     public void initialize() throws Exception {
         HikariConfig config = new HikariConfig();
+        
+        // --- ここを追加 ---
+        // pom.xml の <shadedPattern> で指定した名前に合わせます
+        config.setDriverClassName("com.clustersprj.fjeconomy.libs.mariadb.Driver");
+        // ------------------
+
         config.setJdbcUrl(configManager.getDatabaseUrl());
         config.setUsername(configManager.getDatabaseUsername());
         config.setPassword(configManager.getDatabasePassword());
@@ -39,10 +48,12 @@ public class DatabaseManager {
             testConnection();
             plugin.getLogger().info("✓ データベース接続に成功しました");
         } catch (Exception e) {
+            // ここでエラーが出た際、リロケート後の名前でドライバを探しているかログで確認できます
             plugin.getLogger().log(Level.SEVERE, "データベース接続エラー", e);
             throw e;
         }
     }
+
 
     /**
      * Test database connection
