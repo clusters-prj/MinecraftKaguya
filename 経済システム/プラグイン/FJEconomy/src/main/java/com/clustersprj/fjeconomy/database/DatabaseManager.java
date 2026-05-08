@@ -24,9 +24,7 @@ public class DatabaseManager {
      */
     public void initialize() throws Exception {
         HikariConfig config = new HikariConfig();
-        
-        // JDBC URL から自動でドライバを検出させる
-        // setDriverClassName を削除してドライバの自動検出を有効化
+
         config.setJdbcUrl(configManager.getDatabaseUrl());
         config.setUsername(configManager.getDatabaseUsername());
         config.setPassword(configManager.getDatabasePassword());

@@ -7,7 +7,7 @@
 
     <groupId>com.clusters-prj</groupId>
     <artifactId>fj-economy</artifactId>
-    <version>1.0.6</version>
+    <version>1.0.7</version>
     <packaging>jar</packaging>
 
     <name>FJEconomy</name>
@@ -120,11 +120,10 @@
                                         <exclude>META-INF/*.SF</exclude>
                                         <exclude>META-INF/*.DSA</exclude>
                                         <exclude>META-INF/*.RSA</exclude>
-                                        <exclude>META-INF/MANIFEST.MF</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
-                            <!-- Include all dependencies -->
+                            <!-- Include all dependencies without relocation -->
                             <artifactSet>
                                 <includes>
                                     <include>org.mariadb.jdbc:mariadb-java-client</include>
@@ -132,21 +131,6 @@
                                     <include>org.slf4j:slf4j-api</include>
                                 </includes>
                             </artifactSet>
-                            <!-- Relocate to avoid conflicts -->
-                            <relocations>
-                                <relocation>
-                                    <pattern>com.zaxxer.hikari</pattern>
-                                    <shadedPattern>com.clustersprj.fjeconomy.libs.hikari</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>org.mariadb</pattern>
-                                    <shadedPattern>com.clustersprj.fjeconomy.libs.mariadb</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>org.slf4j</pattern>
-                                    <shadedPattern>com.clustersprj.fjeconomy.libs.slf4j</shadedPattern>
-                                </relocation>
-                            </relocations>
                         </configuration>
                     </execution>
                 </executions>
