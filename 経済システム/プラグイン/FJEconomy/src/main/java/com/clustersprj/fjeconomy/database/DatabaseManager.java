@@ -24,6 +24,9 @@ public class DatabaseManager {
      */
     public void initialize() throws Exception {
         HikariConfig config = new HikariConfig();
+        
+        // pom.xml の <shadedPattern> で指定した名前に合わせます
+        config.setDriverClassName("com.clustersprj.fjeconomy.libs.mariadb.jdbc.Driver");
 
         config.setJdbcUrl(configManager.getDatabaseUrl());
         config.setUsername(configManager.getDatabaseUsername());
