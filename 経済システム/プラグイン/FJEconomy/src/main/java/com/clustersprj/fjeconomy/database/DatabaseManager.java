@@ -25,9 +25,8 @@ public class DatabaseManager {
     public void initialize() throws Exception {
         HikariConfig config = new HikariConfig();
         
-        // pom.xml の <shadedPattern> で指定した名前に合わせます
-        config.setDriverClassName("com.clustersprj.fjeconomy.libs.mariadb.jdbc.Driver");
-
+        // JDBC URL から自動でドライバを検出させる
+        // setDriverClassName を削除してドライバの自動検出を有効化
         config.setJdbcUrl(configManager.getDatabaseUrl());
         config.setUsername(configManager.getDatabaseUsername());
         config.setPassword(configManager.getDatabasePassword());
