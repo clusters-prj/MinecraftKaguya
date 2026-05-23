@@ -5,7 +5,7 @@ resource-pack-url: "https://github.com/swmr71/MinecraftKaguya/releases/download/
 
 # リソースパックのSHA-1ハッシュ（任意だが推奨）
 # sha1sum bgm-java.zip で取得できる
-resource-pack-sha1: "0dcf3aeba3a733a08a6741134b03a702e7bb1708"
+resource-pack-sha1: "0eb5212c58399d72173e632357e0543c22aa4eb8"
 
 # リソースパックの適用を強制するか
 force-resource-pack: true
