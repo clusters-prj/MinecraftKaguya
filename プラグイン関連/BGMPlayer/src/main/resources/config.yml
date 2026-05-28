@@ -3,6 +3,11 @@
 # JavaリソースパックのURL（公開HTTPSサーバーに置いたzipのURL）
 resource-pack-url: "https://github.com/swmr71/MinecraftKaguya/releases/download/BGM-latest/resourcepack.zip"
 
+# デバッグモード
+# true: プラグインフォルダ内の debug.log に詳細なログを出力します。
+# false: コンソール（ターミナル）に標準的なログを出力します。
+debug: false
+
 # リソースパックのSHA-1ハッシュ（任意だが推奨）
 # sha1sum bgm-java.zip で取得できる
 resource-pack-sha1: "96fae1dc8f56713f20fa1b3f8a007e0962517449"
