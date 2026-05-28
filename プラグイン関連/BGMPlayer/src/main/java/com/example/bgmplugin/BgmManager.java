@@ -2,6 +2,7 @@ package com.example.bgmplugin;
 
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
+import net.kyori.adventure.sound.SoundStop;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -172,10 +173,18 @@ public class BgmManager implements Listener {
         if (task != null && !task.isCancelled()) {
             task.cancel();
         }
+        Player player = plugin.getServer().getPlayer(uuid);
+        if (player != null && player.isOnline()) {
+            // ループ停止時にクライアント側のBGMも停止させる
+            player.stopSound(SoundStop.source(Sound.Source.MUSIC));
+        }
     }
 
     private void playSound(Player player, String key) {
         try {
+            // 重複再生を防止するため、新しい曲を再生する前に現在のBGM（MUSICソース）を停止
+            player.stopSound(SoundStop.source(Sound.Source.MUSIC));
+
             Sound sound = Sound.sound(
                     Key.key(key),
                     Sound.Source.MUSIC,
@@ -189,10 +198,8 @@ public class BgmManager implements Listener {
     }
 
     public void cancelAll() {
-        loopTasks.values().forEach(task -> {
-            if (!task.isCancelled()) task.cancel();
-        });
-        loopTasks.clear();
+        // 全プレイヤーに対してループのキャンセルと音の停止を行う
+        loopTasks.keySet().forEach(this::cancelLoop);
     }
 
     public boolean isLooping(UUID uuid) {
