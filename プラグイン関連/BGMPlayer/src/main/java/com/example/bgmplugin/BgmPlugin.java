@@ -46,21 +46,34 @@ public class BgmPlugin extends JavaPlugin {
         
         if (debugEnabled) {
             try {
-                File logFile = new File(getDataFolder(), "debug.log");
                 if (!getDataFolder().exists()) getDataFolder().mkdirs();
+                File logFile = new File(getDataFolder(), "debug.log");
                 
                 debugFileHandler = new FileHandler(logFile.getAbsolutePath(), true);
                 debugFileHandler.setFormatter(new SimpleFormatter());
                 debugLogger = Logger.getLogger("BgmPluginDebug");
+                
+                // 既存のハンドラがあれば削除（リロード時の二重出力防止）
+                for (java.util.logging.Handler h : debugLogger.getHandlers()) {
+                    debugLogger.removeHandler(h);
+                }
+
                 debugLogger.setUseParentHandlers(false); // 通常のコンソールログには流さない
                 debugLogger.addHandler(debugFileHandler);
+                
+                getLogger().info("Debug mode enabled. Logging to: " + logFile.getPath());
+                logDebug("=== Debug Session Started ===");
             } catch (IOException e) {
                 getLogger().log(Level.SEVERE, "Could not create debug log file", e);
+                debugEnabled = false;
             }
         }
     }
 
     private void closeDebugLogger() {
+        if (debugLogger != null && debugFileHandler != null) {
+            debugLogger.removeHandler(debugFileHandler);
+        }
         if (debugFileHandler != null) {
             debugFileHandler.close();
             debugFileHandler = null;
