@@ -46,6 +46,8 @@ public class BgmManager implements Listener {
         volume = (float) plugin.getConfig().getDouble("volume", 1.0);
         pitch  = (float) plugin.getConfig().getDouble("pitch", 1.0);
 
+        plugin.logDebug("Config reloaded. Volume: " + volume + ", Pitch: " + pitch);
+
         // サウンドリストを読み込み
         soundList.clear();
         List<Map<?, ?>> sounds = plugin.getConfig().getMapList("sounds");
@@ -60,9 +62,9 @@ public class BgmManager implements Listener {
 
         if (soundList.isEmpty()) {
             plugin.getLogger().warning("config.yml の sounds が空です！BGMが再生されません。");
-        } // else {
-            // plugin.getLogger().info(soundList.size() + " 曲を読み込みました。");
-        // }
+        } else {
+            plugin.logDebug(soundList.size() + " songs loaded into soundList.");
+        }
 
         // リロード時は全プレイヤーのループを再起動
         for (Player p : plugin.getServer().getOnlinePlayers()) {
@@ -85,13 +87,15 @@ public class BgmManager implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
+        plugin.logDebug("Player joined: " + player.getName() + " (" + player.getUniqueId() + ")");
 
         if (isGeyserPlayer(player)) {
-            // plugin.getLogger().info(player.getName() + " はBedrockプレイヤーです。直接BGMを開始します。");
+            plugin.logDebug(player.getName() + " is a Geyser player. Starting loop directly.");
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> startLoop(player), 300L);
             return;
         }
 
+        plugin.logDebug("Sending resource pack request to " + player.getName());
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             plugin.getResourcePackUtil().sendPack(player);
         }, 300L);
@@ -99,6 +103,7 @@ public class BgmManager implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
+        plugin.logDebug("Player quit: " + event.getPlayer().getName());
         cancelLoop(event.getPlayer().getUniqueId());
     }
 
@@ -107,17 +112,19 @@ public class BgmManager implements Listener {
         Player player = event.getPlayer();
         if (isGeyserPlayer(player)) return;
 
+        plugin.logDebug("ResourcePack status for " + player.getName() + ": " + event.getStatus());
+
         switch (event.getStatus()) {
             case SUCCESSFULLY_LOADED -> {
-                // plugin.getLogger().info(player.getName() + " がリソースパックを適用しました。BGMを開始します。");
+                plugin.logDebug(player.getName() + " successfully loaded the resource pack. Starting BGM.");
                 plugin.getServer().getScheduler().runTaskLater(plugin, () -> startLoop(player), 10L);
             }
             case DECLINED -> {
-                plugin.getLogger().info(player.getName() + " がリソースパックを拒否しました。");
+                plugin.logDebug(player.getName() + " declined the resource pack.");
                 cancelLoop(player.getUniqueId());
             }
             case FAILED_DOWNLOAD, DISCARDED -> {
-                plugin.getLogger().warning(player.getName() + " のリソースパック適用に失敗しました: " + event.getStatus());
+                plugin.logDebug(player.getName() + " failed to load or discarded the pack: " + event.getStatus());
                 cancelLoop(player.getUniqueId());
             }
             default -> {}
@@ -132,6 +139,7 @@ public class BgmManager implements Listener {
      * ランダムに1曲選んで再生し、その曲が終わったら次をランダム選択して繰り返す。
      */
     private void startLoop(Player player) {
+        plugin.logDebug("Starting BGM loop for " + player.getName());
         cancelLoop(player.getUniqueId());
         if (soundList.isEmpty()) return;
         playNext(player);
@@ -139,6 +147,7 @@ public class BgmManager implements Listener {
 
     private void playNext(Player player) {
         if (!player.isOnline()) {
+            plugin.logDebug("Aborting playNext for " + player.getName() + " (player offline)");
             cancelLoop(player.getUniqueId());
             return;
         }
@@ -149,8 +158,7 @@ public class BgmManager implements Listener {
         // 再生
         playSound(player, entry.key());
 
-        //plugin.getLogger().info(player.getName() + " に BGM再生: " + entry.key()
-        //        + " (" + (entry.durationTicks() / 20) + "秒)");
+        plugin.logDebug(player.getName() + " now playing: " + entry.key() + " (Duration: " + (entry.durationTicks() / 20) + "s)");
 
         // 曲が終わったら次を再生
         BukkitTask task = plugin.getServer().getScheduler().runTaskLater(
@@ -164,6 +172,7 @@ public class BgmManager implements Listener {
 
     private void restartLoop(Player player) {
         if (loopTasks.containsKey(player.getUniqueId())) {
+            plugin.logDebug("Restarting loop for " + player.getName() + " due to reload.");
             startLoop(player);
         }
     }
@@ -171,6 +180,7 @@ public class BgmManager implements Listener {
     private void cancelLoop(UUID uuid) {
         BukkitTask task = loopTasks.remove(uuid);
         if (task != null && !task.isCancelled()) {
+            plugin.logDebug("Cancelled task for UUID: " + uuid);
             task.cancel();
         }
         Player player = plugin.getServer().getPlayer(uuid);

@@ -5,14 +5,25 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.logging.FileHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.logging.SimpleFormatter;
+
 public class BgmPlugin extends JavaPlugin {
 
     private BgmManager bgmManager;
     private ResourcePackUtil resourcePackUtil;
+    private Logger debugLogger;
+    private FileHandler debugFileHandler;
+    private boolean debugEnabled;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        reloadDebugConfig();
         resourcePackUtil = new ResourcePackUtil(this);
         bgmManager = new BgmManager(this);
 
@@ -25,7 +36,48 @@ public class BgmPlugin extends JavaPlugin {
         if (bgmManager != null) {
             bgmManager.cancelAll();
         }
+        closeDebugLogger();
         getLogger().info("BgmPlugin disabled.");
+    }
+
+    private void reloadDebugConfig() {
+        closeDebugLogger();
+        debugEnabled = getConfig().getBoolean("debug", false);
+        
+        if (debugEnabled) {
+            try {
+                File logFile = new File(getDataFolder(), "debug.log");
+                if (!getDataFolder().exists()) getDataFolder().mkdirs();
+                
+                debugFileHandler = new FileHandler(logFile.getAbsolutePath(), true);
+                debugFileHandler.setFormatter(new SimpleFormatter());
+                debugLogger = Logger.getLogger("BgmPluginDebug");
+                debugLogger.setUseParentHandlers(false); // 通常のコンソールログには流さない
+                debugLogger.addHandler(debugFileHandler);
+            } catch (IOException e) {
+                getLogger().log(Level.SEVERE, "Could not create debug log file", e);
+            }
+        }
+    }
+
+    private void closeDebugLogger() {
+        if (debugFileHandler != null) {
+            debugFileHandler.close();
+            debugFileHandler = null;
+        }
+    }
+
+    /**
+     * デバッグログを記録する。
+     * debug: true の場合はプラグインフォルダの debug.log へ、
+     * false の場合はコンソール（ターミナル）へ出力する。
+     */
+    public void logDebug(String message) {
+        if (debugEnabled && debugLogger != null) {
+            debugLogger.info(message);
+        } else {
+            getLogger().info("[DEBUG] " + message);
+        }
     }
 
     @Override
@@ -33,6 +85,7 @@ public class BgmPlugin extends JavaPlugin {
         switch (command.getName().toLowerCase()) {
             case "bgmreload" -> {
                 reloadConfig();
+                reloadDebugConfig();
                 resourcePackUtil.reload();
                 bgmManager.reload();
                 sender.sendMessage("§a[BGM] 設定をリロードしました。");

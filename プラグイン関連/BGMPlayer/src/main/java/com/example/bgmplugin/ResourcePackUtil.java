@@ -31,6 +31,9 @@ public class ResourcePackUtil {
      * Paper 1.21 の Adventure API (ResourcePackRequest) を使用。
      */
     public void sendPack(Player player) {
+        plugin.logDebug("Preparing to send resource pack to " + player.getName());
+        plugin.logDebug("URL: " + url + " | Force: " + force);
+
         if (url == null || url.isBlank()) {
             plugin.getLogger().warning("resource-pack-url が設定されていません！");
             return;
