@@ -3,8 +3,6 @@ package com.clustersprj.fjeconomy.economy;
 import com.clustersprj.fjeconomy.FJEconomy;
 import com.clustersprj.fjeconomy.config.ConfigManager;
 import com.clustersprj.fjeconomy.database.DatabaseManager;
-import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -25,35 +23,42 @@ public class EconomyManager {
     }
 
     /**
-     * Get player's balance
+     * Get player's balance (既存のコネクションを使用)
      */
-    public long getBalance(UUID playerUUID) {
-        try (Connection conn = dbManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(
+    public long getBalance(Connection conn, UUID playerUUID) throws SQLException {
+        try (PreparedStatement stmt = conn.prepareStatement(
                      "SELECT balance FROM fje_balances WHERE uuid = ?")) {
             stmt.setString(1, playerUUID.toString());
-            ResultSet rs = stmt.executeQuery();
-
-            if (rs.next()) {
-                return rs.getLong("balance");
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getLong("balance");
+                }
             }
-        } catch (SQLException e) {
-            plugin.getLogger().log(Level.WARNING, "Balance query error", e);
         }
-
         return 0;
     }
 
     /**
-     * Set player's balance
+     * Get player's balance
      */
-    public boolean setBalance(UUID playerUUID, String playerName, long amount) {
+    public long getBalance(UUID playerUUID) {
+        try (Connection conn = dbManager.getConnection()) {
+            return getBalance(conn, playerUUID);
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Balance query error", e);
+        }
+        return 0;
+    }
+
+    /**
+     * Set player's balance (既存のコネクションを使用)
+     */
+    public boolean setBalance(Connection conn, UUID playerUUID, String playerName, long amount) throws SQLException {
         if (!configManager.isNegativeBalanceAllowed() && amount < 0) {
             return false;
         }
 
-        try (Connection conn = dbManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(
+        try (PreparedStatement stmt = conn.prepareStatement(
                      "INSERT INTO fje_balances (uuid, player_name, balance) VALUES (?, ?, ?) " +
                      "ON DUPLICATE KEY UPDATE balance = ?, last_update = CURRENT_TIMESTAMP")) {
             stmt.setString(1, playerUUID.toString());
@@ -62,6 +67,15 @@ public class EconomyManager {
             stmt.setLong(4, amount);
             stmt.executeUpdate();
             return true;
+        }
+    }
+
+    /**
+     * Set player's balance
+     */
+    public boolean setBalance(UUID playerUUID, String playerName, long amount) {
+        try (Connection conn = dbManager.getConnection()) {
+            return setBalance(conn, playerUUID, playerName, amount);
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "Balance update error", e);
             return false;
@@ -69,29 +83,53 @@ public class EconomyManager {
     }
 
     /**
-     * Give money to player
+     * Give money to player (既存のコネクションを使用)
      */
-    public boolean giveMoney(UUID playerUUID, String playerName, long amount) {
+    public boolean giveMoney(Connection conn, UUID playerUUID, String playerName, long amount) throws SQLException {
         if (amount <= 0) return false;
 
-        long currentBalance = getBalance(playerUUID);
-        return setBalance(playerUUID, playerName, currentBalance + amount);
+        long currentBalance = getBalance(conn, playerUUID);
+        return setBalance(conn, playerUUID, playerName, currentBalance + amount);
     }
 
     /**
-     * Take money from player
+     * Give money to player
      */
-    public boolean takeMoney(UUID playerUUID, String playerName, long amount) {
+    public boolean giveMoney(UUID playerUUID, String playerName, long amount) {
+        try (Connection conn = dbManager.getConnection()) {
+            return giveMoney(conn, playerUUID, playerName, amount);
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Give money error", e);
+            return false;
+        }
+    }
+
+    /**
+     * Take money from player (既存のコネクションを使用)
+     */
+    public boolean takeMoney(Connection conn, UUID playerUUID, String playerName, long amount) throws SQLException {
         if (amount <= 0) return false;
 
-        long currentBalance = getBalance(playerUUID);
+        long currentBalance = getBalance(conn, playerUUID);
         long newBalance = currentBalance - amount;
 
         if (newBalance < 0 && !configManager.isNegativeBalanceAllowed()) {
             return false;
         }
 
-        return setBalance(playerUUID, playerName, newBalance);
+        return setBalance(conn, playerUUID, playerName, newBalance);
+    }
+
+    /**
+     * Take money from player
+     */
+    public boolean takeMoney(UUID playerUUID, String playerName, long amount) {
+        try (Connection conn = dbManager.getConnection()) {
+            return takeMoney(conn, playerUUID, playerName, amount);
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Take money error", e);
+            return false;
+        }
     }
 
     /**
@@ -106,20 +144,20 @@ public class EconomyManager {
 
             try {
                 // Check sender balance
-                long senderBalance = getBalance(senderUUID);
+                long senderBalance = getBalance(conn, senderUUID);
                 if (senderBalance < amount) {
                     conn.rollback();
                     return false;
                 }
 
                 // Deduct from sender
-                if (!takeMoney(senderUUID, senderName, amount)) {
+                if (!takeMoney(conn, senderUUID, senderName, amount)) {
                     conn.rollback();
                     return false;
                 }
 
                 // Add to receiver
-                if (!giveMoney(receiverUUID, receiverName, amount)) {
+                if (!giveMoney(conn, receiverUUID, receiverName, amount)) {
                     conn.rollback();
                     return false;
                 }
@@ -169,44 +207,45 @@ public class EconomyManager {
             conn.setAutoCommit(false);
 
             try {
-                // Check buyer balance
-                long buyerBalance = getBalance(buyerUUID);
+                // Check buyer balance (トランザクション内のconnを渡す)
+                long buyerBalance = getBalance(conn, buyerUUID);
                 if (buyerBalance < totalPrice) {
                     conn.rollback();
                     return false;
                 }
 
-                // Deduct from buyer
-                if (!takeMoney(buyerUUID, buyerName, totalPrice)) {
+                // Deduct from buyer (トランザクション内のconnを渡す)
+                if (!takeMoney(conn, buyerUUID, buyerName, totalPrice)) {
                     conn.rollback();
                     return false;
                 }
 
-                // Add to shop owner
-                if (!giveMoney(ownerUUID, ownerName, netProfit)) {
+                // Add to shop owner (トランザクション内のconnを渡す)
+                if (!giveMoney(conn, ownerUUID, ownerName, netProfit)) {
                     conn.rollback();
                     return false;
                 }
 
-                // Add tax to government
-                if (!giveMoney(governmentUUID, governmentName, taxAmount)) {
+                // Add tax to government (トランザクション内のconnを渡す)
+                if (!giveMoney(conn, governmentUUID, governmentName, taxAmount)) {
                     conn.rollback();
                     return false;
                 }
 
-                // Record transaction
+                // Record transaction (amountを追加して正しくインサート)
                 String serverId = configManager.getServerId();
                 try (PreparedStatement stmt = conn.prepareStatement(
                         "INSERT INTO fje_transactions " +
-                        "(timestamp, server_id, buyer_uuid, owner_uuid, item_id, price_total, tax_amount, net_profit) " +
-                        "VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?)")) {
+                        "(timestamp, server_id, buyer_uuid, owner_uuid, item_id, amount, price_total, tax_amount, net_profit) " +
+                        "VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?, ?)")) {
                     stmt.setString(1, serverId);
                     stmt.setString(2, buyerUUID.toString());
                     stmt.setString(3, ownerUUID.toString());
                     stmt.setString(4, itemMaterial);
-                    stmt.setLong(5, totalPrice);
-                    stmt.setLong(6, taxAmount);
-                    stmt.setLong(7, netProfit);
+                    stmt.setInt(5, quantity); // 数量をしっかりセット
+                    stmt.setLong(6, totalPrice);
+                    stmt.setLong(7, taxAmount);
+                    stmt.setLong(8, netProfit);
                     stmt.executeUpdate();
                 }
 
