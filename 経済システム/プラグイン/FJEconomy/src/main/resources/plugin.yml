@@ -7,6 +7,10 @@ api-version: 1.21
 
 main: com.clustersprj.fjeconomy.FJEconomy
 
+# Suppress Nag about System.out/err usage in dependencies
+suppress-nag:
+  - use-of-base-classes
+
 commands:
   fj:
     description: FJ Economy command
