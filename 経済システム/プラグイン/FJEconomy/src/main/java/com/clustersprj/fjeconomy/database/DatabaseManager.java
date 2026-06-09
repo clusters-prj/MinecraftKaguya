@@ -80,7 +80,7 @@ public class DatabaseManager {
                     "  player_name VARCHAR(255) NOT NULL," +
                     "  balance BIGINT NOT NULL DEFAULT 0," +
                     "  last_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
-                    "  INDEX idx_name (name)" +
+                    "  INDEX idx_name (player_name)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
             // fje_shops
