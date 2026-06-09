@@ -243,7 +243,7 @@ public class EconomyManager {
     public void ensurePlayerAccount(UUID playerUUID, String playerName) {
         try (Connection conn = dbManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(
-                     "INSERT IGNORE INTO fje_balances (uuid, name, balance) VALUES (?, ?, ?)")) {
+                     "INSERT IGNORE INTO fje_balances (uuid, player_name, balance) VALUES (?, ?, ?)")) {
             stmt.setString(1, playerUUID.toString());
             stmt.setString(2, playerName);
             stmt.setLong(3, configManager.getStartingBalance());

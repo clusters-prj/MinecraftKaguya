@@ -77,7 +77,7 @@ public class DatabaseManager {
             executeUpdate(conn,
                     "CREATE TABLE IF NOT EXISTS fje_balances (" +
                     "  uuid UUID PRIMARY KEY DEFAULT '00000000-0000-0000-0000-000000000000'," +
-                    "  name VARCHAR(255) NOT NULL," +
+                    "  player_name VARCHAR(255) NOT NULL," +
                     "  balance BIGINT NOT NULL DEFAULT 0," +
                     "  last_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
                     "  INDEX idx_name (name)" +
