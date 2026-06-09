@@ -418,7 +418,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             completions.add("info");
             completions.add("setprice");
             completions.add("setstock");
-            com completions.add("addstock");
+            completions.add("addstock");
             completions.add("removestock");
         } else if (args.length == 2 && "list".equalsIgnoreCase(args[0])) {
             for (Player player : Bukkit.getOnlinePlayers()) {
