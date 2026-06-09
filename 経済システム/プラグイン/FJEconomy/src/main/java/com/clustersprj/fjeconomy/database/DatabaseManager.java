@@ -23,10 +23,15 @@ public class DatabaseManager {
      * Initialize database connection pool
      */
     public void initialize() throws Exception {
+        // ★ 先にドライバクラスを強制的にロードしてクラスローダーに認識させる
+        try {
+            Class.forName("com.clustersprj.fjeconomy.libs.mariadb.jdbc.Driver");
+        } catch (ClassNotFoundException e) {
+            plugin.getLogger().severe("MariaDB JDBC Driver が見つかりません。シャドウの設定を確認してください。");
+            throw e;
+        }
+
         HikariConfig config = new HikariConfig();
-        
-        // ★ プラグインのクラスローダーを明示的にセットする
-        config.setClassLoader(plugin.getClass().getClassLoader());
         
         // pom.xml の <shadedPattern> で指定した名前に合わせます
         config.setDriverClassName("com.clustersprj.fjeconomy.libs.mariadb.jdbc.Driver");
@@ -42,6 +47,7 @@ public class DatabaseManager {
 
         // Connection test
         try {
+            // ★ HikariDataSourceのインスタンスを生成
             this.dataSource = new HikariDataSource(config);
             testConnection();
             plugin.getLogger().info("✓ データベース接続に成功しました");
@@ -50,6 +56,7 @@ public class DatabaseManager {
             throw e;
         }
     }
+
 
     /**
      * Test database connection
