@@ -7,8 +7,29 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
+  # 1. リポジトリ内のすべての pom.xml を検出するジョブ
+  detect:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Find all pom.xml directories
+        id: set-matrix
+        run: |
+          DIRS=$(find . -name pom.xml -exec dirname {} \; | jq -R . | jq -s -c .)
+          echo "matrix=${DIRS}" >> $GITHUB_OUTPUT
+
+  # 2. 検出したプラグインごとに並列でビルドして個別にアップロードするジョブ
+  build:
+    needs: detect
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        directory: ${{ fromJson(needs.detect.outputs.matrix) }}
+      fail-fast: false # 1つのプラグインがエラーになっても、他のビルドを中断しない
 
     steps:
       - name: Checkout repository
@@ -21,11 +42,23 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Find all pom.xml, Update Version, and Build
-        run: find . -name pom.xml | while read -r pom; do pom_dir=$(dirname "$pom") && cd "$pom_dir" && current_version=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout) && mvn versions:set -DnewVersion="${current_version}-b${{ github.run_number }}" && mvn clean package && cd - > /dev/null; done
+      - name: Update Version and Build
+        id: maven-build
+        run: |
+          cd "${{ matrix.directory }}"
+          # pom.xmlからartifactId（プラグイン名）を取得して後続ステップで使えるようにする
+          ARTIFACT_ID=$(mvn help:evaluate -Dexpression=project.artifactId -q -DforceStdout)
+          echo "artifact_id=${ARTIFACT_ID}" >> $GITHUB_OUTPUT
+          
+          # 現行バージョンを取得してビルド番号を付与
+          CURRENT_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          mvn versions:set -DnewVersion="${CURRENT_VERSION}-b${{ github.run_number }}"
+          
+          # ビルド実行
+          mvn clean package
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: paper-plugins-build-${{ github.run_number }}
-          path: "**/target/*.jar"
+          name: "${{ steps.maven-build.outputs.artifact_id }}-b${{ github.run_number }}"
+          path: "${{ matrix.directory }}/target/*.jar"
