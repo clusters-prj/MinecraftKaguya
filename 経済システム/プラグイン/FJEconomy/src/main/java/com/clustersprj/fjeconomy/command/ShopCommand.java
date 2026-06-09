@@ -56,7 +56,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /shop create <npcId> <item> <price> [stock]
+     * /shop create <npcUuid> <item> <price> [stock]
      */
     private boolean handleCreate(org.bukkit.command.CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
@@ -66,23 +66,23 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
 
         if (args.length < 4) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
-                    "§c使用方法: /shop create <NPC ID> <アイテム> <価格> [在庫]");
+                    "§c使用方法: /shop create <NPC UUID> <アイテム> <価格> [在庫]");
             return false;
         }
 
         Player player = (Player) sender;
-        int npcId;
+        UUID npcUuid;
         String itemMaterial = args[2];
         int price;
         int stock;
 
         try {
-            npcId = Integer.parseInt(args[1]);
+            npcUuid = UUID.fromString(args[1]);
             price = Integer.parseInt(args[3]);
             stock = args.length > 4 ? Integer.parseInt(args[4]) : 
                    plugin.getConfigManager().getDefaultStock();
-        } catch (NumberFormatException e) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c無効な数値です");
+        } catch (IllegalArgumentException e) {
+            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c無効な数値、または無効なUUIDです");
             return false;
         }
 
@@ -94,9 +94,9 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
 
         String serverId = plugin.getConfigManager().getServerId();
 
-        if (shopManager.createShop(npcId, serverId, player.getUniqueId(), itemMaterial, price, stock)) {
+        if (shopManager.createShop(npcUuid, serverId, player.getUniqueId(), itemMaterial, price, stock)) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
-                    "§a店舗を作成しました (NPC ID: " + npcId + ", アイテム: " + itemMaterial +
+                    "§a店舗を作成しました (NPC UUID: " + npcUuid + ", アイテム: " + itemMaterial +
                     ", 価格: " + plugin.getConfigManager().getCurrencySymbol() + price + ")");
             return true;
         } else {
@@ -106,7 +106,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /shop delete <npcId>
+     * /shop delete <npcUuid>
      */
     private boolean handleDelete(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.shop.delete")) {
@@ -116,23 +116,23 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
 
         if (args.length < 2) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
-                    "§c使用方法: /shop delete <NPC ID>");
+                    "§c使用方法: /shop delete <NPC UUID>");
             return false;
         }
 
-        int npcId;
+        UUID npcUuid;
         try {
-            npcId = Integer.parseInt(args[1]);
-        } catch (NumberFormatException e) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c無効なNPC IDです");
+            npcUuid = UUID.fromString(args[1]);
+        } catch (IllegalArgumentException e) {
+            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c無効なNPC UUIDです");
             return false;
         }
 
         String serverId = plugin.getConfigManager().getServerId();
 
-        if (shopManager.deleteShop(npcId, serverId)) {
+        if (shopManager.deleteShop(npcUuid, serverId)) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
-                    "§a店舗を削除しました (NPC ID: " + npcId + ")");
+                    "§a店舗を削除しました (NPC UUID: " + npcUuid + ")");
             return true;
         } else {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
@@ -179,7 +179,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
                 "§b" + targetName + " の店舗一覧:");
         for (ShopManager.Shop shop : shops) {
-            sender.sendMessage("  §7NPC ID: " + shop.getNpcId() + " - " +
+            sender.sendMessage("  §7NPC UUID: " + shop.getNpcUuid() + " - " +
                     shop.getDisplayInfo(plugin.getConfigManager().getCurrencySymbol()));
         }
 
@@ -187,25 +187,25 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /shop info <npcId>
+     * /shop info <npcUuid>
      */
     private boolean handleInfo(org.bukkit.command.CommandSender sender, String[] args) {
         if (args.length < 2) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
-                    "§c使用方法: /shop info <NPC ID>");
+                    "§c使用方法: /shop info <NPC UUID>");
             return false;
         }
 
-        int npcId;
+        UUID npcUuid;
         try {
-            npcId = Integer.parseInt(args[1]);
-        } catch (NumberFormatException e) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c無効なNPC IDです");
+            npcUuid = UUID.fromString(args[1]);
+        } catch (IllegalArgumentException e) {
+            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c無効なNPC UUIDです");
             return false;
         }
 
         String serverId = plugin.getConfigManager().getServerId();
-        ShopManager.Shop shop = shopManager.getShop(npcId, serverId);
+        ShopManager.Shop shop = shopManager.getShop(npcUuid, serverId);
 
         if (shop == null) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
@@ -214,7 +214,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         }
 
         sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§b店舗情報:");
-        sender.sendMessage("  NPC ID: " + shop.getNpcId());
+        sender.sendMessage("  NPC UUID: " + shop.getNpcUuid());
         sender.sendMessage("  アイテム: " + shop.getItemMaterial());
         sender.sendMessage("  価格: " + plugin.getConfigManager().getCurrencySymbol() + shop.getPrice());
         sender.sendMessage("  在庫: " + shop.getStock() + "個");
@@ -223,7 +223,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /shop setprice <npcId> <price>
+     * /shop setprice <npcUuid> <price>
      */
     private boolean handleSetPrice(org.bukkit.command.CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
@@ -233,24 +233,24 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
 
         if (args.length < 3) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
-                    "§c使用方法: /shop setprice <NPC ID> <価格>");
+                    "§c使用方法: /shop setprice <NPC UUID> <価格>");
             return false;
         }
 
         Player player = (Player) sender;
-        int npcId;
+        UUID npcUuid;
         int price;
 
         try {
-            npcId = Integer.parseInt(args[1]);
+            npcUuid = UUID.fromString(args[1]);
             price = Integer.parseInt(args[2]);
-        } catch (NumberFormatException e) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c無効な数値です");
+        } catch (IllegalArgumentException e) {
+            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c無効な数値、または無効なUUIDです");
             return false;
         }
 
         String serverId = plugin.getConfigManager().getServerId();
-        ShopManager.Shop shop = shopManager.getShop(npcId, serverId);
+        ShopManager.Shop shop = shopManager.getShop(npcUuid, serverId);
 
         if (shop == null || !shop.getOwnerUUID().equals(player.getUniqueId())) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
@@ -258,7 +258,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             return false;
         }
 
-        if (shopManager.updateShopPrice(npcId, serverId, price)) {
+        if (shopManager.updateShopPrice(npcUuid, serverId, price)) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
                     "§a価格を " + plugin.getConfigManager().getCurrencySymbol() + price + " に設定しました");
             return true;
@@ -269,7 +269,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /shop setstock <npcId> <stock>
+     * /shop setstock <npcUuid> <stock>
      */
     private boolean handleSetStock(org.bukkit.command.CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
@@ -279,24 +279,24 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
 
         if (args.length < 3) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
-                    "§c使用方法: /shop setstock <NPC ID> <在庫>");
+                    "§c使用方法: /shop setstock <NPC UUID> <在庫>");
             return false;
         }
 
         Player player = (Player) sender;
-        int npcId;
+        UUID npcUuid;
         int stock;
 
         try {
-            npcId = Integer.parseInt(args[1]);
+            npcUuid = UUID.fromString(args[1]);
             stock = Integer.parseInt(args[2]);
-        } catch (NumberFormatException e) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c無効な数値です");
+        } catch (IllegalArgumentException e) {
+            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c無効な数値、または無効なUUIDです");
             return false;
         }
 
         String serverId = plugin.getConfigManager().getServerId();
-        ShopManager.Shop shop = shopManager.getShop(npcId, serverId);
+        ShopManager.Shop shop = shopManager.getShop(npcUuid, serverId);
 
         if (shop == null || !shop.getOwnerUUID().equals(player.getUniqueId())) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
@@ -304,7 +304,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             return false;
         }
 
-        if (shopManager.updateShopStock(npcId, serverId, stock)) {
+        if (shopManager.updateShopStock(npcUuid, serverId, stock)) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
                     "§a在庫を " + stock + "個に設定しました");
             return true;
@@ -315,7 +315,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /shop addstock <npcId> <quantity>
+     * /shop addstock <npcUuid> <quantity>
      */
     private boolean handleAddStock(org.bukkit.command.CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
@@ -325,24 +325,24 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
 
         if (args.length < 3) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
-                    "§c使用方法: /shop addstock <NPC ID> <個数>");
+                    "§c使用方法: /shop addstock <NPC UUID> <個数>");
             return false;
         }
 
         Player player = (Player) sender;
-        int npcId;
+        UUID npcUuid;
         int quantity;
 
         try {
-            npcId = Integer.parseInt(args[1]);
+            npcUuid = UUID.fromString(args[1]);
             quantity = Integer.parseInt(args[2]);
-        } catch (NumberFormatException e) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c無効な数値です");
+        } catch (IllegalArgumentException e) {
+            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c無効な数値、または無効なUUIDです");
             return false;
         }
 
         String serverId = plugin.getConfigManager().getServerId();
-        ShopManager.Shop shop = shopManager.getShop(npcId, serverId);
+        ShopManager.Shop shop = shopManager.getShop(npcUuid, serverId);
 
         if (shop == null || !shop.getOwnerUUID().equals(player.getUniqueId())) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
@@ -350,7 +350,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             return false;
         }
 
-        if (shopManager.addStock(npcId, serverId, quantity)) {
+        if (shopManager.addStock(npcUuid, serverId, quantity)) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
                     "§a在庫に " + quantity + "個追加しました");
             return true;
@@ -361,7 +361,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /shop removestock <npcId> <quantity>
+     * /shop removestock <npcUuid> <quantity>
      */
     private boolean handleRemoveStock(org.bukkit.command.CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
@@ -371,24 +371,24 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
 
         if (args.length < 3) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
-                    "§c使用方法: /shop removestock <NPC ID> <個数>");
+                    "§c使用方法: /shop removestock <NPC UUID> <個数>");
             return false;
         }
 
         Player player = (Player) sender;
-        int npcId;
+        UUID npcUuid;
         int quantity;
 
         try {
-            npcId = Integer.parseInt(args[1]);
+            npcUuid = UUID.fromString(args[1]);
             quantity = Integer.parseInt(args[2]);
-        } catch (NumberFormatException e) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c無効な数値です");
+        } catch (IllegalArgumentException e) {
+            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c無効な数値、または無効なUUIDです");
             return false;
         }
 
         String serverId = plugin.getConfigManager().getServerId();
-        ShopManager.Shop shop = shopManager.getShop(npcId, serverId);
+        ShopManager.Shop shop = shopManager.getShop(npcUuid, serverId);
 
         if (shop == null || !shop.getOwnerUUID().equals(player.getUniqueId())) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
@@ -396,7 +396,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             return false;
         }
 
-        if (shopManager.removeStock(npcId, serverId, quantity)) {
+        if (shopManager.removeStock(npcUuid, serverId, quantity)) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() +
                     "§a在庫から " + quantity + "個削除しました");
             return true;
@@ -418,7 +418,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             completions.add("info");
             completions.add("setprice");
             completions.add("setstock");
-            completions.add("addstock");
+            com completions.add("addstock");
             completions.add("removestock");
         } else if (args.length == 2 && "list".equalsIgnoreCase(args[0])) {
             for (Player player : Bukkit.getOnlinePlayers()) {
