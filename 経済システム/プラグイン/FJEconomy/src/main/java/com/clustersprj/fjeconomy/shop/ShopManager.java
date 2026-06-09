@@ -25,15 +25,15 @@ public class ShopManager {
     /**
      * Create a new shop
      */
-    public boolean createShop(int npcId, String serverId, UUID ownerUUID, String itemMaterial, 
+    public boolean createShop(UUID npcUuid, String serverId, UUID ownerUUID, String itemMaterial, 
                              int price, int stock) {
-        return createShop(npcId, serverId, ownerUUID, itemMaterial, null, price, stock);
+        return createShop(npcUuid, serverId, ownerUUID, itemMaterial, null, price, stock);
     }
 
     /**
      * Create a new shop with NBT data
      */
-    public boolean createShop(int npcId, String serverId, UUID ownerUUID, String itemMaterial,
+    public boolean createShop(UUID npcUuid, String serverId, UUID ownerUUID, String itemMaterial,
                              String itemNBT, int price, int stock) {
         if (price < 0 || stock < 0) {
             return false;
@@ -41,11 +41,11 @@ public class ShopManager {
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(
-                     "INSERT INTO fje_shops (npc_id, server_id, owner_uuid, item_material, item_nbt, price, stock) " +
+                     "INSERT INTO fje_shops (npc_uuid, server_id, owner_uuid, item_material, item_nbt, price, stock) " +
                      "VALUES (?, ?, ?, ?, ?, ?, ?) " +
                      "ON DUPLICATE KEY UPDATE owner_uuid = ?, item_material = ?, item_nbt = ?, price = ?, stock = ?")) {
 
-            stmt.setInt(1, npcId);
+            stmt.setString(1, npcUuid.toString());
             stmt.setString(2, serverId);
             stmt.setString(3, ownerUUID.toString());
             stmt.setString(4, itemMaterial);
@@ -72,19 +72,19 @@ public class ShopManager {
     /**
      * Get shop information
      */
-    public Shop getShop(int npcId, String serverId) {
+    public Shop getShop(UUID npcUuid, String serverId) {
         try (Connection conn = dbManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(
-                     "SELECT npc_id, server_id, owner_uuid, item_material, item_nbt, price, stock " +
-                     "FROM fje_shops WHERE npc_id = ? AND server_id = ?")) {
+                     "SELECT npc_uuid, server_id, owner_uuid, item_material, item_nbt, price, stock " +
+                     "FROM fje_shops WHERE npc_uuid = ? AND server_id = ?")) {
 
-            stmt.setInt(1, npcId);
+            stmt.setString(1, npcUuid.toString());
             stmt.setString(2, serverId);
             ResultSet rs = stmt.executeQuery();
 
             if (rs.next()) {
                 return new Shop(
-                        rs.getInt("npc_id"),
+                        UUID.fromString(rs.getString("npc_uuid")),
                         rs.getString("server_id"),
                         UUID.fromString(rs.getString("owner_uuid")),
                         rs.getString("item_material"),
@@ -109,8 +109,8 @@ public class ShopManager {
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(
-                     "SELECT npc_id, server_id, owner_uuid, item_material, item_nbt, price, stock " +
-                     "FROM fje_shops WHERE owner_uuid = ? AND server_id = ? ORDER BY npc_id")) {
+                     "SELECT npc_uuid, server_id, owner_uuid, item_material, item_nbt, price, stock " +
+                     "FROM fje_shops WHERE owner_uuid = ? AND server_id = ? ORDER BY npc_uuid")) {
 
             stmt.setString(1, ownerUUID.toString());
             stmt.setString(2, serverId);
@@ -118,7 +118,7 @@ public class ShopManager {
 
             while (rs.next()) {
                 shops.add(new Shop(
-                        rs.getInt("npc_id"),
+                        UUID.fromString(rs.getString("npc_uuid")),
                         rs.getString("server_id"),
                         UUID.fromString(rs.getString("owner_uuid")),
                         rs.getString("item_material"),
@@ -138,17 +138,17 @@ public class ShopManager {
     /**
      * Update shop price
      */
-    public boolean updateShopPrice(int npcId, String serverId, int newPrice) {
+    public boolean updateShopPrice(UUID npcUuid, String serverId, int newPrice) {
         if (newPrice < 0) {
             return false;
         }
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(
-                     "UPDATE fje_shops SET price = ? WHERE npc_id = ? AND server_id = ?")) {
+                     "UPDATE fje_shops SET price = ? WHERE npc_uuid = ? AND server_id = ?")) {
 
             stmt.setInt(1, newPrice);
-            stmt.setInt(2, npcId);
+            stmt.setString(2, npcUuid.toString());
             stmt.setString(3, serverId);
 
             return stmt.executeUpdate() > 0;
@@ -162,17 +162,17 @@ public class ShopManager {
     /**
      * Update shop stock
      */
-    public boolean updateShopStock(int npcId, String serverId, int newStock) {
+    public boolean updateShopStock(UUID npcUuid, String serverId, int newStock) {
         if (newStock < 0) {
             return false;
         }
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(
-                     "UPDATE fje_shops SET stock = ? WHERE npc_id = ? AND server_id = ?")) {
+                     "UPDATE fje_shops SET stock = ? WHERE npc_uuid = ? AND server_id = ?")) {
 
             stmt.setInt(1, newStock);
-            stmt.setInt(2, npcId);
+            stmt.setString(2, npcUuid.toString());
             stmt.setString(3, serverId);
 
             return stmt.executeUpdate() > 0;
@@ -186,17 +186,17 @@ public class ShopManager {
     /**
      * Add stock to shop
      */
-    public boolean addStock(int npcId, String serverId, int quantity) {
+    public boolean addStock(UUID npcUuid, String serverId, int quantity) {
         if (quantity <= 0) {
             return false;
         }
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(
-                     "UPDATE fje_shops SET stock = stock + ? WHERE npc_id = ? AND server_id = ?")) {
+                     "UPDATE fje_shops SET stock = stock + ? WHERE npc_uuid = ? AND server_id = ?")) {
 
             stmt.setInt(1, quantity);
-            stmt.setInt(2, npcId);
+            stmt.setString(2, npcUuid.toString());
             stmt.setString(3, serverId);
 
             return stmt.executeUpdate() > 0;
@@ -210,18 +210,19 @@ public class ShopManager {
     /**
      * Remove stock from shop
      */
-    public boolean removeStock(int npcId, String serverId, int quantity) {
+    public boolean removeStock(UUID npcUuid, String serverId, int quantity) {
         if (quantity <= 0) {
             return false;
         }
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(
-                     "UPDATE fje_shops SET stock = GREATEST(0, stock - ?) WHERE npc_id = ? AND server_id = ?")) {
+                     "UPDATE fje_shops SET stock = stock - ? WHERE npc_uuid = ? AND server_id = ? AND stock >= ?")) {
 
             stmt.setInt(1, quantity);
-            stmt.setInt(2, npcId);
+            stmt.setString(2, npcUuid.toString());
             stmt.setString(3, serverId);
+            stmt.setInt(4, quantity); // 在庫が足りている場合のみ減らす
 
             return stmt.executeUpdate() > 0;
 
@@ -234,12 +235,12 @@ public class ShopManager {
     /**
      * Delete a shop
      */
-    public boolean deleteShop(int npcId, String serverId) {
+    public boolean deleteShop(UUID npcUuid, String serverId) {
         try (Connection conn = dbManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(
-                     "DELETE FROM fje_shops WHERE npc_id = ? AND server_id = ?")) {
+                     "DELETE FROM fje_shops WHERE npc_uuid = ? AND server_id = ?")) {
 
-            stmt.setInt(1, npcId);
+            stmt.setString(1, npcUuid.toString());
             stmt.setString(2, serverId);
 
             return stmt.executeUpdate() > 0;
@@ -253,12 +254,12 @@ public class ShopManager {
     /**
      * Check if shop exists
      */
-    public boolean shopExists(int npcId, String serverId) {
+    public boolean shopExists(UUID npcUuid, String serverId) {
         try (Connection conn = dbManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(
-                     "SELECT 1 FROM fje_shops WHERE npc_id = ? AND server_id = ? LIMIT 1")) {
+                     "SELECT 1 FROM fje_shops WHERE npc_uuid = ? AND server_id = ? LIMIT 1")) {
 
-            stmt.setInt(1, npcId);
+            stmt.setString(1, npcUuid.toString());
             stmt.setString(2, serverId);
             ResultSet rs = stmt.executeQuery();
 
@@ -274,15 +275,14 @@ public class ShopManager {
      * Get shop by entity
      */
     public Shop getShopByEntity(Entity entity, String serverId) {
-        int entityId = entity.getEntityId();
-        return getShop(entityId, serverId);
+        return getShop(entity.getUniqueId(), serverId);
     }
 
     /**
      * Shop data class
      */
     public static class Shop {
-        private final int npcId;
+        private final UUID npcUuid;
         private final String serverId;
         private final UUID ownerUUID;
         private final String itemMaterial;
@@ -290,9 +290,9 @@ public class ShopManager {
         private final int price;
         private final int stock;
 
-        public Shop(int npcId, String serverId, UUID ownerUUID, String itemMaterial,
+        public Shop(UUID npcUuid, String serverId, UUID ownerUUID, String itemMaterial,
                    String itemNBT, int price, int stock) {
-            this.npcId = npcId;
+            this.npcUuid = npcUuid;
             this.serverId = serverId;
             this.ownerUUID = ownerUUID;
             this.itemMaterial = itemMaterial;
@@ -302,7 +302,7 @@ public class ShopManager {
         }
 
         // Getters
-        public int getNpcId() { return npcId; }
+        public UUID getNpcUuid() { return npcUuid; }
         public String getServerId() { return serverId; }
         public UUID getOwnerUUID() { return ownerUUID; }
         public String getItemMaterial() { return itemMaterial; }

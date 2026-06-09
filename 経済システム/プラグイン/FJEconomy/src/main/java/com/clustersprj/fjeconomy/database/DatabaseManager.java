@@ -83,17 +83,17 @@ public class DatabaseManager {
                     "  INDEX idx_name (player_name)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-            // fje_shops
+            // fje_shops (npc_id から npc_uuid UUID に変更)
             executeUpdate(conn,
                     "CREATE TABLE IF NOT EXISTS fje_shops (" +
-                    "  npc_id INT NOT NULL," +
+                    "  npc_uuid UUID NOT NULL," +
                     "  server_id VARCHAR(20) NOT NULL," +
                     "  owner_uuid UUID NOT NULL," +
                     "  item_material VARCHAR(255) NOT NULL," +
                     "  item_nbt TEXT," +
                     "  price INT NOT NULL DEFAULT 0," +
                     "  stock INT NOT NULL DEFAULT 0," +
-                    "  PRIMARY KEY (npc_id, server_id)," +
+                    "  PRIMARY KEY (npc_uuid, server_id)," +
                     "  INDEX idx_owner (owner_uuid)," +
                     "  INDEX idx_item (item_material)," +
                     "  FOREIGN KEY (owner_uuid) REFERENCES fje_balances(uuid)" +
@@ -159,10 +159,10 @@ public class DatabaseManager {
     }
 
     /**
-     * Execute query asynchronously
+     * Execute query asynchronously (Bukkit Scheduler を使用)
      */
     public void executeAsync(String sql, QueryCallback callback) {
-        new Thread(() -> {
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
             try (Connection conn = getConnection();
                  Statement stmt = conn.createStatement()) {
                 ResultSet rs = stmt.executeQuery(sql);
@@ -170,14 +170,14 @@ public class DatabaseManager {
             } catch (SQLException e) {
                 callback.onError(e);
             }
-        }).start();
+        });
     }
 
     /**
-     * Execute update asynchronously
+     * Execute update asynchronously (Bukkit Scheduler を使用)
      */
     public void executeUpdateAsync(String sql, UpdateCallback callback) {
-        new Thread(() -> {
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
             try (Connection conn = getConnection();
                  Statement stmt = conn.createStatement()) {
                 int affectedRows = stmt.executeUpdate(sql);
@@ -185,7 +185,7 @@ public class DatabaseManager {
             } catch (SQLException e) {
                 callback.onError(e);
             }
-        }).start();
+        });
     }
 
     /**
