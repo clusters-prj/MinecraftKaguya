@@ -86,19 +86,21 @@ public class BgmManager implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
-        Player player = event.getPlayer();
-        plugin.logDebug("Player joined: " + player.getName() + " (" + player.getUniqueId() + ")");
+        UUID uuid = event.getPlayer().getUniqueId();
+        String name = event.getPlayer().getName();
+        plugin.logDebug("Player joined: " + name + " (" + uuid + ")");
 
-        if (isGeyserPlayer(player)) {
-            plugin.logDebug(player.getName() + " is a Geyser player. Starting loop directly.");
-            plugin.getServer().getScheduler().runTaskLater(plugin, () -> startLoop(player), 300L);
+        if (isGeyserPlayer(event.getPlayer())) {
+            plugin.logDebug(name + " is a Geyser player. Scheduling loop.");
+            scheduleStart(uuid, 300L);
             return;
         }
 
-        plugin.logDebug("Sending resource pack request to " + player.getName());
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            plugin.getResourcePackUtil().sendPack(player);
-        }, 300L);
+        plugin.logDebug("Sending resource pack request to " + name);
+        scheduleTask(uuid, plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            Player p = plugin.getServer().getPlayer(uuid);
+            if (p != null) plugin.getResourcePackUtil().sendPack(p);
+        }, 300L));
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -117,14 +119,10 @@ public class BgmManager implements Listener {
         switch (event.getStatus()) {
             case SUCCESSFULLY_LOADED -> {
                 plugin.logDebug(player.getName() + " successfully loaded the resource pack. Starting BGM.");
-                plugin.getServer().getScheduler().runTaskLater(plugin, () -> startLoop(player), 10L);
+                scheduleStart(player.getUniqueId(), 10L);
             }
-            case DECLINED -> {
-                plugin.logDebug(player.getName() + " declined the resource pack.");
-                cancelLoop(player.getUniqueId());
-            }
-            case FAILED_DOWNLOAD, DISCARDED -> {
-                plugin.logDebug(player.getName() + " failed to load or discarded the pack: " + event.getStatus());
+            case DECLINED, FAILED_DOWNLOAD, DISCARDED -> {
+                plugin.logDebug(player.getName() + " pack status: " + event.getStatus() + ". Stopping BGM.");
                 cancelLoop(player.getUniqueId());
             }
             default -> {}
@@ -135,12 +133,30 @@ public class BgmManager implements Listener {
     // BGM再生ループ管理
     // -------------------------------------------------------
 
+    /** 指定時間後にstartLoopを呼び出すタスクを登録する */
+    private void scheduleStart(UUID uuid, long delay) {
+        cancelLoop(uuid); // 既存のタスクがあれば確実に消す
+        BukkitTask task = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            Player p = plugin.getServer().getPlayer(uuid);
+            if (p != null && p.isOnline()) {
+                startLoop(p);
+            }
+        }, delay);
+        loopTasks.put(uuid, task);
+    }
+
+    /** 汎用的なタスク登録 */
+    private void scheduleTask(UUID uuid, BukkitTask task) {
+        cancelLoop(uuid);
+        loopTasks.put(uuid, task);
+    }
+
     /**
      * ランダムに1曲選んで再生し、その曲が終わったら次をランダム選択して繰り返す。
      */
     private void startLoop(Player player) {
-        plugin.logDebug("Starting BGM loop for " + player.getName());
-        cancelLoop(player.getUniqueId());
+        plugin.logDebug("Starting BGM loop logic for " + player.getName());
+        // ここでは cancelLoop は呼ばない（scheduleStartやplayNextで管理済みのため）
         if (soundList.isEmpty()) return;
         playNext(player);
     }
