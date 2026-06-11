@@ -23,30 +23,27 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      # ビルド番号を23番からスタートするための計算ステップ
-      - name: Calculate Build Number
-        id: build_num
-        run: |
-          OFFSET=0
-          NUMBER=$(( ${{ github.run_number }} + OFFSET ))
-          echo "num=$NUMBER" >> $GITHUB_OUTPUT
-
-      # 親pom経由で、各プラグイン固有の現行バージョンに「-b23」などのビルド番号を個別に付与
-      - name: Update Version
-        run: |
-          BUILD_NUM=${{ steps.build_num.outputs.num }}
-          mvn versions:set -DnewVersion='${project.version}-b'"$BUILD_NUM"
-
-      # 全モジュールを一括でクリーン＆パッケージング
-      - name: Build All Plugins
-        run: mvn clean package
-
-      # 各子モジュールのtargetから成果物（jar）を1箇所に集める（findで深く掘り下げてコピー）
-      - name: Collect Artifacts
+      - name: Find all pom.xml, Update Version, and Build
         run: |
           DIST_DIR="$GITHUB_WORKSPACE/dist"
           mkdir -p "$DIST_DIR"
-          find . -mindepth 2 -path "*/target/*.jar" ! -name "original-*.jar" -exec cp {} "$DIST_DIR/" \;
+          ROOT_DIR=$(pwd)
+          
+          # すべてのpom.xmlを探してループ処理
+          find . -name pom.xml | while read -r pom; do
+            pom_dir=$(dirname "$pom")
+            cd "$ROOT_DIR/$pom_dir"
+            
+            # 現行バージョンを取得してビルド番号を付与
+            CURRENT_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+            mvn versions:set -DnewVersion="${CURRENT_VERSION}-b${{ github.run_number }}"
+            
+            # ビルド実行
+            mvn clean package
+            
+            # 生成された完成版jar（original-等を除外）をdistフォルダにコピーして集める
+            find target -maxdepth 1 -name "*.jar" ! -name "original-*.jar" -exec cp {} "$DIST_DIR/" \;
+          done
 
       - name: Update Latest Release
         uses: softprops/action-gh-release@v2
@@ -56,7 +53,7 @@ jobs:
           name: "Development Build"
           body: |
             Automated development build.
-            Build Number: b${{ steps.build_num.outputs.num }}
+            Build Number: b${{ github.run_number }}
             Commit: ${{ github.sha }}
           prerelease: true
           files: "dist/*.jar"
