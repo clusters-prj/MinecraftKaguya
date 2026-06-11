@@ -2,6 +2,7 @@ package com.clustersprj.fjeconomy.command;
 
 import com.clustersprj.fjeconomy.FJEconomy;
 import com.clustersprj.fjeconomy.government.GovernmentManager;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -32,8 +33,9 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
     public boolean onCommand(org.bukkit.command.CommandSender sender, Command command,
                             String label, String[] args) {
         if (args.length == 0) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                             "§c/fjegovernment <subcommand>");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + 
+                    "<red>/fjegovernment <subcommand>"));
             return false;
         }
 
@@ -57,8 +59,9 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
             case "info":
                 return handleInfo(sender);
             default:
-                sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                                 "§c不明なコマンド: " + subcommand);
+                sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                        plugin.getConfigManager().getMessagePrefix() + 
+                        "<red>不明なコマンド: " + subcommand));
                 return false;
         }
     }
@@ -68,14 +71,15 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
      */
     private boolean handleBalance(org.bukkit.command.CommandSender sender) {
         if (!sender.hasPermission("fj.government")) {
-            sender.sendMessage("§cこのコマンドを実行する権限がありません");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドを実行する権限がありません"));
             return false;
         }
 
         long balance = governmentManager.getGovernmentBalance();
         String currencySymbol = plugin.getConfigManager().getCurrencySymbol();
-        sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                         "§b政府残高: §a" + currencySymbol + balance);
+        sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                plugin.getConfigManager().getMessagePrefix() + 
+                "<aqua>政府残高: <green>" + currencySymbol + balance));
         return true;
     }
 
@@ -84,13 +88,14 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
      */
     private boolean handleAdd(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.government")) {
-            sender.sendMessage("§cこのコマンドを実行する権限がありません");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドを実行する権限がありません"));
             return false;
         }
 
         if (args.length < 2) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                             "§c使用方法: /fjegovernment add <金額> [理由]");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + 
+                    "<red>使用方法: /fjegovernment add <金額> [理由]"));
             return false;
         }
 
@@ -98,13 +103,14 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
         try {
             amount = Long.parseLong(args[1]);
         } catch (NumberFormatException e) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c無効な金額です");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + "<red>無効な金額です"));
             return false;
         }
 
         if (amount <= 0) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                             "§c金額は正の数である必要があります");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + "<red>金額は正の数である必要があります"));
             return false;
         }
 
@@ -117,12 +123,13 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
         String reason = reasonBuilder.length() > 0 ? reasonBuilder.toString() : "Manual addition";
 
         if (governmentManager.addGovernmentFunds(amount, reason)) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                             "§a政府資金に " + plugin.getConfigManager().getCurrencySymbol() + 
-                             amount + " を追加しました");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + 
+                    "<green>政府資金に " + plugin.getConfigManager().getCurrencySymbol() + 
+                    amount + " を追加しました"));
             return true;
         } else {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c追加に失敗しました");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>追加に失敗しました"));
             return false;
         }
     }
@@ -132,13 +139,14 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
      */
     private boolean handleWithdraw(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.government")) {
-            sender.sendMessage("§cこのコマンドを実行する権限がありません");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドを実行する権限がありません"));
             return false;
         }
 
         if (args.length < 2) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                             "§c使用方法: /fjegovernment withdraw <金額> [理由]");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + 
+                    "<red>使用方法: /fjegovernment withdraw <金額> [理由]"));
             return false;
         }
 
@@ -146,13 +154,14 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
         try {
             amount = Long.parseLong(args[1]);
         } catch (NumberFormatException e) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c無効な金額です");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + "<red>無効な金額です"));
             return false;
         }
 
         if (amount <= 0) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                             "§c金額は正の数である必要があります");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + "<red>金額は正の数である必要があります"));
             return false;
         }
 
@@ -165,13 +174,14 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
         String reason = reasonBuilder.length() > 0 ? reasonBuilder.toString() : "Manual withdrawal";
 
         if (governmentManager.withdrawGovernmentFunds(amount, reason)) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                             "§a政府資金から " + plugin.getConfigManager().getCurrencySymbol() + 
-                             amount + " を引き出しました");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + 
+                    "<green>政府資金から " + plugin.getConfigManager().getCurrencySymbol() + 
+                    amount + " を引き出しました"));
             return true;
         } else {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                             "§c引き出しに失敗しました（残高不足など）");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + "<red>引き出しに失敗しました（残高不足など）"));
             return false;
         }
     }
@@ -182,13 +192,14 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
      */
     private boolean handleDistribute(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.government")) {
-            sender.sendMessage("§cこのコマンドを実行する権限がありません");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドを実行する権限がありません"));
             return false;
         }
 
         if (args.length < 3) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                             "§c使用方法: /fjegovernment distribute <プレイヤー> <金額> [理由]");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + 
+                    "<red>使用方法: /fjegovernment distribute <プレイヤー> <金額> [理由]"));
             return false;
         }
 
@@ -196,8 +207,9 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
         Player targetPlayer = Bukkit.getPlayer(playerName);
 
         if (targetPlayer == null) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                             "§cプレイヤーが見つかりません: " + playerName);
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + 
+                    "<red>プレイヤーが見つかりません: " + playerName));
             return false;
         }
 
@@ -205,13 +217,14 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
         try {
             amount = Long.parseLong(args[2]);
         } catch (NumberFormatException e) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c無効な金額です");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + "<red>無効な金額です"));
             return false;
         }
 
         if (amount <= 0) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                             "§c金額は正の数である必要があります");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + "<red>金額は正の数である必要があります"));
             return false;
         }
 
@@ -225,18 +238,20 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
 
         if (governmentManager.distributeGovernmentFunds(
                 targetPlayer.getUniqueId(), targetPlayer.getName(), amount, reason)) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                             "§a" + playerName + " に " + 
-                             plugin.getConfigManager().getCurrencySymbol() + amount + 
-                             " を配分しました");
-            targetPlayer.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                                   "§a政府から " + 
-                                   plugin.getConfigManager().getCurrencySymbol() + amount + 
-                                   " を受け取りました（" + reason + "）");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + 
+                    "<green>" + playerName + " に " + 
+                    plugin.getConfigManager().getCurrencySymbol() + amount + 
+                    " を配分しました"));
+            targetPlayer.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + 
+                    "<green>政府から " + 
+                    plugin.getConfigManager().getCurrencySymbol() + amount + 
+                    " を受け取りました（" + reason + "）"));
             return true;
         } else {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                             "§c配分に失敗しました");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + "<red>配分に失敗しました"));
             return false;
         }
     }
@@ -246,7 +261,7 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
      */
     private boolean handleLedger(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.government")) {
-            sender.sendMessage("§cこのコマンドを実行する権限がありません");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドを実行する権限がありません"));
             return false;
         }
 
@@ -260,8 +275,8 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
             try {
                 limit = Integer.parseInt(args[2]);
             } catch (NumberFormatException e) {
-                sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                                 "§c無効な件数です");
+                sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                        plugin.getConfigManager().getMessagePrefix() + "<red>無効な件数です"));
                 return false;
             }
         }
@@ -269,21 +284,23 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
         List<GovernmentManager.LedgerEntry> entries;
         if (type != null && !type.isEmpty()) {
             entries = governmentManager.getLedgerByType(type, limit);
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                             "§b政府台帳（タイプ: " + type + "）");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + 
+                    "<aqua>政府台帳（タイプ: " + type + "）"));
         } else {
             entries = governmentManager.getLedgerHistory(limit);
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                             "§b政府台帳（最新 " + limit + " 件）");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + 
+                    "<aqua>政府台帳（最新 " + limit + " 件）"));
         }
 
         if (entries.isEmpty()) {
-            sender.sendMessage("§7記録がありません");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize("<gray>記録がありません"));
             return true;
         }
 
         for (GovernmentManager.LedgerEntry entry : entries) {
-            sender.sendMessage("§7" + entry.toString());
+            sender.sendMessage(MiniMessage.miniMessage().deserialize("<gray>" + entry.toString()));
         }
 
         return true;
@@ -294,7 +311,7 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
      */
     private boolean handleTax(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.government")) {
-            sender.sendMessage("§cこのコマンドを実行する権限がありません");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドを実行する権限がありません"));
             return false;
         }
 
@@ -302,9 +319,10 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
         long hourTax = governmentManager.getTaxIncome(60);
 
         String currencySymbol = plugin.getConfigManager().getCurrencySymbol();
-        sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§b税金統計");
-        sender.sendMessage("§7本日の税収: §a" + currencySymbol + todayTax);
-        sender.sendMessage("§7直近1時間: §a" + currencySymbol + hourTax);
+        sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                plugin.getConfigManager().getMessagePrefix() + "<aqua>税金統計"));
+        sender.sendMessage(MiniMessage.miniMessage().deserialize("<gray>本日の税収: <green>" + currencySymbol + todayTax));
+        sender.sendMessage(MiniMessage.miniMessage().deserialize("<gray>直近1時間: <green>" + currencySymbol + hourTax));
 
         return true;
     }
@@ -314,13 +332,14 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
      */
     private boolean handleSet(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.government.set")) {
-            sender.sendMessage("§cこのコマンドを実行する権限がありません");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドを実行する権限がありません"));
             return false;
         }
 
         if (args.length < 2) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                             "§c使用方法: /fjegovernment set <金額>");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + 
+                    "<red>使用方法: /fjegovernment set <金額>"));
             return false;
         }
 
@@ -328,17 +347,19 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
         try {
             amount = Long.parseLong(args[1]);
         } catch (NumberFormatException e) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c無効な金額です");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + "<red>無効な金額です"));
             return false;
         }
 
         if (governmentManager.setGovernmentBalance(amount)) {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                             "§a政府残高を " + plugin.getConfigManager().getCurrencySymbol() + 
-                             amount + " に設定しました");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + 
+                    "<green>政府残高を " + plugin.getConfigManager().getCurrencySymbol() + 
+                    amount + " に設定しました"));
             return true;
         } else {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c設定に失敗しました");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>設定に失敗しました"));
             return false;
         }
     }
@@ -348,17 +369,18 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
      */
     private boolean handleInfo(org.bukkit.command.CommandSender sender) {
         if (!sender.hasPermission("fj.government")) {
-            sender.sendMessage("§cこのコマンドを実行する権限がありません");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドを実行する権限がありません"));
             return false;
         }
 
         long balance = governmentManager.getGovernmentBalance();
         String currencySymbol = plugin.getConfigManager().getCurrencySymbol();
 
-        sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§b政府アカウント情報");
-        sender.sendMessage("§7名前: §a" + governmentManager.getGovernmentName());
-        sender.sendMessage("§7UUID: §a" + governmentManager.getGovernmentUUID());
-        sender.sendMessage("§7残高: §a" + currencySymbol + balance);
+        sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                plugin.getConfigManager().getMessagePrefix() + "<aqua>政府アカウント情報"));
+        sender.sendMessage(MiniMessage.miniMessage().deserialize("<gray>名前: <green>" + governmentManager.getGovernmentName()));
+        sender.sendMessage(MiniMessage.miniMessage().deserialize("<gray>UUID: <green>" + governmentManager.getGovernmentUUID()));
+        sender.sendMessage(MiniMessage.miniMessage().deserialize("<gray>残高: <green>" + currencySymbol + balance));
 
         return true;
     }
