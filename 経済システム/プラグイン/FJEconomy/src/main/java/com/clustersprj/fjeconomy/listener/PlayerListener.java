@@ -2,7 +2,7 @@ package com.clustersprj.fjeconomy.listener;
 
 import com.clustersprj.fjeconomy.FJEconomy;
 import com.clustersprj.fjeconomy.economy.EconomyManager;
-import com.clustersprj.fjeconomy.loginbonus.LoginBonusManager;
+import com.clustersprj.fjeconomy.LoginBonusManager;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;

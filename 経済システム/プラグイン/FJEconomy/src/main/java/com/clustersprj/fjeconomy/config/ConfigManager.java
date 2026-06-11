@@ -260,6 +260,19 @@ public class ConfigManager {
         return getBoolean("web_api.enabled", true);
     }
 
+    // Login bonus config getters
+    public boolean isLoginBonusEnabled() {
+        return getBoolean("login_bonus.enabled", false);
+    }
+
+    public long getLoginBonusAmount() {
+        return getLong("login_bonus.amount", 100);
+    }
+
+    public int getLoginBonusCooldownHours() {
+        return getInt("login_bonus.cooldown_hours", 24);
+    }
+
     public String getWebAPIBaseUrl() {
         return getString("web_api.base_url", "https://clusters-prj.com/api/economy");
     }

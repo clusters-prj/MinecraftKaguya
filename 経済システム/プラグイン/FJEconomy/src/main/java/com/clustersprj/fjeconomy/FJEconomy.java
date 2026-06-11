@@ -7,7 +7,6 @@ import com.clustersprj.fjeconomy.economy.EconomyManager;
 import com.clustersprj.fjeconomy.database.DatabaseManager;
 import com.clustersprj.fjeconomy.government.GovernmentManager;
 import com.clustersprj.fjeconomy.listener.PlayerListener;
-import com.clustersprj.fjeconomy.loginbonus;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 

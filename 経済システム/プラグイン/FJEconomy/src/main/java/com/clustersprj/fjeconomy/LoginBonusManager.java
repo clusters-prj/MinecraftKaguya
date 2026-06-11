@@ -1,6 +1,5 @@
-package com.clustersprj.fjeconomy.loginbonus;
+package com.clustersprj.fjeconomy;
 
-import com.clustersprj.fjeconomy.FJEconomy;
 import com.clustersprj.fjeconomy.config.ConfigManager;
 import com.clustersprj.fjeconomy.database.DatabaseManager;
 import com.clustersprj.fjeconomy.economy.EconomyManager;
