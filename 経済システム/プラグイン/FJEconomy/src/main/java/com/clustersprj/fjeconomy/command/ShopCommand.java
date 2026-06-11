@@ -215,10 +215,11 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         }
 
         sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<aqua>店舗情報:"));
-        sender.sendMessage("  NPC UUID: " + shop.getNpcUuid());
-        sender.sendMessage("  アイテム: " + shop.getItemMaterial());
-        sender.sendMessage("  価格: " + plugin.getConfigManager().getCurrencySymbol() + shop.getPrice());
-        sender.sendMessage("  在庫: " + shop.getStock() + "個");
+        sender.sendMessage(MiniMessage.miniMessage().deserialize("<gray>  NPC UUID: <white>" + shop.getNpcUuid()));
+        sender.sendMessage(MiniMessage.miniMessage().deserialize("<gray>  アイテム: <white>" + shop.getItemMaterial()));
+        sender.sendMessage(MiniMessage.miniMessage().deserialize("<gray>  価格: <white>" + 
+                plugin.getConfigManager().getCurrencySymbol() + shop.getPrice()));
+        sender.sendMessage(MiniMessage.miniMessage().deserialize("<gray>  在庫: <white>" + shop.getStock() + "個"));
 
         return true;
     }
@@ -264,7 +265,8 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
                     "<green>価格を " + plugin.getConfigManager().getCurrencySymbol() + price + " に設定しました"));
             return true;
         } else {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c価格設定に失敗しました");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + "<red>価格設定に失敗しました"));
             return false;
         }
     }
@@ -310,7 +312,8 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
                     "<green>在庫を " + stock + "個に設定しました"));
             return true;
         } else {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c在庫設定に失敗しました");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + "<red>在庫設定に失敗しました"));
             return false;
         }
     }
@@ -356,7 +359,8 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
                     "<green>在庫に " + quantity + "個追加しました"));
             return true;
         } else {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c在庫追加に失敗しました");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + "<red>在庫追加に失敗しました"));
             return false;
         }
     }
@@ -402,7 +406,8 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
                     "<green>在庫から " + quantity + "個削除しました"));
             return true;
         } else {
-            sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c在庫削除に失敗しました");
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfigManager().getMessagePrefix() + "<red>在庫削除に失敗しました"));
             return false;
         }
     }
