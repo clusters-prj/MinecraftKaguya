@@ -98,3 +98,9 @@ messages:
   invalid_amount: "&c無効な金額です"
   reload_success: "&aFJ Economy をリロードしました"
   reload_failed: "&cリロードに失敗しました: {error}"
+
+# ログインボーナス設定
+login_bonus:
+  enabled: true
+  amount: 500
+  cooldown_hours: 24

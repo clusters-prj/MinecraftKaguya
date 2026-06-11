@@ -4,6 +4,7 @@ import com.clustersprj.fjeconomy.config.ConfigManager;
 import com.clustersprj.fjeconomy.database.DatabaseManager;
 import com.clustersprj.fjeconomy.economy.EconomyManager;
 import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -18,15 +19,9 @@ import java.util.logging.Level;
 public class LoginBonusManager {
 
     private final FJEconomy plugin;
-    private final DatabaseManager dbManager;
-    private final ConfigManager configManager;
-    private final EconomyManager economyManager;
 
     public LoginBonusManager(FJEconomy plugin) {
         this.plugin = plugin;
-        this.dbManager = plugin.getDatabaseManager();
-        this.configManager = plugin.getConfigManager();
-        this.economyManager = plugin.getEconomyManager();
     }
 
     /**
@@ -37,7 +32,12 @@ public class LoginBonusManager {
      * @param playerName The name of the joining player.
      */
     public void checkAndGrantLoginBonus(UUID playerUUID, String playerName) {
+        ConfigManager configManager = plugin.getConfigManager();
+        DatabaseManager dbManager = plugin.getDatabaseManager();
+        EconomyManager economyManager = plugin.getEconomyManager();
+
         if (!configManager.isLoginBonusEnabled()) {
+            plugin.getLogger().info("ログインボーナスは現在無効に設定されています (config.yml)");
             return; // ログインボーナスが無効な場合は何もしない
         }
 
@@ -73,8 +73,17 @@ public class LoginBonusManager {
                         stmt.setTimestamp(3, Timestamp.valueOf(now));
                         stmt.executeUpdate();
                     }
-                    Bukkit.getPlayer(playerUUID).sendMessage("§aログインボーナスとして " + economyManager.formatMoney(configManager.getLoginBonusAmount()) + " を受け取りました！");
+
+                    // メッセージ送信はメインスレッドで実行
+                    plugin.getServer().getScheduler().runTask(plugin, () -> {
+                        Player player = Bukkit.getPlayer(playerUUID);
+                        if (player != null && player.isOnline()) {
+                            player.sendMessage("§aログインボーナスとして " + economyManager.formatMoney(configManager.getLoginBonusAmount()) + " を受け取りました！");
+                        }
+                    });
                     plugin.getLogger().info("プレイヤー " + playerName + " にログインボーナス " + configManager.getLoginBonusAmount() + " を付与しました。");
+                } else {
+                    plugin.getLogger().info("プレイヤー " + playerName + " は既にボーナス取得済みです。次回取得可能: " + nextClaimTime);
                 }
             } catch (SQLException e) {
                 plugin.getLogger().log(Level.SEVERE, "ログインボーナス処理中にエラーが発生しました: " + playerName, e);
