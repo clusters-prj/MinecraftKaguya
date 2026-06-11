@@ -131,6 +131,15 @@ public class DatabaseManager {
                     "  INDEX idx_type (type)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+            // fje_login_bonuses
+            executeUpdate(conn,
+                    "CREATE TABLE IF NOT EXISTS fje_login_bonuses (" +
+                    "  uuid UUID PRIMARY KEY," +
+                    "  last_bonus_claim TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                    "  FOREIGN KEY (uuid) REFERENCES fje_balances(uuid) ON DELETE CASCADE" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+
             plugin.getLogger().info("✓ テーブルを確認/作成しました");
 
         } catch (SQLException e) {

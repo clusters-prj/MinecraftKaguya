@@ -3,6 +3,7 @@ package com.clustersprj.fjeconomy;
 import com.clustersprj.fjeconomy.command.CommandManager;
 import com.clustersprj.fjeconomy.command.GovernmentCommand;
 import com.clustersprj.fjeconomy.config.ConfigManager;
+import com.clustersprj.fjeconomy.economy.EconomyManager;
 import com.clustersprj.fjeconomy.database.DatabaseManager;
 import com.clustersprj.fjeconomy.government.GovernmentManager;
 import com.clustersprj.fjeconomy.listener.PlayerListener;
@@ -16,8 +17,10 @@ public class FJEconomy extends JavaPlugin {
     private static FJEconomy instance;
     private ConfigManager configManager;
     private DatabaseManager databaseManager;
+    private EconomyManager economyManager; // 追加
     private CommandManager commandManager;
     private GovernmentManager governmentManager;
+    private LoginBonusManager loginBonusManager; // 追加
 
     @Override
     public void onEnable() {
@@ -42,6 +45,10 @@ public class FJEconomy extends JavaPlugin {
             databaseManager.createTables();
             getLogger().info("✓ テーブルを作成/確認しました");
 
+            // EconomyManager initialization
+            this.economyManager = new EconomyManager(this); // 追加
+            getLogger().info("✓ 経済システムを初期化しました");
+
             // Command registration
             this.commandManager = new CommandManager(this);
             commandManager.registerCommands();
@@ -58,8 +65,12 @@ public class FJEconomy extends JavaPlugin {
             getCommand("fjegovernment").setTabCompleter(govCommand);
             getLogger().info("✓ 政府コマンドを登録しました");
 
+            // LoginBonusManager initialization
+            this.loginBonusManager = new LoginBonusManager(this); // 追加
+            getLogger().info("✓ ログインボーナスシステムを初期化しました");
+
             // Event listener registration
-            getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
+            getServer().getPluginManager().registerEvents(new PlayerListener(this), this); // PlayerListenerのコンストラクタ変更に対応
             getLogger().info("✓ イベントリスナーを登録しました");
 
             getLogger().info("===================================");
@@ -100,12 +111,20 @@ public class FJEconomy extends JavaPlugin {
         return databaseManager;
     }
 
+    public EconomyManager getEconomyManager() { // 追加
+        return economyManager;
+    }
+
     public CommandManager getCommandManager() {
         return commandManager;
     }
 
     public GovernmentManager getGovernmentManager() {
         return governmentManager;
+    }
+    
+    public LoginBonusManager getLoginBonusManager() { // 追加
+        return loginBonusManager;
     }
 
     /**

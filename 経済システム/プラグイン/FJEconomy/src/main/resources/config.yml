@@ -74,7 +74,7 @@ logging:
 
 # Messages
 messages:
-  prefix: "&7[&bFJ Economy&7] &r"
+  prefix: "<gray>[<aqua>ふじゅ～ペイシステム<gray>] "
   
   # Command messages
   balance_format: "{player} の残高: {symbol}{balance}"
