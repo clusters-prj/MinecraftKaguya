@@ -324,6 +324,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
                                      String alias, String[] args) {
         List<String> completions = new ArrayList<>();
 
+        // 1つ目の引数の補完
         if (args.length == 1) {
             if (command.getName().equalsIgnoreCase("fj")) {
                 completions.add("balance");
@@ -336,9 +337,14 @@ public class CommandManager implements CommandExecutor, TabCompleter {
                     completions.add("set");
                     completions.add("reload");
                 }
-            } else if (args.length == 2 && 
-                      ("pay".equalsIgnoreCase(args[0]) || "give".equalsIgnoreCase(args[0]) || 
-                       "take".equalsIgnoreCase(args[0]) || "set".equalsIgnoreCase(args[0]))) {
+            }
+        } 
+        // 2つ目の引数（プレイヤー名など）の補完（ifの外に出す）
+        else if (args.length == 2) {
+            String subCommand = args[0].toLowerCase();
+            if ("pay".equalsIgnoreCase(subCommand) || "give".equalsIgnoreCase(subCommand) || 
+                "take".equalsIgnoreCase(subCommand) || "set".equalsIgnoreCase(subCommand)) {
+                
                 // オンラインプレイヤー優先
                 for (Player player : Bukkit.getOnlinePlayers()) {
                     completions.add(player.getName());
