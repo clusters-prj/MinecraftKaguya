@@ -36,6 +36,21 @@ public class EconomyManager {
         }
         return null;
     }
+    
+    // EconomyManager に追加
+    public List<String> getAllPlayerNames() {
+        List<String> names = new ArrayList<>();
+        try (Connection conn = dbManager.getConnection();
+             Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("SELECT DISTINCT player_name FROM fje_balances ORDER BY player_name");
+            while (rs.next()) {
+                names.add(rs.getString("player_name"));
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Get player names error", e);
+        }
+        return names;
+    }
 
     /**
      * Get player's balance (既存のコネクションを使用)

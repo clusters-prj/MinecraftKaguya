@@ -336,14 +336,20 @@ public class CommandManager implements CommandExecutor, TabCompleter {
                     completions.add("set");
                     completions.add("reload");
                 }
+            } else if (args.length == 2 && 
+                      ("pay".equalsIgnoreCase(args[0]) || "give".equalsIgnoreCase(args[0]) || 
+                       "take".equalsIgnoreCase(args[0]) || "set".equalsIgnoreCase(args[0]))) {
+                // オンラインプレイヤー優先
+                for (Player player : Bukkit.getOnlinePlayers()) {
+                    completions.add(player.getName());
+                }
+                // オフラインプレイヤーを追加
+                for (String name : economyManager.getAllPlayerNames()) {
+                    if (!completions.contains(name)) {
+                        completions.add(name);
+                    }
+                }
             }
-        } else if (args.length == 2 && 
-                  ("pay".equalsIgnoreCase(args[0]) || "give".equalsIgnoreCase(args[0]) || 
-                   "take".equalsIgnoreCase(args[0]) || "set".equalsIgnoreCase(args[0]))) {
-            for (Player player : Bukkit.getOnlinePlayers()) {
-                completions.add(player.getName());
-            }
-        }
 
         return completions;
     }
