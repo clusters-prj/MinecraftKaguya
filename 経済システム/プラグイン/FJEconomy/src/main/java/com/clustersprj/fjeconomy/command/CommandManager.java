@@ -350,7 +350,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
                     }
                 }
             }
-
+        }
         return completions;
     }
 }
