@@ -85,6 +85,7 @@ public class EconomyManager {
 
     /**
      * トランザクション内でプレイヤーのアカウント存在を保証する内部メソッド
+     * （Connectionを受け取る）
      */
     private void ensurePlayerAccount(Connection conn, UUID playerUUID, String playerName) throws SQLException {
         try (PreparedStatement stmt = conn.prepareStatement(

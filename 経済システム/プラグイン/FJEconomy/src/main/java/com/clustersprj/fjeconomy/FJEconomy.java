@@ -1,8 +1,10 @@
 package com.clustersprj.fjeconomy;
 
 import com.clustersprj.fjeconomy.command.CommandManager;
+import com.clustersprj.fjeconomy.command.GovernmentCommand;
 import com.clustersprj.fjeconomy.config.ConfigManager;
 import com.clustersprj.fjeconomy.database.DatabaseManager;
+import com.clustersprj.fjeconomy.government.GovernmentManager;
 import com.clustersprj.fjeconomy.listener.PlayerListener;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -15,6 +17,7 @@ public class FJEconomy extends JavaPlugin {
     private ConfigManager configManager;
     private DatabaseManager databaseManager;
     private CommandManager commandManager;
+    private GovernmentManager governmentManager;
 
     @Override
     public void onEnable() {
@@ -43,6 +46,17 @@ public class FJEconomy extends JavaPlugin {
             this.commandManager = new CommandManager(this);
             commandManager.registerCommands();
             getLogger().info("✓ コマンドを登録しました");
+
+            // Government system initialization
+            this.governmentManager = new GovernmentManager(this);
+            governmentManager.initialize();
+            getLogger().info("✓ 政府システムを初期化しました");
+
+            // Government command registration
+            GovernmentCommand govCommand = new GovernmentCommand(this, governmentManager);
+            getCommand("fjegovernment").setExecutor(govCommand);
+            getCommand("fjegovernment").setTabCompleter(govCommand);
+            getLogger().info("✓ 政府コマンドを登録しました");
 
             // Event listener registration
             getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
@@ -88,6 +102,10 @@ public class FJEconomy extends JavaPlugin {
 
     public CommandManager getCommandManager() {
         return commandManager;
+    }
+
+    public GovernmentManager getGovernmentManager() {
+        return governmentManager;
     }
 
     /**

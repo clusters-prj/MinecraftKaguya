@@ -1,5 +1,5 @@
 name: FJEconomy
-version: 1.0.7
+version: 1.0.8
 description: Integrated economy system for Paper servers with database sync
 author: Clusters-Prj
 website: https://clusters-prj.com
@@ -26,6 +26,12 @@ commands:
     description: Shop management commands
     usage: /shop <subcommand> [args]
     aliases: [s]
+
+  fjegovernment:
+    description: Government account management commands
+    usage: /fjegovernment <subcommand> [args]
+    aliases: [fjegov, gov]
+    permission: fj.government
 
 permissions:
   fj.use:
@@ -55,3 +61,13 @@ permissions:
   fj.shop.manage:
     description: Manage shops (price, stock)
     default: true
+
+  fj.government:
+    description: Government account management
+    default: op
+    children:
+      fj.government.set: true
+
+  fj.government.set:
+    description: Set government balance directly (dangerous)
+    default: false
