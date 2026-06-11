@@ -132,7 +132,7 @@ public class EconomyManager {
         }
     }
 
-    /**
+        /**
      * Send money between players
      */
     public boolean sendMoney(UUID senderUUID, String senderName, 
@@ -162,6 +162,23 @@ public class EconomyManager {
                     return false;
                 }
 
+                // Record transaction (送金履歴を通帳に記録)
+                String serverId = configManager.getServerId();
+                try (PreparedStatement stmt = conn.prepareStatement(
+                        "INSERT INTO fje_transactions " +
+                        "(timestamp, server_id, buyer_uuid, owner_uuid, item_id, amount, price_total, tax_amount, net_profit) " +
+                        "VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?, ?)")) {
+                    stmt.setString(1, serverId);
+                    stmt.setString(2, senderUUID.toString());
+                    stmt.setString(3, receiverUUID.toString());
+                    stmt.setString(4, "PAY"); // アイテムIDの代わりに"PAY"として記録
+                    stmt.setInt(5, 1);         // 数量は1固定
+                    stmt.setLong(6, amount);    // 送金額（総額）
+                    stmt.setLong(7, 0);         // 税金は0
+                    stmt.setLong(8, amount);    // 税引き後も送金額と同値
+                    stmt.executeUpdate();
+                }
+
                 conn.commit();
                 return true;
 
@@ -178,6 +195,7 @@ public class EconomyManager {
             return false;
         }
     }
+
 
     /**
      * Execute a shop purchase
