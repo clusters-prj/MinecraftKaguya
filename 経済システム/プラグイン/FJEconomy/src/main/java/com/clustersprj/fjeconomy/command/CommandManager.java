@@ -160,9 +160,9 @@ public class CommandManager implements CommandExecutor, TabCompleter {
         }
 
         String targetName = args[1];
-        Player targetPlayer = Bukkit.getPlayer(targetName);
+        UUID targetUUID = economyManager.getPlayerUUIDByName(targetName);
 
-        if (targetPlayer == null) {
+        if (targetUUID == null) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
                              "§cプレイヤーが見つかりません");
             return false;
@@ -176,13 +176,20 @@ public class CommandManager implements CommandExecutor, TabCompleter {
             return false;
         }
 
-        economyManager.ensurePlayerAccount(targetPlayer.getUniqueId(), targetPlayer.getName());
-        boolean success = economyManager.giveMoney(
-                targetPlayer.getUniqueId(), targetPlayer.getName(), amount);
+        economyManager.ensurePlayerAccount(targetUUID, targetName);
+        boolean success = economyManager.giveMoney(targetUUID, targetName, amount);
 
         if (success) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
                              "§a" + targetName + " に " + economyManager.formatMoney(amount) + " を付与しました");
+            
+            // オンラインなら通知
+            Player targetPlayer = Bukkit.getPlayer(targetUUID);
+            if (targetPlayer != null) {
+                targetPlayer.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
+                                       "§a管理者から " + 
+                                       economyManager.formatMoney(amount) + " を付与されました");
+            }
         } else {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c付与に失敗しました");
         }
@@ -206,9 +213,9 @@ public class CommandManager implements CommandExecutor, TabCompleter {
         }
 
         String targetName = args[1];
-        Player targetPlayer = Bukkit.getPlayer(targetName);
+        UUID targetUUID = economyManager.getPlayerUUIDByName(targetName);
 
-        if (targetPlayer == null) {
+        if (targetUUID == null) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
                              "§cプレイヤーが見つかりません");
             return false;
@@ -222,13 +229,20 @@ public class CommandManager implements CommandExecutor, TabCompleter {
             return false;
         }
 
-        economyManager.ensurePlayerAccount(targetPlayer.getUniqueId(), targetPlayer.getName());
-        boolean success = economyManager.takeMoney(
-                targetPlayer.getUniqueId(), targetPlayer.getName(), amount);
+        economyManager.ensurePlayerAccount(targetUUID, targetName);
+        boolean success = economyManager.takeMoney(targetUUID, targetName, amount);
 
         if (success) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
                              "§a" + targetName + " から " + economyManager.formatMoney(amount) + " を没収しました");
+            
+            // オンラインなら通知
+            Player targetPlayer = Bukkit.getPlayer(targetUUID);
+            if (targetPlayer != null) {
+                targetPlayer.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
+                                       "§c管理者により " + 
+                                       economyManager.formatMoney(amount) + " を没収されました");
+            }
         } else {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c没収に失敗しました");
         }
@@ -252,9 +266,9 @@ public class CommandManager implements CommandExecutor, TabCompleter {
         }
 
         String targetName = args[1];
-        Player targetPlayer = Bukkit.getPlayer(targetName);
+        UUID targetUUID = economyManager.getPlayerUUIDByName(targetName);
 
-        if (targetPlayer == null) {
+        if (targetUUID == null) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
                              "§cプレイヤーが見つかりません");
             return false;
@@ -268,13 +282,20 @@ public class CommandManager implements CommandExecutor, TabCompleter {
             return false;
         }
 
-        economyManager.ensurePlayerAccount(targetPlayer.getUniqueId(), targetPlayer.getName());
-        boolean success = economyManager.setBalance(
-                targetPlayer.getUniqueId(), targetPlayer.getName(), amount);
+        economyManager.ensurePlayerAccount(targetUUID, targetName);
+        boolean success = economyManager.setBalance(targetUUID, targetName, amount);
 
         if (success) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
                              "§a" + targetName + " の残高を " + economyManager.formatMoney(amount) + " に設定しました");
+            
+            // オンラインなら通知
+            Player targetPlayer = Bukkit.getPlayer(targetUUID);
+            if (targetPlayer != null) {
+                targetPlayer.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
+                                       "§e管理者により残高を " + 
+                                       economyManager.formatMoney(amount) + " に設定されました");
+            }
         } else {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c設定に失敗しました");
         }
