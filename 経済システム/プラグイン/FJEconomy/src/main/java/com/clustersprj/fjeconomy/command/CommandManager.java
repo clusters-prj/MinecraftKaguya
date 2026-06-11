@@ -100,9 +100,10 @@ public class CommandManager implements CommandExecutor, TabCompleter {
 
         Player sender_player = (Player) sender;
         String targetName = args[1];
-        Player targetPlayer = Bukkit.getPlayer(targetName);
-
-        if (targetPlayer == null) {
+        
+        // DBからプレイヤーUUID取得
+        UUID targetUUID = economyManager.getPlayerUUIDByName(targetName);
+        if (targetUUID == null) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§cプレイヤーが見つかりません");
             return false;
         }
@@ -122,15 +123,20 @@ public class CommandManager implements CommandExecutor, TabCompleter {
 
         boolean success = economyManager.sendMoney(
                 sender_player.getUniqueId(), sender_player.getName(),
-                targetPlayer.getUniqueId(), targetPlayer.getName(),
+                targetUUID, targetName,
                 amount);
 
         if (success) {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
                              "§a" + targetName + " に " + economyManager.formatMoney(amount) + " を送金しました");
-            targetPlayer.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
-                                   "§a" + sender_player.getName() + " から " + 
-                                   economyManager.formatMoney(amount) + " を受け取りました");
+            
+            // オンラインなら通知
+            Player targetPlayer = Bukkit.getPlayer(targetUUID);
+            if (targetPlayer != null) {
+                targetPlayer.sendMessage(plugin.getConfigManager().getMessagePrefix() + 
+                                       "§a" + sender_player.getName() + " から " + 
+                                       economyManager.formatMoney(amount) + " を受け取りました");
+            }
         } else {
             sender.sendMessage(plugin.getConfigManager().getMessagePrefix() + "§c送金に失敗しました");
         }

@@ -21,6 +21,21 @@ public class EconomyManager {
         this.dbManager = plugin.getDatabaseManager();
         this.configManager = plugin.getConfigManager();
     }
+    // EconomyManager に追加
+    public UUID getPlayerUUIDByName(String playerName) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                     "SELECT uuid FROM fje_balances WHERE player_name = ?")) {
+            stmt.setString(1, playerName);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return UUID.fromString(rs.getString("uuid"));
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "UUID query error", e);
+        }
+        return null;
+    }
 
     /**
      * Get player's balance (既存のコネクションを使用)
