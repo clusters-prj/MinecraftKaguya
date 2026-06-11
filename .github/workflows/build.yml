@@ -27,8 +27,7 @@ jobs:
       - name: Calculate Build Number
         id: build_num
         run: |
-          # 23番から始めたい場合、現在のrun_number（1と仮定）に22を足す
-          OFFSET=22
+          OFFSET=0
           NUMBER=$(( ${{ github.run_number }} + OFFSET ))
           echo "num=$NUMBER" >> $GITHUB_OUTPUT
 
