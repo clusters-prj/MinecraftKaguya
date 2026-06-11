@@ -87,7 +87,7 @@ public class EconomyManager {
      * トランザクション内でプレイヤーのアカウント存在を保証する内部メソッド
      * （Connectionを受け取る）
      */
-    private void ensurePlayerAccount(Connection conn, UUID playerUUID, String playerName) throws SQLException {
+    public void ensurePlayerAccount(Connection conn, UUID playerUUID, String playerName) throws SQLException {
         try (PreparedStatement stmt = conn.prepareStatement(
                  "INSERT INTO fje_balances (uuid, player_name, balance) VALUES (?, ?, ?) " +
                  "ON DUPLICATE KEY UPDATE player_name = ?, last_update = CURRENT_TIMESTAMP")) {
