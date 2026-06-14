@@ -75,7 +75,8 @@ public class CommandManager implements CommandExecutor, TabCompleter {
     private boolean handleBalance(org.bukkit.command.CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドはプレイヤーのみ実行できます"));
-            return false;
+            return true;
+            return true;
         }
 
         Player player = (Player) sender;
@@ -110,7 +111,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
         if (targetUUID == null) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + "<red>プレイヤーが見つかりません"));
-            return false;
+            return true;
         }
 
         long amount;
@@ -119,13 +120,13 @@ public class CommandManager implements CommandExecutor, TabCompleter {
         } catch (NumberFormatException e) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + "<red>無効な金額です"));
-            return false;
+            return true;
         }
 
         if (amount <= 0) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + "<red>金額は正の数である必要があります"));
-            return false;
+            return true;
         }
 
         boolean success = economyManager.sendMoney(
@@ -160,7 +161,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
     private boolean handleGive(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.admin")) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドを実行する権限がありません"));
-            return false;
+            return true;
         }
 
         if (args.length < 3) {
@@ -176,7 +177,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
         if (targetUUID == null) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + "<red>プレイヤーが見つかりません"));
-            return false;
+            return true;
         }
 
         long amount;
@@ -185,7 +186,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
         } catch (NumberFormatException e) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + "<red>無効な金額です"));
-            return false;
+            return true;
         }
 
         economyManager.ensurePlayerAccount(targetUUID, targetName);
@@ -217,7 +218,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
     private boolean handleTake(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.admin")) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドを実行する権限がありません"));
-            return false;
+            return true;
         }
 
         if (args.length < 3) {
@@ -233,7 +234,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
         if (targetUUID == null) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + "<red>プレイヤーが見つかりません"));
-            return false;
+            return true;
         }
 
         long amount;
@@ -242,7 +243,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
         } catch (NumberFormatException e) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + "<red>無効な金額です"));
-            return false;
+            return true;
         }
 
         economyManager.ensurePlayerAccount(targetUUID, targetName);
@@ -274,7 +275,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
     private boolean handleSet(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.admin")) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドを実行する権限がありません"));
-            return false;
+            return true;
         }
 
         if (args.length < 3) {
@@ -290,7 +291,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
         if (targetUUID == null) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + "<red>プレイヤーが見つかりません"));
-            return false;
+            return true;
         }
 
         long amount;
@@ -299,7 +300,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
         } catch (NumberFormatException e) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + "<red>無効な金額です"));
-            return false;
+            return true;
         }
 
         economyManager.ensurePlayerAccount(targetUUID, targetName);
@@ -331,7 +332,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
     private boolean handleReload(org.bukkit.command.CommandSender sender) {
         if (!sender.hasPermission("fj.reload")) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドを実行する権限がありません"));
-            return false;
+            return true;
         }
 
         try {
@@ -343,7 +344,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + 
                     "<red>リロードに失敗しました: " + e.getMessage()));
-            return false;
+            return true;
         }
     }
 

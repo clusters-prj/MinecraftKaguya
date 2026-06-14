@@ -62,7 +62,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     private boolean handleCreate(org.bukkit.command.CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドはプレイヤーのみ実行できます"));
-            return false;
+            return true;
         }
 
         if (args.length < 4) {
@@ -84,13 +84,13 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
                    plugin.getConfigManager().getDefaultStock();
         } catch (IllegalArgumentException e) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>無効な数値、または無効なUUIDです"));
-            return false;
+            return true;
         }
 
         if (price < 0 || stock < 0) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() +
                     "<red>価格と在庫は0以上である必要があります"));
-            return false;
+            return true;
         }
 
         String serverId = plugin.getConfigManager().getServerId();
@@ -102,7 +102,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             return true;
         } else {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>店舗作成に失敗しました"));
-            return false;
+            return true;
         }
     }
 
@@ -112,7 +112,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     private boolean handleDelete(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.shop.delete")) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドを実行する権限がありません"));
-            return false;
+            return true;
         }
 
         if (args.length < 2) {
@@ -126,7 +126,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             npcUuid = UUID.fromString(args[1]);
         } catch (IllegalArgumentException e) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>無効なNPC UUIDです"));
-            return false;
+            return true;
         }
 
         String serverId = plugin.getConfigManager().getServerId();
@@ -138,7 +138,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         } else {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() +
                     "<red>該当する店舗が見つかりません"));
-            return false;
+            return true;
         }
     }
 
@@ -152,7 +152,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         if (args.length < 2) {
             if (!(sender instanceof Player)) {
                 sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>プレイヤー名を指定してください"));
-                return false;
+                return true;
             }
             Player player = (Player) sender;
             targetUUID = player.getUniqueId();
@@ -162,7 +162,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             if (targetPlayer == null) {
                 sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() +
                         "<red>プレイヤーが見つかりません"));
-                return false;
+                return true;
             }
             targetUUID = targetPlayer.getUniqueId();
             targetName = targetPlayer.getName();
@@ -202,7 +202,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             npcUuid = UUID.fromString(args[1]);
         } catch (IllegalArgumentException e) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>無効なNPC UUIDです"));
-            return false;
+            return true;
         }
 
         String serverId = plugin.getConfigManager().getServerId();
@@ -211,7 +211,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         if (shop == null) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() +
                     "<red>該当する店舗が見つかりません"));
-            return false;
+            return true;
         }
 
         sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<aqua>店舗情報:"));
@@ -230,7 +230,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     private boolean handleSetPrice(org.bukkit.command.CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドはプレイヤーのみ実行できます"));
-            return false;
+            return true;
         }
 
         if (args.length < 3) {
@@ -248,7 +248,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             price = Integer.parseInt(args[2]);
         } catch (IllegalArgumentException e) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>無効な数値、または無効なUUIDです"));
-            return false;
+            return true;
         }
 
         String serverId = plugin.getConfigManager().getServerId();
@@ -257,7 +257,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         if (shop == null || !shop.getOwnerUUID().equals(player.getUniqueId())) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() +
                     "<red>この店舗を管理する権限がありません"));
-            return false;
+            return true;
         }
 
         if (shopManager.updateShopPrice(npcUuid, serverId, price)) {
@@ -267,7 +267,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         } else {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + "<red>価格設定に失敗しました"));
-            return false;
+            return true;
         }
     }
 
@@ -277,7 +277,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     private boolean handleSetStock(org.bukkit.command.CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドはプレイヤーのみ実行できます"));
-            return false;
+            return true;
         }
 
         if (args.length < 3) {
@@ -295,7 +295,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             stock = Integer.parseInt(args[2]);
         } catch (IllegalArgumentException e) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>無効な数値、または無効なUUIDです"));
-            return false;
+            return true;
         }
 
         String serverId = plugin.getConfigManager().getServerId();
@@ -304,7 +304,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         if (shop == null || !shop.getOwnerUUID().equals(player.getUniqueId())) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() +
                     "<red>この店舗を管理する権限がありません"));
-            return false;
+            return true;
         }
 
         if (shopManager.updateShopStock(npcUuid, serverId, stock)) {
@@ -314,7 +314,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         } else {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + "<red>在庫設定に失敗しました"));
-            return false;
+            return true;
         }
     }
 
@@ -324,7 +324,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     private boolean handleAddStock(org.bukkit.command.CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドはプレイヤーのみ実行できます"));
-            return false;
+            return true;
         }
 
         if (args.length < 3) {
@@ -342,7 +342,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             quantity = Integer.parseInt(args[2]);
         } catch (IllegalArgumentException e) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>無効な数値、または無効なUUIDです"));
-            return false;
+            return true;
         }
 
         String serverId = plugin.getConfigManager().getServerId();
@@ -351,7 +351,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         if (shop == null || !shop.getOwnerUUID().equals(player.getUniqueId())) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() +
                     "<red>この店舗を管理する権限がありません"));
-            return false;
+            return true;
         }
 
         if (shopManager.addStock(npcUuid, serverId, quantity)) {
@@ -361,7 +361,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         } else {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + "<red>在庫追加に失敗しました"));
-            return false;
+            return true;
         }
     }
 
@@ -371,7 +371,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     private boolean handleRemoveStock(org.bukkit.command.CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドはプレイヤーのみ実行できます"));
-            return false;
+            return true;
         }
 
         if (args.length < 3) {
@@ -389,7 +389,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             quantity = Integer.parseInt(args[2]);
         } catch (IllegalArgumentException e) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>無効な数値、または無効なUUIDです"));
-            return false;
+            return true;
         }
 
         String serverId = plugin.getConfigManager().getServerId();
@@ -398,7 +398,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         if (shop == null || !shop.getOwnerUUID().equals(player.getUniqueId())) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() +
                     "<red>この店舗を管理する権限がありません"));
-            return false;
+            return true;
         }
 
         if (shopManager.removeStock(npcUuid, serverId, quantity)) {
@@ -408,7 +408,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         } else {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + "<red>在庫削除に失敗しました"));
-            return false;
+            return true;
         }
     }
 
