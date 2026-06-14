@@ -39,7 +39,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
         if (args.length == 0) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + "<red>/fj <subcommand>"));
-            return false;
+            return true;
         }
 
         String subcommand = args[0].toLowerCase();
@@ -66,7 +66,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
 
         sender.sendMessage(MiniMessage.miniMessage().deserialize(
                 plugin.getConfigManager().getMessagePrefix() + "<red>不明なコマンド: " + subcommand));
-        return false;
+        return true;
     }
 
     /**
@@ -92,14 +92,14 @@ public class CommandManager implements CommandExecutor, TabCompleter {
     private boolean handlePay(org.bukkit.command.CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドはプレイヤーのみ実行できます"));
-            return false;
+            return true;
         }
 
         if (args.length < 3) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + 
                     "<red>使用方法: /fj pay <プレイヤー名> <金額>"));
-            return false;
+            return true;
         }
 
         Player sender_player = (Player) sender;
@@ -167,7 +167,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + 
                     "<red>使用方法: /fjeadmin give <プレイヤー名> <金額>"));
-            return false;
+            return true;
         }
 
         String targetName = args[1];
@@ -224,7 +224,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + 
                     "<red>使用方法: /fjeadmin take <プレイヤー名> <金額>"));
-            return false;
+            return true;
         }
 
         String targetName = args[1];
@@ -281,7 +281,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + 
                     "<red>使用方法: /fjeadmin set <プレイヤー名> <金額>"));
-            return false;
+            return true;
         }
 
         String targetName = args[1];

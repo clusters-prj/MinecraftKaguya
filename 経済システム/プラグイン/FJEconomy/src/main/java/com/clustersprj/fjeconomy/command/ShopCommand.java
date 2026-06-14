@@ -23,15 +23,22 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         this.shopManager = shopManager;
     }
 
+    private void logDebug(String message) {
+        if (plugin.getConfig().getString("logging.level", "INFO").equalsIgnoreCase("DEBUG")) {
+            plugin.getLogger().info("[Shop-Debug] " + message);
+        }
+    }
+
     @Override
     public boolean onCommand(org.bukkit.command.CommandSender sender, Command command,
                             String label, String[] args) {
         if (args.length == 0) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>/shop <subcommand>"));
-            return false;
+            return true;
         }
 
         String subcommand = args[0].toLowerCase();
+        logDebug("Executing command: /" + label + " " + String.join(" ", args) + " (Sender: " + sender.getName() + ")");
 
         switch (subcommand) {
             case "create":
@@ -52,7 +59,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
                 return handleRemoveStock(sender, args);
             default:
                 sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>不明なコマンド: " + subcommand));
-                return false;
+                return true;
         }
     }
 
@@ -68,7 +75,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         if (args.length < 4) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() +
                     "<red>使用方法: /shop create <NPC UUID> <アイテム> <価格> [在庫]"));
-            return false;
+            return true;
         }
 
         Player player = (Player) sender;
@@ -82,7 +89,9 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             price = Integer.parseInt(args[3]);
             stock = args.length > 4 ? Integer.parseInt(args[4]) : 
                    plugin.getConfigManager().getDefaultStock();
+            logDebug("Parsed Create: NPC=" + npcUuid + ", Item=" + itemMaterial + ", Price=" + price + ", Stock=" + stock);
         } catch (IllegalArgumentException e) {
+            logDebug("Create failed: Invalid UUID or Number format");
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>無効な数値、または無効なUUIDです"));
             return true;
         }
@@ -95,6 +104,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
 
         String serverId = plugin.getConfigManager().getServerId();
 
+        logDebug("Calling ShopManager.createShop with ServerID=" + serverId + ", Owner=" + player.getUniqueId());
         if (shopManager.createShop(npcUuid, serverId, player.getUniqueId(), itemMaterial, price, stock)) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() +
                     "<green>店舗を作成しました (NPC UUID: " + npcUuid + ", アイテム: " + itemMaterial +
@@ -118,18 +128,20 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         if (args.length < 2) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() +
                     "<red>使用方法: /shop delete <NPC UUID>"));
-            return false;
+            return true;
         }
 
         UUID npcUuid;
         try {
             npcUuid = UUID.fromString(args[1]);
+            logDebug("Parsed Delete: NPC=" + npcUuid);
         } catch (IllegalArgumentException e) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>無効なNPC UUIDです"));
             return true;
         }
 
         String serverId = plugin.getConfigManager().getServerId();
+        logDebug("Deleting shop for ServerID=" + serverId);
 
         if (shopManager.deleteShop(npcUuid, serverId)) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() +
@@ -169,6 +181,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         }
 
         String serverId = plugin.getConfigManager().getServerId();
+        logDebug("Listing shops for Target=" + targetUUID + " (" + targetName + ") on Server=" + serverId);
         List<ShopManager.Shop> shops = shopManager.getShopsByOwner(targetUUID, serverId);
 
         if (shops.isEmpty()) {
@@ -194,18 +207,20 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         if (args.length < 2) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() +
                     "<red>使用方法: /shop info <NPC UUID>"));
-            return false;
+            return true;
         }
 
         UUID npcUuid;
         try {
             npcUuid = UUID.fromString(args[1]);
+            logDebug("Parsed Info: NPC=" + npcUuid);
         } catch (IllegalArgumentException e) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>無効なNPC UUIDです"));
             return true;
         }
 
         String serverId = plugin.getConfigManager().getServerId();
+        logDebug("Fetching shop data for ServerID=" + serverId);
         ShopManager.Shop shop = shopManager.getShop(npcUuid, serverId);
 
         if (shop == null) {
@@ -236,7 +251,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         if (args.length < 3) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() +
                     "<red>使用方法: /shop setprice <NPC UUID> <価格>"));
-            return false;
+            return true;
         }
 
         Player player = (Player) sender;
@@ -246,12 +261,14 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         try {
             npcUuid = UUID.fromString(args[1]);
             price = Integer.parseInt(args[2]);
+            logDebug("Parsed SetPrice: NPC=" + npcUuid + ", Price=" + price);
         } catch (IllegalArgumentException e) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>無効な数値、または無効なUUIDです"));
             return true;
         }
 
         String serverId = plugin.getConfigManager().getServerId();
+        logDebug("Updating price on ServerID=" + serverId);
         ShopManager.Shop shop = shopManager.getShop(npcUuid, serverId);
 
         if (shop == null || !shop.getOwnerUUID().equals(player.getUniqueId())) {
@@ -283,7 +300,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         if (args.length < 3) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() +
                     "<red>使用方法: /shop setstock <NPC UUID> <在庫>"));
-            return false;
+            return true;
         }
 
         Player player = (Player) sender;
@@ -293,12 +310,14 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         try {
             npcUuid = UUID.fromString(args[1]);
             stock = Integer.parseInt(args[2]);
+            logDebug("Parsed SetStock: NPC=" + npcUuid + ", Stock=" + stock);
         } catch (IllegalArgumentException e) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>無効な数値、または無効なUUIDです"));
             return true;
         }
 
         String serverId = plugin.getConfigManager().getServerId();
+        logDebug("Updating stock on ServerID=" + serverId);
         ShopManager.Shop shop = shopManager.getShop(npcUuid, serverId);
 
         if (shop == null || !shop.getOwnerUUID().equals(player.getUniqueId())) {
@@ -330,7 +349,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         if (args.length < 3) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() +
                     "<red>使用方法: /shop addstock <NPC UUID> <個数>"));
-            return false;
+            return true;
         }
 
         Player player = (Player) sender;
@@ -340,12 +359,14 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         try {
             npcUuid = UUID.fromString(args[1]);
             quantity = Integer.parseInt(args[2]);
+            logDebug("Parsed AddStock: NPC=" + npcUuid + ", Qty=" + quantity);
         } catch (IllegalArgumentException e) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>無効な数値、または無効なUUIDです"));
             return true;
         }
 
         String serverId = plugin.getConfigManager().getServerId();
+        logDebug("Adding stock on ServerID=" + serverId);
         ShopManager.Shop shop = shopManager.getShop(npcUuid, serverId);
 
         if (shop == null || !shop.getOwnerUUID().equals(player.getUniqueId())) {
@@ -377,7 +398,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         if (args.length < 3) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() +
                     "<red>使用方法: /shop removestock <NPC UUID> <個数>"));
-            return false;
+            return true;
         }
 
         Player player = (Player) sender;
@@ -387,12 +408,14 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         try {
             npcUuid = UUID.fromString(args[1]);
             quantity = Integer.parseInt(args[2]);
+            logDebug("Parsed RemoveStock: NPC=" + npcUuid + ", Qty=" + quantity);
         } catch (IllegalArgumentException e) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>無効な数値、または無効なUUIDです"));
             return true;
         }
 
         String serverId = plugin.getConfigManager().getServerId();
+        logDebug("Removing stock on ServerID=" + serverId);
         ShopManager.Shop shop = shopManager.getShop(npcUuid, serverId);
 
         if (shop == null || !shop.getOwnerUUID().equals(player.getUniqueId())) {

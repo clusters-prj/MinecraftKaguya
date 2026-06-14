@@ -36,7 +36,7 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + 
                     "<red>/fjegovernment <subcommand>"));
-            return false;
+            return true;
         }
 
         String subcommand = args[0].toLowerCase();
@@ -62,7 +62,7 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage(MiniMessage.miniMessage().deserialize(
                         plugin.getConfigManager().getMessagePrefix() + 
                         "<red>不明なコマンド: " + subcommand));
-                return false;
+                return true;
         }
     }
 
@@ -96,7 +96,7 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + 
                     "<red>使用方法: /fjegovernment add <金額> [理由]"));
-            return false;
+            return true;
         }
 
         long amount;
@@ -147,7 +147,7 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + 
                     "<red>使用方法: /fjegovernment withdraw <金額> [理由]"));
-            return false;
+            return true;
         }
 
         long amount;
@@ -200,7 +200,7 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + 
                     "<red>使用方法: /fjegovernment distribute <プレイヤー> <金額> [理由]"));
-            return false;
+            return true;
         }
 
         String playerName = args[1];
@@ -340,7 +340,7 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + 
                     "<red>使用方法: /fjegovernment set <金額>"));
-            return false;
+            return true;
         }
 
         long amount;
