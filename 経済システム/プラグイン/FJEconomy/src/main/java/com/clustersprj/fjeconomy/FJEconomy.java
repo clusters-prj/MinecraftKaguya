@@ -2,10 +2,12 @@ package com.clustersprj.fjeconomy;
 
 import com.clustersprj.fjeconomy.command.CommandManager;
 import com.clustersprj.fjeconomy.command.GovernmentCommand;
+import com.clustersprj.fjeconomy.command.ShopCommand;
 import com.clustersprj.fjeconomy.config.ConfigManager;
 import com.clustersprj.fjeconomy.economy.EconomyManager;
 import com.clustersprj.fjeconomy.database.DatabaseManager;
 import com.clustersprj.fjeconomy.government.GovernmentManager;
+import com.clustersprj.fjeconomy.shop.ShopManager;
 import com.clustersprj.fjeconomy.listener.PlayerListener;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -19,6 +21,7 @@ public class FJEconomy extends JavaPlugin {
     private DatabaseManager databaseManager;
     private EconomyManager economyManager; // 追加
     private CommandManager commandManager;
+    private ShopManager shopManager; // 追加
     private GovernmentManager governmentManager;
     private LoginBonusManager loginBonusManager; // 追加
 
@@ -53,6 +56,16 @@ public class FJEconomy extends JavaPlugin {
             this.commandManager = new CommandManager(this);
             commandManager.registerCommands();
             getLogger().info("✓ コマンドを登録しました");
+
+            // Shop system initialization
+            this.shopManager = new ShopManager(this); // 追加
+            getLogger().info("✓ ショップシステムを初期化しました");
+
+            // Shop command registration
+            ShopCommand shopCommand = new ShopCommand(this, shopManager);
+            getCommand("shop").setExecutor(shopCommand);
+            getCommand("shop").setTabCompleter(shopCommand);
+            getLogger().info("✓ ショップコマンドを登録しました");
 
             // Government system initialization
             this.governmentManager = new GovernmentManager(this);
@@ -113,6 +126,10 @@ public class FJEconomy extends JavaPlugin {
 
     public EconomyManager getEconomyManager() { // 追加
         return economyManager;
+    }
+
+    public ShopManager getShopManager() { // 追加
+        return shopManager;
     }
 
     public CommandManager getCommandManager() {
