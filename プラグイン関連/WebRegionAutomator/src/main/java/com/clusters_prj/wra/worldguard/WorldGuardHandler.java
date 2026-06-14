@@ -113,7 +113,7 @@ public class WorldGuardHandler {
             if (value == null) continue;
 
             // 3. 文字列（"build", "pvp" 等）から WorldGuard の Flag オブジェクトを探す
-            Flag<?> fuzzyFlag = Flags.fuzzyMatchFlag(WorldGuard.getInstance().getPlatform().getFlagRegistry(), flagName);
+            Flag<?> fuzzyFlag = Flags.fuzzyMatchFlag(WorldGuard.getInstance().getFlagRegistry(), flagName);
             
             // StateFlag（ALLOW/DENYを設定するフラグ）かチェック
             if (fuzzyFlag instanceof StateFlag) {
