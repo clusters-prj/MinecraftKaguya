@@ -96,7 +96,37 @@ public class WorldGuardHandler {
      * デフォルトフラグを適用
      */
     private void applyDefaultFlags(ProtectedCuboidRegion region) {
-        // TODO: フラグ設定の実装
-        // 現在は未実装。WorldGuardのフラグAPI対応版は次のバージョンで
+        // 1. config.yml から "default-flags" セクションを取得
+        ConfigurationSection flagSection = plugin.getConfig().getConfigurationSection("default-flags");
+        if (flagSection == null) {
+            return; // セクションがなければ何もしない
+        }
+
+        // 2. 設定されているキー（build, pvp など）をループで処理
+        for (String flagName : flagSection.getKeys(false)) {
+            String value = flagSection.getString(flagName);
+            if (value == null) continue;
+
+            // 3. 文字列（"build", "pvp" 等）から WorldGuard の Flag オブジェクトを探す
+            Flag<?> fuzzyFlag = Flags.fuzzyMatchFlag(WorldGuard.getInstance().getPlatform().getFlagRegistry(), flagName);
+            
+            // StateFlag（ALLOW/DENYを設定するフラグ）かチェック
+            if (fuzzyFlag instanceof StateFlag) {
+                StateFlag stateFlag = (StateFlag) fuzzyFlag;
+                
+                // コンフィグの値に応じて ALLOW または DENY をマッピング
+                StateFlag.State state;
+                if (value.equalsIgnoreCase("ALLOW")) {
+                    state = StateFlag.State.ALLOW;
+                } else if (value.equalsIgnoreCase("DENY")) {
+                    state = StateFlag.State.DENY;
+                } else {
+                    continue; // ALLOW/DENY 以外（不適切な値）ならスキップ
+                }
+
+                // 4. 領域にフラグをセット
+                region.setFlag(stateFlag, state);
+            }
+        }
     }
 }
