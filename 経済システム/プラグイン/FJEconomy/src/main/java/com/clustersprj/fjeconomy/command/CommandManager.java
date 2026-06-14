@@ -36,9 +36,9 @@ public class CommandManager implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(org.bukkit.command.CommandSender sender, Command command, 
                             String label, String[] args) {
+        // 引数がない場合は各コマンドのヘルプを表示して終了(trueを返す)
         if (args.length == 0) {
-            sender.sendMessage(MiniMessage.miniMessage().deserialize(
-                    plugin.getConfigManager().getMessagePrefix() + "<red>/fj <subcommand>"));
+            handleHelp(sender);
             return true;
         }
 

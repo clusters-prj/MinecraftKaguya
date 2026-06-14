@@ -20,7 +20,6 @@ commands:
   fjeadmin:
     description: FJ Economy admin commands
     usage: /fjeadmin <subcommand> [args]
-    permission: fj.admin
 
   shop:
     description: Shop management commands
@@ -31,7 +30,6 @@ commands:
     description: Government account management commands
     usage: /fjegovernment <subcommand> [args]
     aliases: [fjegov, gov]
-    permission: fj.government
 
 permissions:
   fj.use:
