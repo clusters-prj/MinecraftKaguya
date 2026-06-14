@@ -76,7 +76,6 @@ public class CommandManager implements CommandExecutor, TabCompleter {
         if (!(sender instanceof Player)) {
             sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>このコマンドはプレイヤーのみ実行できます"));
             return true;
-            return true;
         }
 
         Player player = (Player) sender;

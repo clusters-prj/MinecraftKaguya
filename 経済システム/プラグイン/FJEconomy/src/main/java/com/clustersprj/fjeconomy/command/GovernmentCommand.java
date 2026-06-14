@@ -389,26 +389,31 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(org.bukkit.command.CommandSender sender, Command command,
                                      String alias, String[] args) {
         List<String> completions = new ArrayList<>();
+        List<String> subcommands = new ArrayList<>();
 
         if (args.length == 1) {
             if (sender.hasPermission("fj.government")) {
-                completions.add("balance");
-                completions.add("add");
-                completions.add("withdraw");
-                completions.add("distribute");
-                completions.add("ledger");
-                completions.add("tax");
-                completions.add("info");
+                subcommands.add("balance");
+                subcommands.add("add");
+                subcommands.add("withdraw");
+                subcommands.add("distribute");
+                subcommands.add("ledger");
+                subcommands.add("tax");
+                subcommands.add("info");
                 if (sender.hasPermission("fj.government.set")) {
-                    completions.add("set");
+                    subcommands.add("set");
                 }
             }
+            org.bukkit.util.StringUtil.copyPartialMatches(args[0], subcommands, completions);
         } else if (args.length == 2 && "distribute".equalsIgnoreCase(args[0])) {
+            List<String> players = new ArrayList<>();
             for (Player player : Bukkit.getOnlinePlayers()) {
-                completions.add(player.getName());
+                players.add(player.getName());
             }
+            org.bukkit.util.StringUtil.copyPartialMatches(args[1], players, completions);
         }
 
+        java.util.Collections.sort(completions);
         return completions;
     }
 }

@@ -416,22 +416,35 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(org.bukkit.command.CommandSender sender, Command command,
                                      String alias, String[] args) {
         List<String> completions = new ArrayList<>();
+        List<String> suggestions = new ArrayList<>();
 
         if (args.length == 1) {
-            completions.add("create");
-            completions.add("delete");
-            completions.add("list");
-            completions.add("info");
-            completions.add("setprice");
-            completions.add("setstock");
-            completions.add("addstock");
-            completions.add("removestock");
+            suggestions.add("create");
+            if (sender.hasPermission("fj.shop.delete")) suggestions.add("delete");
+            suggestions.add("list");
+            suggestions.add("info");
+            suggestions.add("setprice");
+            suggestions.add("setstock");
+            suggestions.add("addstock");
+            suggestions.add("removestock");
+            org.bukkit.util.StringUtil.copyPartialMatches(args[0], suggestions, completions);
         } else if (args.length == 2 && "list".equalsIgnoreCase(args[0])) {
+            List<String> players = new ArrayList<>();
             for (Player player : Bukkit.getOnlinePlayers()) {
-                completions.add(player.getName());
+                players.add(player.getName());
             }
+            org.bukkit.util.StringUtil.copyPartialMatches(args[1], players, completions);
+        } else if (args.length == 3 && "create".equalsIgnoreCase(args[0])) {
+            List<String> materials = new ArrayList<>();
+            for (org.bukkit.Material m : org.bukkit.Material.values()) {
+                if (m.isItem()) {
+                    materials.add(m.name().toLowerCase());
+                }
+            }
+            org.bukkit.util.StringUtil.copyPartialMatches(args[2], materials, completions);
         }
 
+        java.util.Collections.sort(completions);
         return completions;
     }
 }
