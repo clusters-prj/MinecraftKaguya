@@ -74,9 +74,13 @@ public class WorldGuardHandler {
             // 領域オブジェクトを作成
             ProtectedCuboidRegion region = new ProtectedCuboidRegion(regionId, pos1, pos2);
 
-            // オーナーを設定（UUID）
+            // オーナーを設定（政府 UUID: 00000000-0000-0000-0000-000000000001）
+            UUID govUuid = UUID.fromString("00000000-0000-0000-0000-000000000001");
+            region.getOwners().addPlayer(govUuid);
+
+            // プレイヤーをメンバーに追加（使用権のみ）
             UUID playerUuid = UUID.fromString(playerUuidStr);
-            region.getOwners().addPlayer(playerUuid);
+            region.getMembers().addPlayer(playerUuid);
 
             // デフォルトフラグを設定
             applyDefaultFlags(region);
