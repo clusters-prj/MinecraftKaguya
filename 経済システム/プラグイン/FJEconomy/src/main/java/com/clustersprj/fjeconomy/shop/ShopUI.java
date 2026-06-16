@@ -194,8 +194,8 @@ public class ShopUI implements Listener {
         if (economyManager.takeMoney(player.getUniqueId(), player.getName(), itemPrice)) {
             if (shopManager.removeStock(npcUuid, serverId, 1)) {
                 // 【納税処理】政府資金(国庫)に税金を加算し、記録する
-                // ※GovernmentManager側に addTaxFund(金額, 理由, 納税者UUID) のようなメソッドがある前提
-                plugin.getGovernmentManager().addTaxFund(taxAmount, "SHOP_PURCHASE", player.getUniqueId());
+                plugin.getGovernmentManager().addGovernmentFunds(taxAmount, 
+                    "SHOP_PURCHASE - Item: " + shop.getItemMaterial() + ", Buyer: " + player.getName());
 
                 // 【売上送金】税抜き価格をショップオーナーに送金
                 economyManager.giveMoney(shop.getOwnerUUID(), "Shop Sale: " + shop.getItemMaterial(), sellerProfit);
