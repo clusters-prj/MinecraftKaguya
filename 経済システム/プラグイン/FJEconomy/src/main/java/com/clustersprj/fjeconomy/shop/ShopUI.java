@@ -14,12 +14,15 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -33,6 +36,18 @@ public class ShopUI implements Listener {
     private final String GUI_TITLE = ChatColor.DARK_BLUE + "FJE ショップ";
     private final NamespacedKey shopNpcKey;
 
+    // キャッシュ用: EntityのUUID -> キャッシュデータ(Shop情報と有効期限)
+    private final Map<UUID, CachedShop> shopCache = new HashMap<>();
+
+    private static class CachedShop {
+        final ShopManager.Shop shop;
+        final long expiry;
+        CachedShop(ShopManager.Shop shop) {
+            this.shop = shop;
+            this.expiry = System.currentTimeMillis() + 10000; // 10秒間有効
+        }
+    }
+
     public ShopUI(FJEconomy plugin) {
         this.plugin = plugin;
         this.shopManager = plugin.getShopManager();
@@ -45,14 +60,29 @@ public class ShopUI implements Listener {
      */
     @EventHandler
     public void onEntityInteract(PlayerInteractEntityEvent event) {
+        // メインハンド（右クリック）のみを処理対象とし、オフハンドでの重複処理を防ぐ
+        if (event.getHand() != EquipmentSlot.HAND) return;
+
         if (!(event.getRightClicked() instanceof Villager)) return;
 
         Player player = event.getPlayer();
         String serverId = plugin.getConfigManager().getServerId();
+        UUID entityUuid = event.getRightClicked().getUniqueId();
         
-        ShopManager.Shop shop = shopManager.getShopByEntity(event.getRightClicked(), serverId);
+        // キャッシュを確認
+        ShopManager.Shop shop;
+        CachedShop cached = shopCache.get(entityUuid);
+
+        if (cached != null && System.currentTimeMillis() < cached.expiry) {
+            shop = cached.shop;
+        } else {
+            // キャッシュがない、または期限切れの場合はDBから取得してキャッシュを更新
+            shop = shopManager.getShopByEntity(event.getRightClicked(), serverId);
+            shopCache.put(entityUuid, new CachedShop(shop));
+        }
+
         if (shop != null) {
-            // 通常の村人トレード画面が開かないようにキャンセル
+            // データベースにショップデータが存在する場合のみ、通常の取引画面をキャンセルして独自GUIを開く
             event.setCancelled(true);
             openShopGui(player, shop);
         }
@@ -160,7 +190,12 @@ public class ShopUI implements Listener {
                 }
                 
                 // UIを更新して最新の在庫数を表示
-                openShopGui(player, shopManager.getShop(npcUuid, serverId)); 
+                ShopManager.Shop freshShop = shopManager.getShop(npcUuid, serverId);
+                if (freshShop != null) {
+                    // 購入時は在庫が変動するため、キャッシュも最新情報で更新しておく
+                    shopCache.put(npcUuid, new CachedShop(freshShop));
+                    openShopGui(player, freshShop);
+                }
             } else {
                 // 在庫更新失敗時はお金を返金
                 economyManager.giveMoney(player.getUniqueId(), player.getName(), itemPrice);
