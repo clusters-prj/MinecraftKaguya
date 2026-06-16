@@ -10,7 +10,7 @@ debug: false
 
 # リソースパックのSHA-1ハッシュ（任意だが推奨）
 # sha1sum bgm-java.zip で取得できる
-resource-pack-sha1: "6216d7bd4dc76d77f761cc6df872b072b290ac7c"
+resource-pack-sha1: "b6a840056a40e978f59954124fa779afe1e33b83"
 
 # リソースパックの適用を強制するか
 force-resource-pack: true
