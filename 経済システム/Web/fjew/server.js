@@ -5,18 +5,18 @@ BigInt.prototype.toJSON = function() {
 
 const express = require('express');
 const path = require('path');
-const session = require('express-session');
-const bcrypt = require('bcrypt');
+const session = require('express-session'); // 追加
+const bcrypt = require('bcrypt');           // 追加
 const pool = require('./db');
-
 const app = express();
-const PORT = 3000;
+const PORT = 3200;
 
-// ミドルウェア設定
 app.use(express.json());
+
+// 静的ファイルの配信設定（publicフォルダ内を公開）
 app.use(express.static(path.join(__dirname, 'public')));
 
-// CORS設定
+// CORSを許可
 app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
@@ -29,7 +29,7 @@ app.use(session({
     resave: false,
     saveUninitialized: false,
     cookie: {
-        secure: false,
+        secure: false, // ローカル環境(http)のためfalse
         maxAge: 1000 * 60 * 60 * 24 // 1日間
     }
 }));
@@ -45,9 +45,7 @@ const requireAuth = (req, res, next) => {
     next();
 };
 
-// ==========================================
-// 【新設】 データベース初期化関数（テーブル自動作成）
-// ==========================================
+// データベース初期化関数（テーブル自動作成）
 async function initDatabase() {
     let conn;
     try {
@@ -92,7 +90,7 @@ async function initDatabase() {
 }
 
 // ==========================================
-// ユーザー認証関連 (web_users)
+// 新設：ユーザー認証・アカウント連携関連
 // ==========================================
 
 // アカウント新規登録
@@ -149,11 +147,78 @@ app.post('/api/auth/logout', (req, res) => {
     });
 });
 
-// ==========================================
-// PayPayのコア機能（送金トランザクション）
-// ==========================================
+// マイクラアカウント連携（ワンタイムコード検証）
+app.post('/api/auth/link', requireAuth, async (req, res) => {
+    const { code } = req.body;
+    if (!code || code.length !== 6) {
+        return res.status(400).json({ error: "6桁のコードを入力してください" });
+    }
 
-// ログイン中のユーザーから他プレイヤーへの送金
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        // 1. コードの有効性をチェック（時間のズレで弾かれる場合は「AND expires_at > NOW()」を削ると緩くなります）
+        const rows = await conn.query(
+            "SELECT minecraft_uuid FROM link_codes WHERE code = ? AND expires_at > NOW()",
+            [code]
+        );
+
+        if (rows.length === 0) {
+            throw new Error("コードが無効か、有効期限が切れています");
+        }
+
+        const minecraftUuid = rows[0].minecraft_uuid;
+
+        // 2. 重複チェック（手動テストの残りがある場合はここで引っかかります）
+        const existingLink = await conn.query("SELECT web_user_id FROM account_links WHERE minecraft_uuid = ?", [minecraftUuid]);
+        if (existingLink.length > 0) {
+            throw new Error("このマイクラアカウントは既に別のWebアカウントに連携されています");
+        }
+
+        // 3. 紐づけ情報を保存
+        await conn.query(
+            "INSERT INTO account_links (web_user_id, minecraft_uuid) VALUES (?, ?) ON DUPLICATE KEY UPDATE minecraft_uuid = ?",
+            [req.session.webUserId, minecraftUuid, minecraftUuid]
+        );
+
+        // 4. 使い終わったコードを削除
+        await conn.query("DELETE FROM link_codes WHERE code = ?", [code]);
+
+        await conn.commit();
+        res.json({ success: true, message: "マイクラアカウントとの連携が完了しました！" });
+
+    } catch (err) {
+        if (conn) await conn.rollback();
+        res.status(400).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// ログイン中のユーザー情報取得
+app.get('/api/user/me', requireAuth, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query(`
+            SELECT u.email, u.discord_id, b.player_name, b.balance, b.uuid 
+            FROM web_users u
+            LEFT JOIN account_links l ON u.id = l.web_user_id
+            LEFT JOIN fje_balances b ON l.minecraft_uuid = b.uuid
+            WHERE u.id = ?
+        `, [req.session.webUserId]);
+        
+        res.json(rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// ログイン中のユーザーから他プレイヤーへの送金（PayPayコア機能）
 app.post('/api/wallet/send', requireAuth, async (req, res) => {
     const { to_player, amount } = req.body;
     const parsedAmount = BigInt(amount);
@@ -202,61 +267,7 @@ app.post('/api/wallet/send', requireAuth, async (req, res) => {
     }
 });
 
-// ==========================================
-// 【新設】 マイクラアカウント連携処理
-// ==========================================
-
-// Web画面から送られてきた6桁コードを検証して連携するAPI
-app.post('/api/auth/link', requireAuth, async (req, res) => {
-    const { code } = req.body;
-    if (!code || code.length !== 6) {
-        return res.status(400).json({ error: "6桁のコードを入力してください" });
-    }
-
-    let conn;
-    try {
-        conn = await pool.getConnection();
-        await conn.beginTransaction();
-
-        // 1. コードが有効（存在して、有効期限内）かチェック
-        const rows = await conn.query(
-            "SELECT minecraft_uuid FROM link_codes WHERE code = ? AND expires_at > NOW()",
-            [code]
-        );
-
-        if (rows.length === 0) {
-            throw new Error("コードが無効か、有効期限が切れています");
-        }
-
-        const minecraftUuid = rows[0].minecraft_uuid;
-
-        // 2. 重複チェック（このマイクラアカウントが既に別のWebアカウントに紐づいていないか）
-        const existingLink = await conn.query("SELECT web_user_id FROM account_links WHERE minecraft_uuid = ?", [minecraftUuid]);
-        if (existingLink.length > 0) {
-            throw new Error("このマイクラアカウントは既に別のWebアカウントに連携されています");
-        }
-
-        // 3. account_links テーブルに紐づけ情報を保存
-        await conn.query(
-            "INSERT INTO account_links (web_user_id, minecraft_uuid) VALUES (?, ?) ON DUPLICATE KEY UPDATE minecraft_uuid = ?",
-            [req.session.webUserId, minecraftUuid, minecraftUuid]
-        );
-
-        // 4. 使い終わったコードを削除
-        await conn.query("DELETE FROM link_codes WHERE code = ?", [code]);
-
-        await conn.commit();
-        res.json({ success: true, message: "マイクラアカウントとの連携が完了しました！" });
-
-    } catch (err) {
-        if (conn) await conn.rollback();
-        res.status(400).json({ error: err.message });
-    } finally {
-        if (conn) conn.release();
-    }
-});
-
-// 【開発用デバッグAPI】マイクラプラグインの代わりにコードを強制発行する
+// 【開発用デバッグAPI】プラグインの代わりにコードを強制発行する
 app.post('/api/debug/generate-code', async (req, res) => {
     const { uuid } = req.body;
     if (!uuid) return res.status(400).json({ error: "マイクラのUUIDが必要です" });
@@ -264,16 +275,14 @@ app.post('/api/debug/generate-code', async (req, res) => {
     let conn;
     try {
         conn = await pool.getConnection();
-        // 6桁のランダムな数字を生成
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         
-        // 10分間有効としてDBに保存
         await conn.query(
             "INSERT INTO link_codes (code, minecraft_uuid, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE)) ON DUPLICATE KEY UPDATE minecraft_uuid = ?, expires_at = DATE_ADD(NOW(), INTERVAL 10 MINUTE)",
             [code, uuid, uuid]
         );
         
-        res.json({ success: true, code, message: `コードを発行しました。画面に入力してください。` });
+        res.json({ success: true, code, message: `コードを発行しました。` });
     } catch (err) {
         res.status(500).json({ error: err.message });
     } finally {
@@ -281,32 +290,12 @@ app.post('/api/debug/generate-code', async (req, res) => {
     }
 });
 
-// ==========================================
-// ログイン中のユーザー情報取得
-// ==========================================
-app.get('/api/user/me', requireAuth, async (req, res) => {
-    let conn;
-    try {
-        conn = await pool.getConnection();
-        const rows = await conn.query(`
-            SELECT u.email, u.discord_id, b.player_name, b.balance, b.uuid 
-            FROM web_users u
-            LEFT JOIN account_links l ON u.id = l.web_user_id
-            LEFT JOIN fje_balances b ON l.minecraft_uuid = b.uuid
-            WHERE u.id = ?
-        `, [req.session.webUserId]);
-        
-        res.json(rows[0]);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    } finally {
-        if (conn) conn.release();
-    }
-});
 
 // ==========================================
-// 既存のGET系API（ランキングやショップ情報など）
+// 1. プレイヤー・経済関連 (fje_balances)
 // ==========================================
+
+// 特定プレイヤーの残高・情報取得
 app.get('/api/economy/balance/:uuid', async (req, res) => {
     let conn;
     try {
@@ -314,22 +303,183 @@ app.get('/api/economy/balance/:uuid', async (req, res) => {
         const rows = await conn.query("SELECT uuid, player_name, balance FROM fje_balances WHERE uuid = ?", [req.params.uuid]);
         if (rows.length === 0) return res.status(404).json({ error: "Player not found" });
         res.json(rows[0]);
-    } catch (err) { res.status(500).json({ error: err.message }); } finally { if (conn) conn.release(); }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
 });
 
+// 長者番付（ランキング）TOP100 - 政府口座は除外
 app.get('/api/economy/ranking', async (req, res) => {
     let conn;
     try {
         conn = await pool.getConnection();
-        const rows = await conn.query("SELECT player_name, balance FROM fje_balances WHERE uuid != ? ORDER BY balance DESC LIMIT 100", [GOV_UUID]);
+        const rows = await conn.query(
+            "SELECT player_name, balance FROM fje_balances WHERE uuid != ? ORDER BY balance DESC LIMIT 100", 
+            [GOV_UUID]
+        );
         res.json(rows);
-    } catch (err) { res.status(500).json({ error: err.message }); } finally { if (conn) conn.release(); }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
 });
 
-// （必要に応じて元の server.js にあった残りの参照用APIをここにペーストしてください）
+// ==========================================
+// 2. ショップ関連 (fje_shops)
+// ==========================================
+
+// 全ショップ一覧（ショッピングモール画面・アイテム検索用）
+app.get('/api/shops', async (req, res) => {
+    let conn;
+    try {
+        const { item, server_id } = req.query;
+        conn = await pool.getConnection();
+        
+        let query = `
+            SELECT s.*, b.player_name AS owner_name 
+            FROM fje_shops s
+            JOIN fje_balances b ON s.owner_uuid = b.uuid
+            WHERE 1=1
+        `;
+        const params = [];
+
+        if (item) {
+            query += " AND s.item_material = ?";
+            params.push(item);
+        }
+        if (server_id) {
+            query += " AND s.server_id = ?";
+            params.push(server_id);
+        }
+        
+        query += " ORDER BY s.price ASC"; 
+        const rows = await conn.query(query, params);
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 特定の店主(UUID)が持つショップ一覧（店主用ダッシュボード）
+app.get('/api/shops/owner/:uuid', async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query("SELECT * FROM fje_shops WHERE owner_uuid = ?", [req.params.uuid]);
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// ==========================================
+// 3. トランザクション履歴 (fje_transactions)
+// ==========================================
+
+// 全取引履歴（管理者監査用・最新100件）
+app.get('/api/transactions', async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query("SELECT * FROM fje_transactions ORDER BY timestamp DESC LIMIT 100");
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 特定プレイヤーに関わる取引履歴（一般ユーザーマイページ用）
+app.get('/api/transactions/player/:uuid', async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query(
+            "SELECT * FROM fje_transactions WHERE buyer_uuid = ? OR owner_uuid = ? ORDER BY timestamp DESC LIMIT 50",
+            [req.params.uuid, req.params.uuid]
+        );
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 店主の売上統計（アナリティクス用グラフデータ）
+app.get('/api/analytics/shop/:uuid', async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query(`
+            SELECT 
+                DATE_FORMAT(timestamp, '%Y-%m-%d') AS date,
+                COUNT(*) AS sales_count,
+                SUM(price_total) AS total_revenue,
+                SUM(net_profit) AS total_profit
+            FROM fje_transactions
+            WHERE owner_uuid = ?
+            GROUP BY date
+            ORDER BY date DESC LIMIT 30
+        `, [req.params.uuid]);
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// ==========================================
+// 4. マクロ経済・政府公文書 (fje_government_ledger)
+// ==========================================
+
+// サーバー全体の経済指標サマリー（管理者ダッシュボード用）
+app.get('/api/admin/economy/summary', async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        
+        const totalAmountRow = await conn.query("SELECT SUM(balance) AS total FROM fje_balances WHERE uuid != ?", [GOV_UUID]);
+        const govBalanceRow = await conn.query("SELECT balance FROM fje_balances WHERE uuid = ?", [GOV_UUID]);
+        const totalTaxRow = await conn.query("SELECT SUM(tax_amount) AS total_tax FROM fje_transactions");
+
+        res.json({
+            market_money_supply: totalAmountRow[0].total || 0,
+            government_reserve: govBalanceRow[0]?.balance || 0,
+            total_tax_collected: totalTaxRow[0].total_tax || 0
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 政府収支台帳の取得
+app.get('/api/admin/government/ledger', async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query("SELECT * FROM fje_government_ledger ORDER BY timestamp DESC LIMIT 100");
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
 
 // 起動
 app.listen(PORT, async () => {
-    await initDatabase(); // サーバー起動時にテーブル作成を走らせる
-    console.log(`FJ PayPay Web Server running on port ${PORT}`);
+    await initDatabase(); // 自動テーブル初期化を走らせる
+    console.log(`FJ Economy Full-Featured API Server running on port ${PORT}`);
 });
