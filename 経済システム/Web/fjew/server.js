@@ -203,6 +203,85 @@ app.post('/api/wallet/send', requireAuth, async (req, res) => {
 });
 
 // ==========================================
+// 【新設】 マイクラアカウント連携処理
+// ==========================================
+
+// Web画面から送られてきた6桁コードを検証して連携するAPI
+app.post('/api/auth/link', requireAuth, async (req, res) => {
+    const { code } = req.body;
+    if (!code || code.length !== 6) {
+        return res.status(400).json({ error: "6桁のコードを入力してください" });
+    }
+
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        // 1. コードが有効（存在して、有効期限内）かチェック
+        const rows = await conn.query(
+            "SELECT minecraft_uuid FROM link_codes WHERE code = ? AND expires_at > NOW()",
+            [code]
+        );
+
+        if (rows.length === 0) {
+            throw new Error("コードが無効か、有効期限が切れています");
+        }
+
+        const minecraftUuid = rows[0].minecraft_uuid;
+
+        // 2. 重複チェック（このマイクラアカウントが既に別のWebアカウントに紐づいていないか）
+        const existingLink = await conn.query("SELECT web_user_id FROM account_links WHERE minecraft_uuid = ?", [minecraftUuid]);
+        if (existingLink.length > 0) {
+            throw new Error("このマイクラアカウントは既に別のWebアカウントに連携されています");
+        }
+
+        // 3. account_links テーブルに紐づけ情報を保存
+        await conn.query(
+            "INSERT INTO account_links (web_user_id, minecraft_uuid) VALUES (?, ?) ON DUPLICATE KEY UPDATE minecraft_uuid = ?",
+            [req.session.webUserId, minecraftUuid, minecraftUuid]
+        );
+
+        // 4. 使い終わったコードを削除
+        await conn.query("DELETE FROM link_codes WHERE code = ?", [code]);
+
+        await conn.commit();
+        res.json({ success: true, message: "マイクラアカウントとの連携が完了しました！" });
+
+    } catch (err) {
+        if (conn) await conn.rollback();
+        res.status(400).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 【開発用デバッグAPI】マイクラプラグインの代わりにコードを強制発行する
+app.post('/api/debug/generate-code', async (req, res) => {
+    const { uuid } = req.body;
+    if (!uuid) return res.status(400).json({ error: "マイクラのUUIDが必要です" });
+
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        // 6桁のランダムな数字を生成
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        // 10分間有効としてDBに保存
+        await conn.query(
+            "INSERT INTO link_codes (code, minecraft_uuid, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE)) ON DUPLICATE KEY UPDATE minecraft_uuid = ?, expires_at = DATE_ADD(NOW(), INTERVAL 10 MINUTE)",
+            [code, uuid, uuid]
+        );
+        
+        res.json({ success: true, code, message: `コードを発行しました。画面に入力してください。` });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// ==========================================
 // ログイン中のユーザー情報取得
 // ==========================================
 app.get('/api/user/me', requireAuth, async (req, res) => {

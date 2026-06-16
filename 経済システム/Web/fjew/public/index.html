@@ -83,9 +83,15 @@
                 </div>
             </div>
 
-            <div id="unlinkedAlert" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-800 text-xs flex flex-col gap-2">
-                <p class="font-bold">⚠️ マイクラアカウントが連携されていません</p>
-                <p>Webでの残高確認や送金機能を利用するには、ゲーム内での連携が必要です。（現在はテスト用に直接DBにレコードを入れれば動かせます）</p>
+            <div id="unlinkedAlert" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-800 text-xs flex flex-col gap-3">
+                <div>
+                    <p class="font-bold mb-1">⚠️ マイクラアカウントが連携されていません</p>
+                    <p>ゲーム内で <code class="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold text-red-600">/paypay link</code> を実行し、表示された6桁のコードを入力してください。</p>
+                </div>
+                <div class="flex gap-2">
+                    <input type="text" id="linkCode" class="border border-amber-300 rounded-xl px-4 py-2 text-sm text-gray-800 font-mono tracking-widest text-center w-32 focus:outline-none focus:border-red-500" placeholder="000000" maxlength="6">
+                    <button id="submitLink" class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2 rounded-xl transition">連携する</button>
+                </div>
             </div>
 
             <div class="bg-white rounded-2xl shadow-md p-6">
@@ -213,6 +219,26 @@
                 document.getElementById('unlinkedAlert').classList.remove('hidden');
             }
         }
+
+        // 連携コードの送信処理
+        document.getElementById('submitLink').addEventListener('click', async () => {
+            const code = document.getElementById('linkCode').value;
+
+            const res = await fetch('/api/auth/link', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                alert(data.message);
+                document.getElementById('linkCode').value = '';
+                await loadUserProfile(); // 画面を再読み込みして残高を表示させる
+            } else {
+                alert('連携失敗: ' + data.error);
+            }
+        });
 
         // 送金処理
         document.getElementById('submitSend').addEventListener('click', async () => {
