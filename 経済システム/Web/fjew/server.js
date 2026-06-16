@@ -159,35 +159,59 @@ app.post('/api/auth/link', requireAuth, async (req, res) => {
         conn = await pool.getConnection();
         await conn.beginTransaction();
 
-        // 1. コードの有効性をチェック（時間のズレで弾かれる場合は「AND expires_at > NOW()」を削ると緩くなります）
+        // 1. コードの有効性をチェック
         const rows = await conn.query(
             "SELECT minecraft_uuid FROM link_codes WHERE code = ? AND expires_at > NOW()",
             [code]
         );
-
         if (rows.length === 0) {
             throw new Error("コードが無効か、有効期限が切れています");
         }
-
         const minecraftUuid = rows[0].minecraft_uuid;
 
-        // 2. 重複チェック（手動テストの残りがある場合はここで引っかかります）
+        // 1.5 連携しようとしているプレイヤーの名前を取得して、Javaか統合版か判定
+        const pRows = await conn.query("SELECT player_name FROM fje_balances WHERE uuid = ?", [minecraftUuid]);
+        if (pRows.length === 0) {
+            throw new Error("マイクラのプレイヤーデータが存在しません");
+        }
+        const playerName = pRows[0].player_name;
+        // UUIDの頭が00000000、または名前の先頭がドットなら統合版
+        const isBedrock = minecraftUuid.startsWith('00000000-0000-0000-') || (playerName && playerName.startsWith('.'));
+        const accountType = isBedrock ? 'BEDROCK' : 'JAVA';
+
+        // 2. 重複チェック（他のWebアカウントに既に紐づいていないか）
         const existingLink = await conn.query("SELECT web_user_id FROM account_links WHERE minecraft_uuid = ?", [minecraftUuid]);
         if (existingLink.length > 0) {
             throw new Error("このマイクラアカウントは既に別のWebアカウントに連携されています");
         }
 
+        // 2.5 自分のWebアカウントに、すでに同じタイプ（Java/Bedrock）が連携されていないかチェック
+        const myLinks = await conn.query(`
+            SELECT l.minecraft_uuid, b.player_name 
+            FROM account_links l
+            JOIN fje_balances b ON l.minecraft_uuid = b.uuid
+            WHERE l.web_user_id = ?
+        `, [req.session.webUserId]);
+
+        for (const link of myLinks) {
+            const linkIsBedrock = link.minecraft_uuid.startsWith('00000000-0000-0000-') || (link.player_name && link.player_name.startsWith('.'));
+            const linkType = linkIsBedrock ? 'BEDROCK' : 'JAVA';
+            if (linkType === accountType) {
+                throw new Error(`既に${accountType === 'JAVA' ? 'Java版' : '統合版'}のアカウントが連携されています。それぞれ1つずつのみ連携可能です。`);
+            }
+        }
+
         // 3. 紐づけ情報を保存
         await conn.query(
-            "INSERT INTO account_links (web_user_id, minecraft_uuid) VALUES (?, ?) ON DUPLICATE KEY UPDATE minecraft_uuid = ?",
-            [req.session.webUserId, minecraftUuid, minecraftUuid]
+            "INSERT INTO account_links (web_user_id, minecraft_uuid) VALUES (?, ?)",
+            [req.session.webUserId, minecraftUuid]
         );
 
         // 4. 使い終わったコードを削除
         await conn.query("DELETE FROM link_codes WHERE code = ?", [code]);
 
         await conn.commit();
-        res.json({ success: true, message: "マイクラアカウントとの連携が完了しました！" });
+        res.json({ success: true, message: `${accountType === 'JAVA' ? 'Java版' : '統合版'}アカウントの連携が完了しました！` });
 
     } catch (err) {
         if (conn) await conn.rollback();
@@ -202,15 +226,34 @@ app.get('/api/user/me', requireAuth, async (req, res) => {
     let conn;
     try {
         conn = await pool.getConnection();
-        const rows = await conn.query(`
-            SELECT u.email, u.discord_id, b.player_name, b.balance, b.uuid 
-            FROM web_users u
-            LEFT JOIN account_links l ON u.id = l.web_user_id
-            LEFT JOIN fje_balances b ON l.minecraft_uuid = b.uuid
-            WHERE u.id = ?
+        // ユーザーの基本情報
+        const userRows = await conn.query("SELECT email, discord_id FROM web_users WHERE id = ?", [req.session.webUserId]);
+        if (userRows.length === 0) return res.status(404).json({ error: "ユーザーが見つかりません" });
+
+        // 連携されているマイクラアカウントをすべて取得
+        const mcRows = await conn.query(`
+            SELECT b.uuid, b.player_name, b.balance 
+            FROM account_links l
+            JOIN fje_balances b ON l.minecraft_uuid = b.uuid
+            WHERE l.web_user_id = ?
         `, [req.session.webUserId]);
-        
-        res.json(rows[0]);
+
+        // それぞれJavaか統合版かのタイプ情報を付与
+        const accounts = mcRows.map(row => {
+            const isBedrock = row.uuid.startsWith('00000000-0000-0000-') || (row.player_name && row.player_name.startsWith('.'));
+            return {
+                uuid: row.uuid,
+                player_name: row.player_name,
+                balance: row.balance,
+                type: isBedrock ? 'Bedrock' : 'Java'
+            };
+        });
+
+        res.json({
+            email: userRows[0].email,
+            discord_id: userRows[0].discord_id,
+            accounts: accounts // 配列で返す
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     } finally {
@@ -220,7 +263,7 @@ app.get('/api/user/me', requireAuth, async (req, res) => {
 
 // ログイン中のユーザーから他プレイヤーへの送金（PayPayコア機能）
 app.post('/api/wallet/send', requireAuth, async (req, res) => {
-    const { to_player, amount } = req.body;
+    const { from_uuid, to_player, amount } = req.body; // from_uuid を追加で受け取る
     const parsedAmount = BigInt(amount);
 
     if (!to_player || parsedAmount <= 0n) {
@@ -232,9 +275,20 @@ app.post('/api/wallet/send', requireAuth, async (req, res) => {
         conn = await pool.getConnection();
         await conn.beginTransaction();
 
+        // 1. ユーザーの連携アカウント一覧を取得
         const links = await conn.query("SELECT minecraft_uuid FROM account_links WHERE web_user_id = ?", [req.session.webUserId]);
         if (links.length === 0) throw new Error("マイクラアカウントが連携されていません");
-        const fromUuid = links[0].minecraft_uuid;
+
+        // 送金元UUIDの決定と検証
+        let fromUuid = from_uuid;
+        if (!fromUuid) {
+            // もし指定がなければ自動的に1つ目のアカウントをデフォルトにする（互換性用）
+            fromUuid = links[0].minecraft_uuid;
+        } else {
+            // 指定されたUUIDが本当にこのユーザーのものかチェック
+            const hasLink = links.some(l => l.minecraft_uuid === fromUuid);
+            if (!hasLink) throw new Error("指定された送金元アカウントはあなたに連携されていません");
+        }
 
         const fromRows = await conn.query("SELECT balance FROM fje_balances WHERE uuid = ?", [fromUuid]);
         if (fromRows.length === 0) throw new Error("あなたのマイクラデータが見つかりません");
