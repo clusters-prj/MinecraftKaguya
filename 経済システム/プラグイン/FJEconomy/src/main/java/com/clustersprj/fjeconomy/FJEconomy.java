@@ -8,6 +8,7 @@ import com.clustersprj.fjeconomy.economy.EconomyManager;
 import com.clustersprj.fjeconomy.database.DatabaseManager;
 import com.clustersprj.fjeconomy.government.GovernmentManager;
 import com.clustersprj.fjeconomy.shop.ShopManager;
+import com.clustersprj.fjeconomy.shop.ShopUI; // 追加
 import com.clustersprj.fjeconomy.listener.PlayerListener;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -84,6 +85,7 @@ public class FJEconomy extends JavaPlugin {
 
             // Event listener registration
             getServer().getPluginManager().registerEvents(new PlayerListener(this), this); // PlayerListenerのコンストラクタ変更に対応
+            getServer().getPluginManager().registerEvents(new ShopUI(this), this); // ShopUIを登録
             getLogger().info("✓ イベントリスナーを登録しました");
 
             getLogger().info("===================================");
