@@ -61,17 +61,21 @@ public class ShopUI implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityInteract(PlayerInteractEntityEvent event) {
+        Player player = event.getPlayer();
+
+        // 最優先デバッグ: そもそもイベントが動いているか
+        // player.sendMessage(ChatColor.YELLOW + "[Debug] Event Triggered! Entity: " + event.getRightClicked().getType());
+
         // メインハンド（右クリック）のみを処理対象とし、オフハンドでの重複処理を防ぐ
         if (event.getHand() != EquipmentSlot.HAND) return;
 
+        // 村人以外（CitizensのNPC等）の場合も考慮し、一旦型チェック前にログを出す
+        UUID entityUuid = event.getRightClicked().getUniqueId();
+        player.sendMessage(ChatColor.GRAY + "[Debug] Clicked UUID: " + entityUuid.toString() + " (Type: " + event.getRightClicked().getType() + ")");
+
         if (!(event.getRightClicked() instanceof Villager)) return;
 
-        Player player = event.getPlayer();
         String serverId = plugin.getConfigManager().getServerId(); // config.ymlの値
-        UUID entityUuid = event.getRightClicked().getUniqueId();
-        
-        // デバッグ用: 右クリックした村人のUUIDをチャットに表示
-        player.sendMessage(ChatColor.GRAY + "[Debug] Villager UUID: " + entityUuid.toString());
         
         // キャッシュを確認
         ShopManager.Shop shop;
