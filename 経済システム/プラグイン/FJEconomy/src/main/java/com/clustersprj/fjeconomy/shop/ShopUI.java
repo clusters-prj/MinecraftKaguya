@@ -9,6 +9,7 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -58,7 +59,7 @@ public class ShopUI implements Listener {
     /**
      * 村人を右クリックした際にショップを開く
      */
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityInteract(PlayerInteractEntityEvent event) {
         // メインハンド（右クリック）のみを処理対象とし、オフハンドでの重複処理を防ぐ
         if (event.getHand() != EquipmentSlot.HAND) return;
@@ -66,8 +67,11 @@ public class ShopUI implements Listener {
         if (!(event.getRightClicked() instanceof Villager)) return;
 
         Player player = event.getPlayer();
-        String serverId = plugin.getConfigManager().getServerId();
+        String serverId = plugin.getConfigManager().getServerId(); // config.ymlの値
         UUID entityUuid = event.getRightClicked().getUniqueId();
+        
+        // デバッグ用: 右クリックした村人のUUIDをチャットに表示
+        player.sendMessage(ChatColor.GRAY + "[Debug] Villager UUID: " + entityUuid.toString());
         
         // キャッシュを確認
         ShopManager.Shop shop;
@@ -82,6 +86,10 @@ public class ShopUI implements Listener {
         }
 
         if (shop != null) {
+            // サーバーIDが一致しているか最終確認（デバッグ用）
+            if (!shop.getServerId().equals(serverId)) {
+                return; 
+            }
             // データベースにショップデータが存在する場合のみ、通常の取引画面をキャンセルして独自GUIを開く
             event.setCancelled(true);
             openShopGui(player, shop);
