@@ -52,7 +52,7 @@ public class ShopUI implements Listener {
     public ShopUI(FJEconomy plugin) {
         this.plugin = plugin;
         this.shopManager = plugin.getShopManager();
-        this.economyManager = new EconomyManager(plugin); // EconomyManagerを初期化
+        this.economyManager = plugin.getEconomyManager(); // 既存のインスタンスを使用するように修正
         this.shopNpcKey = new NamespacedKey(plugin, "shop_npc_uuid");
     }
 
@@ -180,6 +180,10 @@ public class ShopUI implements Listener {
         // プレイヤーの残高を確認
         long playerBalance = economyManager.getBalance(player.getUniqueId());
         long itemPrice = shop.getPrice();
+        
+        // 税金の計算 (10%)
+        long taxAmount = (long) (itemPrice * 0.10);
+        long sellerProfit = itemPrice - taxAmount;
 
         if (playerBalance < itemPrice) {
             player.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>お金が足りません！ (必要: " + economyManager.formatMoney(itemPrice) + ", 所持: " + economyManager.formatMoney(playerBalance) + ")"));
@@ -189,11 +193,20 @@ public class ShopUI implements Listener {
         // お金の引き落としと在庫の減少
         if (economyManager.takeMoney(player.getUniqueId(), player.getName(), itemPrice)) {
             if (shopManager.removeStock(npcUuid, serverId, 1)) {
+                // 【納税処理】政府資金(国庫)に税金を加算し、記録する
+                // ※GovernmentManager側に addTaxFund(金額, 理由, 納税者UUID) のようなメソッドがある前提
+                plugin.getGovernmentManager().addTaxFund(taxAmount, "SHOP_PURCHASE", player.getUniqueId());
+
+                // 【売上送金】税抜き価格をショップオーナーに送金
+                economyManager.giveMoney(shop.getOwnerUUID(), "Shop Sale: " + shop.getItemMaterial(), sellerProfit);
+
                 // アイテムをプレイヤーに付与
                 Material itemMaterial = Material.matchMaterial(shop.getItemMaterial());
                 if (itemMaterial != null) {
                     player.getInventory().addItem(new ItemStack(itemMaterial, 1));
-                    player.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<green>" + economyManager.formatMoney(itemPrice) + " で " + itemMaterial.name() + " を購入しました！"));
+                    player.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + 
+                        "<green>" + economyManager.formatMoney(itemPrice) + " で " + itemMaterial.name() + " を購入しました！ " +
+                        "<gray>(内税10%: " + economyManager.formatMoney(taxAmount) + " が政府に納められました)"));
                 } else {
                     player.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>アイテムの取得に失敗しました。お金は返金されました。管理者に連絡してください。"));
                     // アイテム付与失敗時はお金を返金
