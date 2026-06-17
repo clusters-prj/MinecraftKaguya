@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FJ PayPay</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .paypay-red { bg-color: #ff0033; }
+        .paypay-gradient { background: linear-gradient(135deg, #ff0033 0%, #ff3366 100%); }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col justify-between font-sans">
+
+    <header class="bg-white shadow-sm">
+        <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-red-600 tracking-wider flex items-center gap-1">
+                <span class="bg-red-600 text-white px-2 py-0.5 rounded text-sm font-black">FJ</span> PayPay
+            </h1>
+            <button id="logoutBtn" class="hidden text-sm text-gray-500 hover:text-red-600 font-medium">ログアウト</button>
+        </div>
+    </header>
+
+    <main class="max-w-md w-full mx-auto px-4 py-6 flex-grow">
+        
+        <div id="loginSection" class="bg-white rounded-2xl shadow-md p-6 mt-4">
+            <h2 class="text-xl font-bold text-gray-800 mb-6 text-center">ログイン</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">メールアドレス</label>
+                    <input type="email" id="loginEmail" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500" placeholder="example@clusters-prj.com">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">パスワード</label>
+                    <input type="password" id="loginPassword" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500" placeholder="••••••••">
+                </div>
+                <button id="submitLogin" class="w-full bg-red-600 text-white font-bold py-3 rounded-xl shadow-sm hover:bg-red-700 transition">ログイン</button>
+                <p class="text-center text-xs text-gray-500 mt-4">
+                    アカウントをお持ちでないですか？ <a href="#" id="toRegister" class="text-red-500 font-bold hover:underline">新規登録</a>
+                </p>
+            </div>
+        </div>
+
+        <div id="registerSection" class="hidden bg-white rounded-2xl shadow-md p-6 mt-4">
+            <h2 class="text-xl font-bold text-gray-800 mb-6 text-center">アカウント新規作成</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">メールアドレス</label>
+                    <input type="email" id="registerEmail" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500" placeholder="example@clusters-prj.com">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">パスワード</label>
+                    <input type="password" id="registerPassword" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500" placeholder="••••••••">
+                </div>
+                <button id="submitRegister" class="w-full bg-red-600 text-white font-bold py-3 rounded-xl shadow-sm hover:bg-red-700 transition">アカウント作成</button>
+                <p class="text-center text-xs text-gray-500 mt-4">
+                    既にアカウントをお持ちですか？ <a href="#" id="toLogin" class="text-red-500 font-bold hover:underline">ログインはこちら</a>
+                </p>
+            </div>
+        </div>
+
+        <div id="dashboardSection" class="hidden space-y-4">
+            
+            <div class="paypay-gradient text-white rounded-3xl shadow-lg p-6 relative overflow-hidden">
+                <div class="flex justify-between items-start z-10 relative">
+                    <div>
+                        <p class="text-xs font-medium opacity-80">現在の残高</p>
+                        <h3 class="text-3xl font-black tracking-tight mt-1">
+                            ¥ <span id="userBalance">0</span>
+                        </h3>
+                    </div>
+                    <span class="bg-white/20 text-xs px-2.5 py-1 rounded-full font-bold backdrop-blur-sm" id="mcStatus">未連携</span>
+                </div>
+                <div class="mt-6 flex justify-between items-center z-10 relative">
+                    <div>
+                        <p class="text-[10px] opacity-60">マイクラアカウント</p>
+                        <p class="text-sm font-bold mt-0.5" id="mcPlayerName">未連携のユーザー</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-[10px] opacity-60">Webアカウント</p>
+                        <p class="text-xs font-medium mt-0.5 opacity-90" id="webUserEmail">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="unlinkedAlert" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-800 text-xs flex flex-col gap-3">
+                <div>
+                    <p class="font-bold mb-1">⚠️ マイクラアカウントが連携されていません</p>
+                    <p>ゲーム内で <code class="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold text-red-600">/paypay link</code> を実行し、表示された6桁のコードを入力してください。</p>
+                </div>
+                <div class="flex gap-2">
+                    <input type="text" id="linkCode" class="border border-amber-300 rounded-xl px-4 py-2 text-sm text-gray-800 font-mono tracking-widest text-center w-32 focus:outline-none focus:border-red-500" placeholder="000000" maxlength="6">
+                    <button id="submitLink" class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2 rounded-xl transition">連携する</button>
+                </div>
+
+                <div class="mt-2 border-t border-amber-200 pt-3">
+                    <p class="text-[10px] text-gray-400 font-bold mb-1">【開発用デバッグ】プラグインの代わりにコードを発行</p>
+                    <div class="flex gap-2">
+                        <input type="text" id="debugUuid" class="border border-gray-300 rounded-xl px-3 py-1.5 text-xs text-gray-700 font-mono w-full focus:outline-none focus:border-gray-500" placeholder="テストしたいマイクラのUUIDを入力">
+                        <button id="submitDebugCode" class="bg-gray-500 hover:bg-gray-600 text-white font-bold px-3 py-1.5 rounded-xl text-xs whitespace-nowrap transition">コード発行</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-md p-6">
+                <h4 class="text-sm font-bold text-gray-800 mb-4 border-l-4 border-red-500 pl-2">お金を送る</h4>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">送金先（プレイヤー名 または UUID）</label>
+                        <input type="text" id="sendTo" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500" placeholder="相手のIDを入力">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">金額 (円)</label>
+                        <input type="number" id="sendAmount" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500" placeholder="0" min="1">
+                    </div>
+                    <button id="submitSend" class="w-full bg-red-600 text-white font-bold py-3 rounded-xl shadow-sm hover:bg-red-700 transition">送金を実行する</button>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <footer class="text-center py-4 text-xs text-gray-400">
+        &copy; 2026 FJ Economy / clusters-prj.com
+    </footer>
+
+    <script>
+        // 画面の切り替え用要素
+        const loginSection = document.getElementById('loginSection');
+        const registerSection = document.getElementById('registerSection');
+        const dashboardSection = document.getElementById('dashboardSection');
+        const logoutBtn = document.getElementById('logoutBtn');
+
+        // セクション切り替え関数
+        function showSection(section) {
+            loginSection.classList.add('hidden');
+            registerSection.classList.add('hidden');
+            dashboardSection.classList.add('hidden');
+            logoutBtn.classList.add('hidden');
+
+            if (section === 'login') loginSection.classList.remove('hidden');
+            if (section === 'register') registerSection.classList.remove('hidden');
+            if (section === 'dashboard') {
+                dashboardSection.classList.remove('hidden');
+                logoutBtn.classList.remove('hidden');
+            }
+        }
+
+        // 画面切り替えのイベント
+        document.getElementById('toRegister').addEventListener('click', (e) => { e.preventDefault(); showSection('register'); });
+        document.getElementById('toLogin').addEventListener('click', (e) => { e.preventDefault(); showSection('login'); });
+
+        // アカウント新規登録処理
+        document.getElementById('submitRegister').addEventListener('click', async () => {
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+
+            const res = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                alert(data.message);
+                showSection('login');
+            } else {
+                alert('エラー: ' + data.error);
+            }
+        });
+
+        // ログイン処理
+        document.getElementById('submitLogin').addEventListener('click', async () => {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                // ログイン成功したらユーザー情報を読み込んでダッシュボードへ
+                await loadUserProfile();
+                showSection('dashboard');
+            } else {
+                alert('エラー: ' + data.error);
+            }
+        });
+
+        // ログアウト処理
+        logoutBtn.addEventListener('click', async () => {
+            const res = await fetch('/api/auth/logout', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                showSection('login');
+            }
+        });
+
+        // ログイン中のユーザー情報を取得して画面に反映
+        async function loadUserProfile() {
+            const res = await fetch('/api/user/me');
+            if (res.status === 401) {
+                showSection('login');
+                return;
+            }
+            const user = await res.json();
+
+            document.getElementById('webUserEmail').innerText = user.email;
+
+            // マイクラ連携の状態によって表示を変える
+            if (user.uuid) {
+                document.getElementById('userBalance').innerText = Number(user.balance).toLocaleString();
+                document.getElementById('mcPlayerName').innerText = user.player_name;
+                document.getElementById('mcStatus').innerText = '連携済み';
+                document.getElementById('mcStatus').className = 'bg-green-500 text-white text-xs px-2.5 py-1 rounded-full font-bold';
+                document.getElementById('unlinkedAlert').classList.add('hidden');
+            } else {
+                document.getElementById('userBalance').innerText = '0';
+                document.getElementById('mcPlayerName').innerText = '未連携のプレイヤー';
+                document.getElementById('mcStatus').innerText = '未連携';
+                document.getElementById('mcStatus').className = 'bg-amber-500 text-white text-xs px-2.5 py-1 rounded-full font-bold';
+                document.getElementById('unlinkedAlert').classList.remove('hidden');
+            }
+        }
+
+        // 連携コードの送信処理
+        document.getElementById('submitLink').addEventListener('click', async () => {
+            const code = document.getElementById('linkCode').value;
+
+            const res = await fetch('/api/auth/link', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                alert(data.message);
+                document.getElementById('linkCode').value = '';
+                await loadUserProfile(); // 画面を再読み込みして残高を表示させる
+            } else {
+                alert('連携失敗: ' + data.error);
+            }
+        });
+        
+        // 【追加】デバッグ用のコード発行処理
+        document.getElementById('submitDebugCode').addEventListener('click', async () => {
+            const uuid = document.getElementById('debugUuid').value;
+            if (!uuid) return alert('マイクラのUUIDを入力してください');
+
+            const res = await fetch('/api/debug/generate-code', {
+                method: 'POST', // しっかりPOSTで叩く
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ uuid })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                alert(`デバッグコードを発行しました: ${data.code}`);
+                // 自動で上の連携入力欄にコードをセットする親切設計
+                document.getElementById('linkCode').value = data.code;
+            } else {
+                alert('コード発行失敗: ' + data.error);
+            }
+        });
+
+        // 送金処理
+        document.getElementById('submitSend').addEventListener('click', async () => {
+            const to_player = document.getElementById('sendTo').value;
+            const amount = document.getElementById('sendAmount').value;
+
+            if (!confirm(`${to_player} さんに ${amount} 円送金します。本当によろしいですか？`)) return;
+
+            const res = await fetch('/api/wallet/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ to_player, amount })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                alert(data.message);
+                // 入力欄をクリアして残高を再読み込み
+                document.getElementById('sendTo').value = '';
+                document.getElementById('sendAmount').value = '';
+                await loadUserProfile();
+            } else {
+                alert('送金失敗: ' + data.error);
+            }
+        });
+
+        // ページ読み込み時に最初からログイン状態かチェックする
+        window.addEventListener('DOMContentLoaded', async () => {
+            const res = await fetch('/api/user/me');
+            if (res.ok) {
+                await loadUserProfile();
+                showSection('dashboard');
+            } else {
+                showSection('login');
+            }
+        });
+    </script>
+</body>
+</html>

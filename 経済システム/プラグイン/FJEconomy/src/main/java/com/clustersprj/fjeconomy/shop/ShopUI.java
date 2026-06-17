@@ -198,7 +198,7 @@ public class ShopUI implements Listener {
                     "SHOP_PURCHASE - Item: " + shop.getItemMaterial() + ", Buyer: " + player.getName());
 
                 // 【売上送金】税抜き価格をショップオーナーに送金
-                economyManager.giveMoney(shop.getOwnerUUID(), "Shop Sale: " + shop.getItemMaterial(), sellerProfit);
+                economyManager.giveMoney(shop.getOwnerUUID(), shop.getOwnerName(), sellerProfit);
 
                 // アイテムをプレイヤーに付与
                 Material itemMaterial = Material.matchMaterial(shop.getItemMaterial());
