@@ -1,7 +1,7 @@
 name: BgmPlugin
 version: ${project.version}
 main: com.example.bgmplugin.BgmPlugin
-api-version: "1.21"
+api-version: '26.1.2'
 description: Plays custom BGM for all players via resource pack
 author: clusters-prj
 

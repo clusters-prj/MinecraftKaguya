@@ -2,8 +2,8 @@ name: WebRegionAutomator
 version: '${project.version}'
 main: com.clusters_prj.wra.Main
 description: 'Web申請連動型の自動保護プラグイン'
-authors:
-  - clusters-prj
+api-version: '26.1.2'
+author: clusters-prj
 depend:
   - WorldGuard
   - WorldEdit
