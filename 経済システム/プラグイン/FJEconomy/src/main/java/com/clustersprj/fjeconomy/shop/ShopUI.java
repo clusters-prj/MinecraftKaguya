@@ -198,7 +198,9 @@ public class ShopUI implements Listener {
                     "SHOP_PURCHASE - Item: " + shop.getItemMaterial() + ", Buyer: " + player.getName());
 
                 // 【売上送金】税抜き価格をショップオーナーに送金
-                economyManager.giveMoney(shop.getOwnerUUID(), shop.getOwnerName(), sellerProfit);
+                String ownerName = Bukkit.getOfflinePlayer(shop.getOwnerUUID()).getName();
+                if (ownerName == null) ownerName = shop.getOwnerUUID().toString();
+                economyManager.giveMoney(shop.getOwnerUUID(), ownerName, sellerProfit);
 
                 // アイテムをプレイヤーに付与
                 Material itemMaterial = Material.matchMaterial(shop.getItemMaterial());

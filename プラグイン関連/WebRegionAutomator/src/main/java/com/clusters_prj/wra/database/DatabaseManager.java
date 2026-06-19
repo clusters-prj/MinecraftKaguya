@@ -122,6 +122,36 @@ public class DatabaseManager {
         }
     }
 
+    /**
+     * 新しい保護申請をDBに挿入する
+     * @return 成功時true
+     */
+    public boolean insertProtectionRequest(String serverId, String playerUuid, String regionId, String worldName,
+                                           int x1, int y1, int z1, int x2, int y2, int z2) {
+        String query = "INSERT INTO protection_requests (server_id, player_uuid, region_id, world_name, x1, y1, z1, x2, y2, z2, status, created_at) " +
+                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+            stmt.setString(1, serverId);
+            stmt.setString(2, playerUuid);
+            stmt.setString(3, regionId);
+            stmt.setString(4, worldName);
+            stmt.setInt(5, x1);
+            stmt.setInt(6, y1);
+            stmt.setInt(7, z1);
+            stmt.setInt(8, x2);
+            stmt.setInt(9, y2);
+            stmt.setInt(10, z2);
+
+            stmt.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            plugin.getLogger().warning("DB挿入エラー: " + e.getMessage());
+            return false;
+        }
+    }
+
     @FunctionalInterface
     private interface StatementSetter {
         void setStatement(PreparedStatement stmt) throws SQLException;

@@ -36,6 +36,11 @@ public class Main extends JavaPlugin {
         regionTask.runTaskTimerAsynchronously(this, 0, checkIntervalTicks);
         getLogger().info("✓ 領域チェックタスク開始（間隔: " + checkIntervalTicks + " ticks）");
 
+        // プレイヤーの斧 (WorldEdit) による申請イベントを登録
+        getServer().getPluginManager().registerEvents(
+            new com.clusters_prj.wra.listener.AxeSubmitListener(this, databaseManager),
+            this
+        );
         getLogger().info("========================================");
         getLogger().info("WebRegionAutomator 起動完了！");
         getLogger().info("========================================");
