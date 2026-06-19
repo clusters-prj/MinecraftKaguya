@@ -15,7 +15,6 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.UUID;
 
-
 public class WorldGuardHandler {
 
     private final JavaPlugin plugin;
@@ -99,6 +98,41 @@ public class WorldGuardHandler {
             e.printStackTrace();
             return false;
         }
+    }
+
+    /**
+     * 指定された座標の範囲が、既存のWorldGuard領域と重複しているかチェックする
+     * @return 重複している場合 true、していない場合 false
+     */
+    public boolean hasOverlap(String worldName, int x1, int y1, int z1, int x2, int y2, int z2) {
+        // 設定で重複チェックがオフになっている場合は常に false を返す
+        if (!plugin.getConfig().getBoolean("settings.enable-overlap-check", true)) {
+            return false;
+        }
+
+        World world = Bukkit.getWorld(worldName);
+        if (world == null) return false;
+
+        // 座標の大小整理
+        int minX = Math.min(x1, x2);
+        int maxX = Math.max(x1, x2);
+        int minY = Math.min(y1, y2);
+        int maxY = Math.max(y1, y2);
+        int minZ = Math.min(z1, z2);
+        int maxZ = Math.max(z1, z2);
+
+        BlockVector3 pos1 = BlockVector3.at(minX, minY, minZ);
+        BlockVector3 pos2 = BlockVector3.at(maxX, maxY, maxZ);
+
+        RegionManager regionManager = worldGuard.getPlatform()
+                .getRegionContainer()
+                .get(BukkitAdapter.adapt(world));
+
+        if (regionManager == null) return false;
+
+        // 一時的なダミー領域を作って重複を調べる
+        ProtectedCuboidRegion testRegion = new ProtectedCuboidRegion("overlap_check_dummy", pos1, pos2);
+        return regionManager.getApplicableRegions(testRegion).size() > 0;
     }
 
     /**
