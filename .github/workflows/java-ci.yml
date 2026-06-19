@@ -1,0 +1,27 @@
+name: Java Code Quality Check
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch: # GitHubの画面から手動でポチッと実行できるようにするトリガー
+
+jobs:
+  static-analysis:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 25
+      uses: actions/setup-java@v4
+      with:
+        java-version: '25' # Java 25を指定
+        distribution: 'temurin' # Eclipse Temurin（旧AdoptOpenJDK）が安定していておすすめ
+        cache: 'maven' # 依存ライブラリ（Paper APIなど）をキャッシュして2回目以降を爆速にする
+
+    # ルートの親pomに対して一括検証を実行（SpotBugsとCheckstyleが裏で動く）
+    - name: Run Quality Checks
+      run: mvn clean verify
