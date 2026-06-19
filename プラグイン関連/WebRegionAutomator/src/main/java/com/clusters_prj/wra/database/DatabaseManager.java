@@ -43,7 +43,7 @@ public class DatabaseManager {
     }
 
     /**
-     * 未処理の保護申請を取得
+     * 未処理の保護申請を取得（Web側で承認されて status = 0 になったものを取得）
      */
     public List<Map<String, Object>> fetchUnprocessedRequests(String serverId, int limit) {
         List<Map<String, Object>> requests = new ArrayList<>();
@@ -128,8 +128,9 @@ public class DatabaseManager {
      */
     public boolean insertProtectionRequest(String serverId, String playerUuid, String regionId, String worldName,
                                            int x1, int y1, int z1, int x2, int y2, int z2) {
+        // ★修正ポイント: VALUES の status にあたる部分を 0 から -1 (承認待ち) に変更しました
         String query = "INSERT INTO protection_requests (server_id, player_uuid, region_id, world_name, x1, y1, z1, x2, y2, z2, status, created_at) " +
-                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())";
+                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, -1, NOW())";
 
         try (Connection conn = dataSource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(query)) {
