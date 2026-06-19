@@ -26,7 +26,7 @@ jobs:
     - name: Run Quality Checks
       run: mvn clean verify 2>&1 | tee maven.log
 
-    # 1通目：全体のステータス（成功・失敗）を綺麗に通知
+    # 1通目：全体のステータス（成功・失敗）を通知
     - name: Discord Status Notification
       if: always()
       uses: sarisia/actions-status-discord@v1
@@ -38,9 +38,21 @@ jobs:
     # 2通目以降：エラー・警告ログを抽出して1800文字ごとに分割
     - name: Extract and Split Logs
       if: always()
-      run: grep -E "\[ERROR\]|\[WARNING\]" maven.log > filtered.log || true && [ -s filtered.log ] && split -C 1800 -d filtered.log chunk_
+      run: |
+        grep -E "\[ERROR\]|\[WARNING\]" maven.log > filtered.log || true
+        if [ -s filtered.log ]; then
+          split -C 1800 -d filtered.log chunk_
+        fi
 
-    # 分割されたログを順番にDiscordへ連投（エラーがなければ何もせずスキップ）
+    # 分割されたログを順番にDiscordへ連投（エラーがなければスキップ）
     - name: Post Log Chunks to Discord
       if: always()
-      run: for f in chunk_*; do [ -f "$f" ] && jq -n --arg msg "$(printf "\`\`\`text\n%s\n\`\`\`" "$(cat "$f")")" '{"content": $msg}' > payload.json && curl -H "Content-Type: application/json" -X POST -d @payload.json "${{ secrets.DISCORD_WEBHOOK }}" && rm -f payload.json; done
+      run: |
+        for f in chunk_*; do
+          if [ -f "$f" ]; then
+            payload_content=$(cat "$f")
+            jq -n --arg msg "\`\`\`text"$'\n'"$payload_content"$'\n'"\`\`\`" '{"content": $msg}' > payload.json
+            curl -H "Content-Type: application/json" -X POST -d @payload.json "${{ secrets.DISCORD_WEBHOOK }}"
+            rm -f payload.json
+          fi
+        done
