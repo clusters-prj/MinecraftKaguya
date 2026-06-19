@@ -35,14 +35,14 @@ jobs:
         status: ${{ job.status }}
         username: "GitHub Actions (Quality Check)"
 
-    # ログを重要度（ERROR/WARNING）別に抽出
+    # ログを重要度（High / Medium / Low / その他）別に抽出
     - name: Extract and Categorize Logs
       if: always()
       run: |
-        grep "\[ERROR\]" maven.log > errors.txt || true && grep "\[WARNING\]" maven.log > warnings.txt || true
+        grep "High:" maven.log > high.txt || true && grep "Medium:" maven.log > medium.txt || true && grep "Low:" maven.log > low.txt || true && grep -E "\[ERROR\]|\[WARNING\]" maven.log | grep -v -E "High:|Medium:|Low:" > other_errors.txt || true
 
-    # ログファイルが空でなければ、それぞれファイルとしてDiscordへ送信
+    # 各ログファイルに中身があれば、それぞれファイルとしてDiscordへ送信
     - name: Upload Log Files to Discord
       if: always()
       run: |
-        if [ -s errors.txt ]; then curl -F "content=❌ **Maven Errors**" -F "file=@errors.txt" "${{ secrets.DISCORD_WEBHOOK }}"; fi && if [ -s warnings.txt ]; then curl -F "content=⚠️ **Maven Warnings**" -F "file=@warnings.txt" "${{ secrets.DISCORD_WEBHOOK }}"; fi
+        if [ -s high.txt ]; then curl -F "content=🔴 **High Severity**" -F "file=@high.txt" "${{ secrets.DISCORD_WEBHOOK }}"; fi && if [ -s medium.txt ]; then curl -F "content=🟡 **Medium Severity**" -F "file=@medium.txt" "${{ secrets.DISCORD_WEBHOOK }}"; fi && if [ -s low.txt ]; then curl -F "content=🔵 **Low Severity**" -F "file=@low.txt" "${{ secrets.DISCORD_WEBHOOK }}"; fi && if [ -s other_errors.txt ]; then curl -F "content=📁 **Other Build Errors/Warnings**" -F "file=@other_errors.txt" "${{ secrets.DISCORD_WEBHOOK }}"; fi
