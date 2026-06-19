@@ -36,7 +36,7 @@ jobs:
           done
           
           # 2. 親POM（ルート）に戻って一括でクリーンパッケージを実行
-          cd "$ROOT_DIR" && mvn clean package
+          cd "$ROOT_DIR" && mvn -B clean package
           
           # 3. 各子モジュールのtargetから完成版jarをdistフォルダに集める
           find . -mindepth 2 -path "*/target/*.jar" ! -name "original-*.jar" ! -path "*/target/archive-tmp/*" -exec cp {} "$DIST_DIR/" \;
