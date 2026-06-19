@@ -84,9 +84,10 @@
         </dependency>
         
         <dependency>
-          <groupId>com.google.guava</groupId>
-          <artifactId>guava</artifactId>
-          <version>32.1.2-jre</version>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>32.1.2-jre</version>
+            <scope>provided</scope>
         </dependency>
 
     </dependencies>
