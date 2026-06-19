@@ -14,41 +14,47 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
-
+import org.bukkit.inventory.EquipmentSlot;
 
 public class AxeSubmitListener implements Listener {
 
     private final Main plugin;
     private final DatabaseManager databaseManager;
-    private final WorldGuardHandler wgHandler; // 追加
+    private final WorldGuardHandler wgHandler;
 
     public AxeSubmitListener(Main plugin, DatabaseManager databaseManager) {
         this.plugin = plugin;
         this.databaseManager = databaseManager;
-        this.wgHandler = new WorldGuardHandler(plugin); // 追加
+        this.wgHandler = new WorldGuardHandler(plugin);
     }
 
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
+        // 右手（メインハンド）のクリックのみに限定
+        if (event.getHand() != EquipmentSlot.HAND) return;
+
         Player player = event.getPlayer();
 
         ItemStack item = player.getInventory().getItemInMainHand();
         if (item == null) return;
 
+        // ★変更：トリガーアイテムを「ひまわり」に変更
         Material mat = item.getType();
-        if (mat != Material.WOODEN_AXE) return;
+        if (mat != Material.SUNFLOWER) return;
+
+        // シフトチェックは不要になったので削除
 
         switch (event.getAction()) {
             case RIGHT_CLICK_AIR:
             case RIGHT_CLICK_BLOCK:
                 try {
+                    // ひまわりを持っていても、WorldEditのセッションから現在の選択範囲を問題なく取得できます
                     LocalSession session = WorldEdit.getInstance().getSessionManager().get(BukkitAdapter.adapt(player));
                     if (session == null) {
                         player.sendMessage("§cWorldEdit セッションが見つかりません。");
                         return;
                     }
 
-                    // 選択範囲の取得（不完全な選択時のエラーハンドリングを追加）
                     Region sel;
                     try {
                         sel = session.getSelection(BukkitAdapter.adapt(player.getWorld()));
@@ -58,7 +64,7 @@ public class AxeSubmitListener implements Listener {
                     }
 
                     if (sel == null) {
-                        player.sendMessage("§e選択範囲がありません。斧で二点を選んでください。");
+                        player.sendMessage("§e選択範囲がありません。木の斧で二点を選んでから、ひまわりで右クリックしてください。");
                         return;
                     }
 
@@ -76,7 +82,7 @@ public class AxeSubmitListener implements Listener {
                     // DB登録前の重複チェック
                     if (wgHandler.hasOverlap(worldName, x1, y1, z1, x2, y2, z2)) {
                         player.sendMessage("§c指定された範囲は、既に他の保護領域と重複しています！");
-                        return; // 重複していたらここで処理を中断して送信させない
+                        return;
                     }
 
                     String serverId = plugin.getConfig().getString("server-id", "server1");
