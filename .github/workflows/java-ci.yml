@@ -35,24 +35,14 @@ jobs:
         status: ${{ job.status }}
         username: "GitHub Actions (Quality Check)"
 
-    # 2通目以降：エラー・警告ログを抽出して1800文字ごとに分割
-    - name: Extract and Split Logs
+    # ログを重要度（ERROR/WARNING）別に抽出
+    - name: Extract and Categorize Logs
       if: always()
       run: |
-        grep -E "\[ERROR\]|\[WARNING\]" maven.log > filtered.log || true
-        if [ -s filtered.log ]; then
-          split -C 1800 -d filtered.log chunk_
-        fi
+        grep "\[ERROR\]" maven.log > errors.txt || true && grep "\[WARNING\]" maven.log > warnings.txt || true
 
-    # 分割されたログを順番にDiscordへ連投（エラーがなければスキップ）
-    - name: Post Log Chunks to Discord
+    # ログファイルが空でなければ、それぞれファイルとしてDiscordへ送信
+    - name: Upload Log Files to Discord
       if: always()
       run: |
-        for f in chunk_*; do
-          if [ -f "$f" ]; then
-            payload_content=$(cat "$f")
-            jq -n --arg msg "\`\`\`text"$'\n'"$payload_content"$'\n'"\`\`\`" '{"content": $msg}' > payload.json
-            curl -H "Content-Type: application/json" -X POST -d @payload.json "${{ secrets.DISCORD_WEBHOOK }}"
-            rm -f payload.json
-          fi
-        done
+        if [ -s errors.txt ]; then curl -F "content=❌ **Maven Errors**" -F "file=@errors.txt" "${{ secrets.DISCORD_WEBHOOK }}"; fi && if [ -s warnings.txt ]; then curl -F "content=⚠️ **Maven Warnings**" -F "file=@warnings.txt" "${{ secrets.DISCORD_WEBHOOK }}"; fi
