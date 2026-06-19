@@ -13,8 +13,8 @@ public class ConfigManager {
 
     private final JavaPlugin plugin;
     private final Path configPath;
-    private Map<String, Object> config;
-    private Map<String, Object> previousConfig;
+    private Map<String, Object> config = new HashMap<>();
+    private Map<String, Object> previousConfig = new HashMap<>();
 
     public ConfigManager(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -39,10 +39,15 @@ public class ConfigManager {
         // Load config
         try (InputStream is = Files.newInputStream(configPath)) {
             Yaml yaml = new Yaml();
-            this.config = yaml.load(is);
-            
-            if (config == null) {
-                config = new HashMap<>();
+
+            Object loaded = yaml.load(is);
+
+            if (loaded instanceof Map<?, ?> map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> casted = (Map<String, Object>) map;
+                this.config = casted;
+            } else {
+                this.config = new HashMap<>();
             }
         }
 
@@ -145,13 +150,14 @@ public class ConfigManager {
      * Check if database configuration has changed
      */
     public boolean isDatabaseConfigChanged() {
-        String oldUrl = previousConfig.isEmpty() ? null : getStringFromMap(previousConfig, "database.url");
+        String oldUrl = getStringFromMap(previousConfig, "database.url");
         String newUrl = getString("database.url", "");
 
-        String oldUser = previousConfig.isEmpty() ? null : getStringFromMap(previousConfig, "database.username");
+        String oldUser = getStringFromMap(previousConfig, "database.username");
         String newUser = getString("database.username", "");
 
-        return !oldUrl.equals(newUrl) || !oldUser.equals(newUser);
+        return !oldUrl.equals(newUrl)
+                || !oldUser.equals(newUser);
     }
 
     /**
