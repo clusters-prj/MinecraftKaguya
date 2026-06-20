@@ -104,21 +104,8 @@ public class EconomyManager {
     }
 
     /**
-     * Set player's balance
-     */
-    public boolean setBalance(UUID playerUUID, String playerName, long amount) {
-        try (Connection conn = dbManager.getConnection()) {
-            return setBalance(conn, playerUUID, playerName, amount);
-        } catch (SQLException e) {
-            plugin.getLogger().log(Level.WARNING, "Balance update error", e);
-            return false;
-        }
-    }
-
-    /**
-     * プレイヤーアカウントの一括 upsert（窓口メソッド）
-     * ユーザー名の同期とアカウント存在保証を一度に行う
-     * 【重要】これを必ず使用してプレイヤー操作を統一する
+     * Ensure player account exists and sync player name
+     * Internal method: Connectionを受け取る
      */
     private void syncPlayerAccount(Connection conn, UUID playerUUID, String playerName) throws SQLException {
         try (PreparedStatement stmt = conn.prepareStatement(
@@ -129,6 +116,17 @@ public class EconomyManager {
             stmt.setLong(3, configManager.getStartingBalance());
             stmt.setString(4, playerName);
             stmt.executeUpdate();
+        }
+    }
+
+    /**
+     * Ensure player account exists（外部用、Connectionなし）
+     */
+    public void ensurePlayerAccount(UUID playerUUID, String playerName) {
+        try (Connection conn = dbManager.getConnection()) {
+            syncPlayerAccount(conn, playerUUID, playerName);
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Player account sync error", e);
         }
     }
 
@@ -358,18 +356,6 @@ public class EconomyManager {
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "Purchase transaction error", e);
             return false;
-        }
-    }
-
-    /**
-     * Ensure player account exists
-     */
-    public void ensurePlayerAccount(UUID playerUUID, String playerName) {
-        try (Connection conn = dbManager.getConnection()) {
-            // 上で新設した Connectionを受け取るメソッドに丸投げする
-            ensurePlayerAccount(conn, playerUUID, playerName);
-        } catch (SQLException e) {
-            plugin.getLogger().log(Level.WARNING, "Player account creation error", e);
         }
     }
 
