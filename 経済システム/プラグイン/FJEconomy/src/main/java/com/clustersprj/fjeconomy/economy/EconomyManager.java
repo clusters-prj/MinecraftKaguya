@@ -102,6 +102,18 @@ public class EconomyManager {
             return stmt.executeUpdate() > 0;
         }
     }
+    
+    /**
+     * Set player's balance
+     */
+    public boolean setBalance(UUID playerUUID, String playerName, long amount) {
+        try (Connection conn = dbManager.getConnection()) {
+            return setBalance(conn, playerUUID, playerName, amount);
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Balance update error", e);
+            return false;
+        }
+    }
 
     /**
      * Ensure player account exists and sync player name
