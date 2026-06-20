@@ -287,9 +287,6 @@ public class GovernmentManager {
             conn.setAutoCommit(false);
 
             try {
-                // アカウント存在確認
-                economyManager.ensurePlayerAccount(conn, recipientUUID, recipientName);
-
                 // 政府から引き出し
                 if (!economyManager.takeMoney(conn, governmentUUID, governmentName, amount)) {
                     conn.rollback();

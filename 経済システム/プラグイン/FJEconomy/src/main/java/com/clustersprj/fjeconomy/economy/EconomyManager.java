@@ -91,16 +91,15 @@ public class EconomyManager {
             return false;
         }
 
-        try (PreparedStatement stmt = conn.prepareStatement(
-                     "INSERT INTO fje_balances (uuid, player_name, balance) VALUES (?, ?, ?) " +
-                     "ON DUPLICATE KEY UPDATE balance = ?, player_name = ?, last_update = CURRENT_TIMESTAMP")) {
-            stmt.setString(1, playerUUID.toString());
+        // ★ 先に同期
+        syncPlayerAccount(conn, playerUUID, playerName);
+
+        String sql = "UPDATE fje_balances SET balance = ?, player_name = ?, last_update = CURRENT_TIMESTAMP WHERE uuid = ?";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, amount);
             stmt.setString(2, playerName);
-            stmt.setLong(3, amount);
-            stmt.setLong(4, amount);
-            stmt.setString(5, playerName); // 名前が変わっていた場合への対策
-            stmt.executeUpdate();
-            return true;
+            stmt.setString(3, playerUUID.toString());
+            return stmt.executeUpdate() > 0;
         }
     }
 
@@ -117,29 +116,42 @@ public class EconomyManager {
     }
 
     /**
-     * トランザクション内でプレイヤーのアカウント存在を保証する内部メソッド
-     * （Connectionを受け取る）
+     * プレイヤーアカウントの一括 upsert（窓口メソッド）
+     * ユーザー名の同期とアカウント存在保証を一度に行う
+     * 【重要】これを必ず使用してプレイヤー操作を統一する
      */
-    public void ensurePlayerAccount(Connection conn, UUID playerUUID, String playerName) throws SQLException {
+    private void syncPlayerAccount(Connection conn, UUID playerUUID, String playerName) throws SQLException {
         try (PreparedStatement stmt = conn.prepareStatement(
                  "INSERT INTO fje_balances (uuid, player_name, balance) VALUES (?, ?, ?) " +
                  "ON DUPLICATE KEY UPDATE player_name = ?, last_update = CURRENT_TIMESTAMP")) {
             stmt.setString(1, playerUUID.toString());
             stmt.setString(2, playerName);
             stmt.setLong(3, configManager.getStartingBalance());
-            stmt.setString(4, playerName); // すでに存在していても名前が最新なら更新
+            stmt.setString(4, playerName);
             stmt.executeUpdate();
         }
     }
 
     /**
-     * Give money to player (既存のコネクションを使用)
+     * トランザクション内でプレイヤーのアカウント存在を保証する内部メソッド
+     * （Connectionを受け取る）
      */
+    /**
+     * Ensure player account exists（外部用、Connectionなし）
+     */
+    public void ensurePlayerAccount(UUID playerUUID, String playerName) {
+        try (Connection conn = dbManager.getConnection()) {
+            syncPlayerAccount(conn, playerUUID, playerName);
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Player account sync error", e);
+        }
+    }
+
     public boolean giveMoney(Connection conn, UUID playerUUID, String playerName, long amount) throws SQLException {
         if (amount <= 0) return false;
 
-        // アカウントの存在を保証してから直接SQLで加算（競合防止）
-        ensurePlayerAccount(conn, playerUUID, playerName);
+        // ★ 必ずここで同期（ユーザー名更新も含む）
+        syncPlayerAccount(conn, playerUUID, playerName);
 
         String sql = "UPDATE fje_balances SET balance = balance + ?, player_name = ?, last_update = CURRENT_TIMESTAMP WHERE uuid = ?";
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -149,6 +161,7 @@ public class EconomyManager {
             return stmt.executeUpdate() > 0;
         }
     }
+
 
     /**
      * Give money to player
@@ -168,10 +181,9 @@ public class EconomyManager {
     public boolean takeMoney(Connection conn, UUID playerUUID, String playerName, long amount) throws SQLException {
         if (amount <= 0) return false;
 
-        // アカウントの存在を保証
-        ensurePlayerAccount(conn, playerUUID, playerName);
+        // ★ 必ずここで同期
+        syncPlayerAccount(conn, playerUUID, playerName);
 
-        // SQLで直接引き算。WHERE句で残高チェックを同時に行うことで競合を完全に防ぐ
         String sql = "UPDATE fje_balances SET balance = balance - ?, player_name = ?, last_update = CURRENT_TIMESTAMP " +
                      "WHERE uuid = ? AND (balance >= ? OR ?)";
 
@@ -179,11 +191,11 @@ public class EconomyManager {
             stmt.setLong(1, amount);
             stmt.setString(2, playerName);
             stmt.setString(3, playerUUID.toString());
-            stmt.setLong(4, amount); // 必要残高
-            stmt.setBoolean(5, configManager.isNegativeBalanceAllowed()); // マイナス許容設定
+            stmt.setLong(4, amount);
+            stmt.setBoolean(5, configManager.isNegativeBalanceAllowed());
 
             int affectedRows = stmt.executeUpdate();
-            return affectedRows > 0; // 条件を満たして更新できたらtrue
+            return affectedRows > 0;
         }
     }
 
