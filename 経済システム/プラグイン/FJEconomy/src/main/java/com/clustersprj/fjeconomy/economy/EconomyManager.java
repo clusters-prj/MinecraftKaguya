@@ -130,21 +130,6 @@ public class EconomyManager {
         }
     }
 
-    /**
-     * トランザクション内でプレイヤーのアカウント存在を保証する内部メソッド
-     * （Connectionを受け取る）
-     */
-    /**
-     * Ensure player account exists（外部用、Connectionなし）
-     */
-    public void ensurePlayerAccount(UUID playerUUID, String playerName) {
-        try (Connection conn = dbManager.getConnection()) {
-            syncPlayerAccount(conn, playerUUID, playerName);
-        } catch (SQLException e) {
-            plugin.getLogger().log(Level.WARNING, "Player account sync error", e);
-        }
-    }
-
     public boolean giveMoney(Connection conn, UUID playerUUID, String playerName, long amount) throws SQLException {
         if (amount <= 0) return false;
 
