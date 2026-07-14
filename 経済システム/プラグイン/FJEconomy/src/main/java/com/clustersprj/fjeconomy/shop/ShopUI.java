@@ -181,8 +181,9 @@ public class ShopUI implements Listener {
         long playerBalance = economyManager.getBalance(player.getUniqueId());
         long itemPrice = shop.getPrice();
         
-        // 税金の計算 (10%)
-        long taxAmount = (long) (itemPrice * 0.10);
+        // 税金の計算 (config.ymlの economy.tax_rate を使用)
+        double taxRate = plugin.getConfigManager().getTaxRate() / 100.0;
+        long taxAmount = Math.round(itemPrice * taxRate);
         long sellerProfit = itemPrice - taxAmount;
 
         if (playerBalance < itemPrice) {
@@ -193,8 +194,9 @@ public class ShopUI implements Listener {
         // お金の引き落としと在庫の減少
         if (economyManager.takeMoney(player.getUniqueId(), player.getName(), itemPrice)) {
             if (shopManager.removeStock(npcUuid, serverId, 1)) {
-                // 【納税処理】政府資金(国庫)に税金を加算し、記録する
-                plugin.getGovernmentManager().addGovernmentFunds(taxAmount, 
+                // 【納税処理】政府資金(国庫)に税金を加算し、TAX_INとして記録する
+                // (addGovernmentFundsだとFUND_ADD扱いになり、/fjegovernment tax の集計に反映されないため注意)
+                plugin.getGovernmentManager().addTaxIncome(taxAmount, 
                     "SHOP_PURCHASE - Item: " + shop.getItemMaterial() + ", Buyer: " + player.getName());
 
                 // 【売上送金】税抜き価格をショップオーナーに送金

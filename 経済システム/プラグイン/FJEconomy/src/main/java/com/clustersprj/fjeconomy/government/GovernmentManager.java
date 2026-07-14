@@ -140,6 +140,40 @@ public class GovernmentManager {
     }
 
     /**
+     * 税収を政府アカウントに加算し、"TAX_IN" として台帳に記録する。
+     * ショップ購入時など、税金として徴収した金額を計上する際はこちらを使用すること。
+     * ("FUND_ADD"（手動追加）と区別するため。getTaxIncome() 等は "TAX_IN" のみを集計する)
+     */
+    public boolean addTaxIncome(long amount, String description) {
+        if (amount <= 0) {
+            return false;
+        }
+
+        try (Connection conn = dbManager.getConnection()) {
+            conn.setAutoCommit(false);
+
+            try {
+                economyManager.giveMoney(conn, governmentUUID, governmentName, amount);
+                recordTax(conn, amount, description);
+
+                conn.commit();
+                return true;
+
+            } catch (Exception e) {
+                conn.rollback();
+                plugin.getLogger().log(Level.WARNING, "税収記録エラー", e);
+                return false;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "税収記録時のDB接続エラー", e);
+            return false;
+        }
+    }
+
+    /**
      * 政府台帳に記録（内部用）
      */
     private void recordLedger(Connection conn, String type, long amount, String description) throws SQLException {
