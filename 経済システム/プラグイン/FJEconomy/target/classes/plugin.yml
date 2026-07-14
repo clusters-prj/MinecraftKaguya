@@ -3,7 +3,7 @@ version: 1.0.10
 description: Integrated economy system for Paper servers with database sync
 author: Clusters-Prj
 website: https://clusters-prj.com
-api-version: 1.21
+api-version: '26.1.2'
 
 main: com.clustersprj.fjeconomy.FJEconomy
 
