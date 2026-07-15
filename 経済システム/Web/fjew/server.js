@@ -1,3 +1,6 @@
+// ★ 一番最初に追加して環境変数をロードする
+require('dotenv').config();
+
 // BigIntをJSONで出力できるようにシリアライズ方法を定義
 BigInt.prototype.toJSON = function() {
     return this.toString();
@@ -5,11 +8,31 @@ BigInt.prototype.toJSON = function() {
 
 const express = require('express');
 const path = require('path');
-const session = require('express-session'); // 追加
-const bcrypt = require('bcrypt');           // 追加
-const pool = require('./db');
+const session = require('express-session');
+const FileStore = require('session-file-store')(session);
+const bcrypt = require('bcrypt');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
+const pool = require('./db'); // この中で process.env が正常に使えるようになる
 const app = express();
 const PORT = 3200;
+
+// ==========================================
+// SMTPメール送信設定 (環境変数から読み込み)
+// ==========================================
+const transporter = nodemailer.createTransport({
+    host: 'smtp.mail.me.com',
+    port: 587,
+    secure: false,
+    auth: {
+        user: process.env.SMTP_USER, // 環境変数から
+        pass: process.env.SMTP_PASS  // 環境変数から
+    }
+});
+const FROM_EMAIL = `"ふじゅ〜ペイ" <${process.env.SMTP_USER}>`;
+
+// リバースプロキシ(Cloudflare Tunnel等)配下で動かす場合の設定
+app.set('trust proxy', 1);
 
 app.use(express.json());
 
@@ -18,19 +41,26 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // CORSを許可
 app.use((req, res, next) => {
-    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
+    res.header("Access-Control-Allow-Credentials", "true");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
     next();
 });
 
 // セッションの設定
 app.use(session({
-    secret: 'fje-paypay-secret-key-change-this',
+    store: new FileStore({
+        path: path.join(__dirname, 'sessions'),
+        ttl: 60 * 60 * 24,
+        retries: 0,
+        logFn: () => {}
+    }),
+    secret: process.env.SESSION_SECRET || 'fje-paypay-secret-key-fallback', // 環境変数から
     resave: false,
     saveUninitialized: false,
     cookie: {
-        secure: false, // ローカル環境(http)のためfalse
-        maxAge: 1000 * 60 * 60 * 24 // 1日間
+        secure: false,
+        maxAge: 1000 * 60 * 60 * 24
     }
 }));
 
@@ -81,6 +111,16 @@ async function initDatabase() {
             )
         `);
 
+        // 4. 【新設】メール認証リンク一時保存テーブル
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS email_verifications (
+                email VARCHAR(255) PRIMARY KEY,
+                password_hash VARCHAR(255) NOT NULL,
+                token VARCHAR(255) NOT NULL,
+                expires_at TIMESTAMP NOT NULL
+            )
+        `);
+
         console.log("Database tables initialized successfully.");
     } catch (err) {
         console.error("Failed to initialize database tables:", err);
@@ -93,7 +133,7 @@ async function initDatabase() {
 // 新設：ユーザー認証・アカウント連携関連
 // ==========================================
 
-// アカウント新規登録
+// アカウント仮登録 ＆ 認証メール送信
 app.post('/api/auth/register', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: "メアドとパスワードを入力してください" });
@@ -101,16 +141,86 @@ app.post('/api/auth/register', async (req, res) => {
     let conn;
     try {
         conn = await pool.getConnection();
+        
+        // すでに本登録が完了しているかチェック
         const existing = await conn.query("SELECT id FROM web_users WHERE email = ?", [email]);
         if (existing.length > 0) return res.status(400).json({ error: "このメールアドレスは既に登録されています" });
 
         const saltRounds = 10;
         const passwordHash = await bcrypt.hash(password, saltRounds);
 
-        await conn.query("INSERT INTO web_users (email, password_hash) VALUES (?, ?)", [email, passwordHash]);
-        res.json({ success: true, message: "アカウントを作成しました" });
+        // 安全なランダムトークン（64文字の16進数文字列）を生成
+        const token = crypto.randomBytes(32).toString('hex');
+
+        // 一時テーブルに保存（有効期限は30分間）
+        await conn.query(`
+            INSERT INTO email_verifications (email, password_hash, token, expires_at) 
+            VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL 30 MINUTE))
+            ON DUPLICATE KEY UPDATE password_hash = ?, token = ?, expires_at = DATE_ADD(NOW(), INTERVAL 30 MINUTE)
+        `, [email, passwordHash, token, passwordHash, token]);
+
+        // アクセスされたプロトコル(http/https)とホスト名を自動で取得してURLを構築
+        const verifyUrl = `${req.protocol}://${req.get('host')}/api/auth/verify?token=${token}`;
+
+        // 認証メールの送信
+        const mailOptions = {
+            from: FROM_EMAIL,
+            to: email,
+            subject: '【ふじゅ〜ペイ】新規登録アカウントの有効化',
+            text: `ふじゅ〜ペイをご利用いただきありがとうございます。\n\n以下のリンクをクリックして、アカウント登録を完了させてください。\n\n▼ 登録を完了する\n${verifyUrl}\n\n※有効期限: 30分\n※このメールに心当たりがない場合は、破棄してください。`
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        res.json({ success: true, message: "認証用メールを送信しました。メール内のリンクをクリックしてください。" });
     } catch (err) {
         res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// メール認証リンクの検証 ＆ 本登録（GETリクエスト）
+app.get('/api/auth/verify', async (req, res) => {
+    const { token } = req.query;
+    if (!token) {
+        return res.status(400).send('<h1>無効なリクエストです</h1><p>トークンが存在しません。</p>');
+    }
+
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        // トークンが一致し、期限内の一時登録情報を取得
+        const rows = await conn.query(
+            "SELECT email, password_hash FROM email_verifications WHERE token = ? AND expires_at > NOW()",
+            [token]
+        );
+
+        if (rows.length === 0) {
+            throw new Error("リンクの有効期限が切れているか、すでに使用されています。");
+        }
+
+        const { email, password_hash } = rows[0];
+
+        // 本登録（web_users）に挿入
+        await conn.query(
+            "INSERT INTO web_users (email, password_hash) VALUES (?, ?)",
+            [email, password_hash]
+        );
+
+        // 一時テーブルから削除
+        await conn.query("DELETE FROM email_verifications WHERE email = ?", [email]);
+
+        await conn.commit();
+
+        // 認証完了フラグをURLパラメータに付けて、アプリのトップページへリダイレクト
+        res.redirect('/?verified=true');
+    } catch (err) {
+        if (conn) await conn.rollback();
+        // エラーメッセージ付きでトップページへリダイレクト
+        res.redirect(`/?verify_error=${encodeURIComponent(err.message)}`);
     } finally {
         if (conn) conn.release();
     }
@@ -175,17 +285,16 @@ app.post('/api/auth/link', requireAuth, async (req, res) => {
             throw new Error("マイクラのプレイヤーデータが存在しません");
         }
         const playerName = pRows[0].player_name;
-        // UUIDの頭が00000000、または名前の先頭がドットなら統合版
         const isBedrock = minecraftUuid.startsWith('00000000-0000-0000-') || (playerName && playerName.startsWith('.'));
         const accountType = isBedrock ? 'BEDROCK' : 'JAVA';
 
-        // 2. 重複チェック（他のWebアカウントに既に紐づいていないか）
+        // 2. 重複チェック
         const existingLink = await conn.query("SELECT web_user_id FROM account_links WHERE minecraft_uuid = ?", [minecraftUuid]);
         if (existingLink.length > 0) {
             throw new Error("このマイクラアカウントは既に別のWebアカウントに連携されています");
         }
 
-        // 2.5 自分のWebアカウントに、すでに同じタイプ（Java/Bedrock）が連携されていないかチェック
+        // 2.5 同一タイプ重複チェック
         const myLinks = await conn.query(`
             SELECT l.minecraft_uuid, b.player_name 
             FROM account_links l
@@ -226,11 +335,9 @@ app.get('/api/user/me', requireAuth, async (req, res) => {
     let conn;
     try {
         conn = await pool.getConnection();
-        // ユーザーの基本情報
         const userRows = await conn.query("SELECT email, discord_id FROM web_users WHERE id = ?", [req.session.webUserId]);
         if (userRows.length === 0) return res.status(404).json({ error: "ユーザーが見つかりません" });
 
-        // 連携されているマイクラアカウントをすべて取得
         const mcRows = await conn.query(`
             SELECT b.uuid, b.player_name, b.balance 
             FROM account_links l
@@ -238,7 +345,6 @@ app.get('/api/user/me', requireAuth, async (req, res) => {
             WHERE l.web_user_id = ?
         `, [req.session.webUserId]);
 
-        // それぞれJavaか統合版かのタイプ情報を付与
         const accounts = mcRows.map(row => {
             const isBedrock = row.uuid.startsWith('00000000-0000-0000-') || (row.player_name && row.player_name.startsWith('.'));
             return {
@@ -252,7 +358,7 @@ app.get('/api/user/me', requireAuth, async (req, res) => {
         res.json({
             email: userRows[0].email,
             discord_id: userRows[0].discord_id,
-            accounts: accounts // 配列で返す
+            accounts: accounts
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -261,9 +367,9 @@ app.get('/api/user/me', requireAuth, async (req, res) => {
     }
 });
 
-// ログイン中のユーザーから他プレイヤーへの送金（PayPayコア機能）
+// 送金
 app.post('/api/wallet/send', requireAuth, async (req, res) => {
-    const { from_uuid, to_player, amount } = req.body; // from_uuid を追加で受け取る
+    const { from_uuid, to_player, amount } = req.body;
     const parsedAmount = BigInt(amount);
 
     if (!to_player || parsedAmount <= 0n) {
@@ -275,17 +381,13 @@ app.post('/api/wallet/send', requireAuth, async (req, res) => {
         conn = await pool.getConnection();
         await conn.beginTransaction();
 
-        // 1. ユーザーの連携アカウント一覧を取得
         const links = await conn.query("SELECT minecraft_uuid FROM account_links WHERE web_user_id = ?", [req.session.webUserId]);
         if (links.length === 0) throw new Error("マイクラアカウントが連携されていません");
 
-        // 送金元UUIDの決定と検証
         let fromUuid = from_uuid;
         if (!fromUuid) {
-            // もし指定がなければ自動的に1つ目のアカウントをデフォルトにする（互換性用）
             fromUuid = links[0].minecraft_uuid;
         } else {
-            // 指定されたUUIDが本当にこのユーザーのものかチェック
             const hasLink = links.some(l => l.minecraft_uuid === fromUuid);
             if (!hasLink) throw new Error("指定された送金元アカウントはあなたに連携されていません");
         }
@@ -321,7 +423,7 @@ app.post('/api/wallet/send', requireAuth, async (req, res) => {
     }
 });
 
-// 【開発用デバッグAPI】プラグインの代わりにコードを強制発行する
+// 【デバッグ用】連携コード発行
 app.post('/api/debug/generate-code', async (req, res) => {
     const { uuid } = req.body;
     if (!uuid) return res.status(400).json({ error: "マイクラのUUIDが必要です" });
@@ -344,12 +446,10 @@ app.post('/api/debug/generate-code', async (req, res) => {
     }
 });
 
-
 // ==========================================
-// 1. プレイヤー・経済関連 (fje_balances)
+// その他API（残高取得・ランキング・ショップ・履歴など）
 // ==========================================
 
-// 特定プレイヤーの残高・情報取得
 app.get('/api/economy/balance/:uuid', async (req, res) => {
     let conn;
     try {
@@ -364,7 +464,6 @@ app.get('/api/economy/balance/:uuid', async (req, res) => {
     }
 });
 
-// 長者番付（ランキング）TOP100 - 政府口座は除外
 app.get('/api/economy/ranking', async (req, res) => {
     let conn;
     try {
@@ -381,11 +480,6 @@ app.get('/api/economy/ranking', async (req, res) => {
     }
 });
 
-// ==========================================
-// 2. ショップ関連 (fje_shops)
-// ==========================================
-
-// 全ショップ一覧（ショッピングモール画面・アイテム検索用）
 app.get('/api/shops', async (req, res) => {
     let conn;
     try {
@@ -419,7 +513,6 @@ app.get('/api/shops', async (req, res) => {
     }
 });
 
-// 特定の店主(UUID)が持つショップ一覧（店主用ダッシュボード）
 app.get('/api/shops/owner/:uuid', async (req, res) => {
     let conn;
     try {
@@ -433,11 +526,6 @@ app.get('/api/shops/owner/:uuid', async (req, res) => {
     }
 });
 
-// ==========================================
-// 3. トランザクション履歴 (fje_transactions)
-// ==========================================
-
-// 全取引履歴（管理者監査用・最新100件）
 app.get('/api/transactions', async (req, res) => {
     let conn;
     try {
@@ -451,7 +539,6 @@ app.get('/api/transactions', async (req, res) => {
     }
 });
 
-// 特定プレイヤーに関わる取引履歴（一般ユーザーマイページ用）
 app.get('/api/transactions/player/:uuid', async (req, res) => {
     let conn;
     try {
@@ -468,7 +555,6 @@ app.get('/api/transactions/player/:uuid', async (req, res) => {
     }
 });
 
-// 店主の売上統計（アナリティクス用グラフデータ）
 app.get('/api/analytics/shop/:uuid', async (req, res) => {
     let conn;
     try {
@@ -492,11 +578,6 @@ app.get('/api/analytics/shop/:uuid', async (req, res) => {
     }
 });
 
-// ==========================================
-// 4. マクロ経済・政府公文書 (fje_government_ledger)
-// ==========================================
-
-// サーバー全体の経済指標サマリー（管理者ダッシュボード用）
 app.get('/api/admin/economy/summary', async (req, res) => {
     let conn;
     try {
@@ -518,7 +599,6 @@ app.get('/api/admin/economy/summary', async (req, res) => {
     }
 });
 
-// 政府収支台帳の取得
 app.get('/api/admin/government/ledger', async (req, res) => {
     let conn;
     try {

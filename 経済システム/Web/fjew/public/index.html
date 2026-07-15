@@ -59,6 +59,19 @@
             </div>
         </div>
 
+        <div id="verifyPendingSection" class="hidden bg-white rounded-2xl shadow-md p-6 mt-4 text-center">
+            <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 19v-8.93a2 2 0 01.89-1.664l8-5.333a2 2 0 012.22 0l8 5.333A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-2.25-1.5a2 2 0 00-2.22 0l-2.25 1.5"></path>
+                </svg>
+            </div>
+            <h2 class="text-xl font-bold text-gray-800 mb-2">確認メールを送信しました</h2>
+            <p class="text-xs text-gray-500 mb-6 leading-relaxed">
+                <span id="sentEmailAddress" class="font-bold text-gray-700"></span> 宛に送信された認証メール内の確認リンクをクリックして、登録を完了してください。
+            </p>
+            <button id="backToLoginFromPending" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl shadow-sm transition">ログイン画面に戻る</button>
+        </div>
+
         <div id="dashboardSection" class="hidden space-y-4">
             
             <div class="paypay-gradient text-white rounded-3xl shadow-lg p-6 relative overflow-hidden">
@@ -81,6 +94,11 @@
                         <p class="text-xs font-medium mt-0.5 opacity-90" id="webUserEmail">-</p>
                     </div>
                 </div>
+            </div>
+
+            <div id="accountListSection" class="hidden bg-white rounded-2xl shadow-md p-4">
+                <p class="text-[10px] font-bold text-gray-400 mb-2">連携中のアカウント一覧</p>
+                <div id="accountList" class="space-y-2"></div>
             </div>
 
             <div id="unlinkedAlert" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-800 text-xs flex flex-col gap-3">
@@ -129,6 +147,7 @@
         // 画面の切り替え用要素
         const loginSection = document.getElementById('loginSection');
         const registerSection = document.getElementById('registerSection');
+        const verifyPendingSection = document.getElementById('verifyPendingSection');
         const dashboardSection = document.getElementById('dashboardSection');
         const logoutBtn = document.getElementById('logoutBtn');
 
@@ -136,11 +155,13 @@
         function showSection(section) {
             loginSection.classList.add('hidden');
             registerSection.classList.add('hidden');
+            verifyPendingSection.classList.add('hidden');
             dashboardSection.classList.add('hidden');
             logoutBtn.classList.add('hidden');
 
             if (section === 'login') loginSection.classList.remove('hidden');
             if (section === 'register') registerSection.classList.remove('hidden');
+            if (section === 'verifyPending') verifyPendingSection.classList.remove('hidden');
             if (section === 'dashboard') {
                 dashboardSection.classList.remove('hidden');
                 logoutBtn.classList.remove('hidden');
@@ -150,8 +171,9 @@
         // 画面切り替えのイベント
         document.getElementById('toRegister').addEventListener('click', (e) => { e.preventDefault(); showSection('register'); });
         document.getElementById('toLogin').addEventListener('click', (e) => { e.preventDefault(); showSection('login'); });
+        document.getElementById('backToLoginFromPending').addEventListener('click', (e) => { e.preventDefault(); showSection('login'); });
 
-        // アカウント新規登録処理
+        // アカウント仮登録処理
         document.getElementById('submitRegister').addEventListener('click', async () => {
             const email = document.getElementById('registerEmail').value;
             const password = document.getElementById('registerPassword').value;
@@ -164,8 +186,8 @@
             const data = await res.json();
 
             if (data.success) {
-                alert(data.message);
-                showSection('login');
+                document.getElementById('sentEmailAddress').innerText = email;
+                showSection('verifyPending'); // メール確認案内の画面へ
             } else {
                 alert('エラー: ' + data.error);
             }
@@ -184,7 +206,6 @@
             const data = await res.json();
 
             if (data.success) {
-                // ログイン成功したらユーザー情報を読み込んでダッシュボードへ
                 await loadUserProfile();
                 showSection('dashboard');
             } else {
@@ -212,19 +233,45 @@
 
             document.getElementById('webUserEmail').innerText = user.email;
 
-            // マイクラ連携の状態によって表示を変える
-            if (user.uuid) {
-                document.getElementById('userBalance').innerText = Number(user.balance).toLocaleString();
-                document.getElementById('mcPlayerName').innerText = user.player_name;
+            const accounts = user.accounts || [];
+            const accountListSection = document.getElementById('accountListSection');
+            const accountListEl = document.getElementById('accountList');
+            accountListEl.innerHTML = '';
+
+            if (accounts.length > 0) {
+                const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
+                document.getElementById('userBalance').innerText = totalBalance.toLocaleString();
+
+                const primary = accounts[0];
+                document.getElementById('mcPlayerName').innerText = accounts.length > 1
+                    ? `${primary.player_name} 他${accounts.length - 1}件`
+                    : primary.player_name;
+
                 document.getElementById('mcStatus').innerText = '連携済み';
-                document.getElementById('mcStatus').className = 'bg-green-500 text-white text-xs px-2.5 py-1 rounded-full font-bold';
+                document.getElementById('mcStatus').className = 'bg-green-500 text-white text-xs px-2.5 py-1 rounded-full font-bold backdrop-blur-sm';
                 document.getElementById('unlinkedAlert').classList.add('hidden');
+
+                if (accounts.length > 1) {
+                    accountListSection.classList.remove('hidden');
+                    for (const acc of accounts) {
+                        const row = document.createElement('div');
+                        row.className = 'flex justify-between items-center text-xs bg-gray-50 rounded-xl px-3 py-2';
+                        row.innerHTML = `
+                            <span class="font-bold text-gray-700">${acc.player_name} <span class="text-gray-400 font-normal">(${acc.type})</span></span>
+                            <span class="text-gray-600">¥${Number(acc.balance).toLocaleString()}</span>
+                        `;
+                        accountListEl.appendChild(row);
+                    }
+                } else {
+                    accountListSection.classList.add('hidden');
+                }
             } else {
                 document.getElementById('userBalance').innerText = '0';
                 document.getElementById('mcPlayerName').innerText = '未連携のプレイヤー';
                 document.getElementById('mcStatus').innerText = '未連携';
-                document.getElementById('mcStatus').className = 'bg-amber-500 text-white text-xs px-2.5 py-1 rounded-full font-bold';
+                document.getElementById('mcStatus').className = 'bg-amber-500 text-white text-xs px-2.5 py-1 rounded-full font-bold backdrop-blur-sm';
                 document.getElementById('unlinkedAlert').classList.remove('hidden');
+                accountListSection.classList.add('hidden');
             }
         }
 
@@ -242,19 +289,19 @@
             if (data.success) {
                 alert(data.message);
                 document.getElementById('linkCode').value = '';
-                await loadUserProfile(); // 画面を再読み込みして残高を表示させる
+                await loadUserProfile();
             } else {
                 alert('連携失敗: ' + data.error);
             }
         });
         
-        // 【追加】デバッグ用のコード発行処理
+        // デバッグ用のコード発行処理
         document.getElementById('submitDebugCode').addEventListener('click', async () => {
             const uuid = document.getElementById('debugUuid').value;
             if (!uuid) return alert('マイクラのUUIDを入力してください');
 
             const res = await fetch('/api/debug/generate-code', {
-                method: 'POST', // しっかりPOSTで叩く
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ uuid })
             });
@@ -262,7 +309,6 @@
 
             if (data.success) {
                 alert(`デバッグコードを発行しました: ${data.code}`);
-                // 自動で上の連携入力欄にコードをセットする親切設計
                 document.getElementById('linkCode').value = data.code;
             } else {
                 alert('コード発行失敗: ' + data.error);
@@ -285,7 +331,6 @@
 
             if (data.success) {
                 alert(data.message);
-                // 入力欄をクリアして残高を再読み込み
                 document.getElementById('sendTo').value = '';
                 document.getElementById('sendAmount').value = '';
                 await loadUserProfile();
@@ -294,8 +339,25 @@
             }
         });
 
-        // ページ読み込み時に最初からログイン状態かチェックする
+        // ページ読み込み時のパラメータ処理とログイン状態チェック
         window.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            // 認証成功パラメータを検知した場合
+            if (urlParams.get('verified') === 'true') {
+                alert('メール認証が完了しました！ログインしてください。');
+                // アドレスバーのパラメータをクリアしてきれいに保つ
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+            
+            // 認証失敗パラメータを検知した場合
+            const verifyError = urlParams.get('verify_error');
+            if (verifyError) {
+                alert('メール認証に失敗しました: ' + decodeURIComponent(verifyError));
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+
+            // 既存のログインチェック処理
             const res = await fetch('/api/user/me');
             if (res.ok) {
                 await loadUserProfile();
