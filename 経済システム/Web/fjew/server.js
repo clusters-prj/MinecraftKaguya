@@ -174,6 +174,7 @@ app.post('/api/auth/register', async (req, res) => {
 
         res.json({ success: true, message: "認証用メールを送信しました。メール内のリンクをクリックしてください。" });
     } catch (err) {
+        console.error("ユーザー登録・メール送信エラー:", err); // これを追加！
         res.status(500).json({ error: err.message });
     } finally {
         if (conn) conn.release();
