@@ -13,18 +13,34 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * 一般プレイヤーおよび管理者が使用する主要コマンド（/fj, /fjeadmin）を一括処理・登録するクラスです。
+ * <p>
+ * 一般向け（残高表示、送金）、および管理用（お金の直接付与、没収、残高の強制設定、リロード）など、
+ * システム全体の基本マネーハンドリングと連携しています。
+ * </p>
+ */
 public class CommandManager implements CommandExecutor, TabCompleter {
 
+    /** プラグインのメインクラス */
     private final FJEconomy plugin;
+    
+    /** 経済システムのコア処理（データの取得・更新・送金など）を担うマネージャー */
     private final EconomyManager economyManager;
 
+    /**
+     * CommandManagerの新しいインスタンスを構築します。
+     * 内部でEconomyManagerも初期化されます。
+     *
+     * @param plugin プラグインのメインインスタンス
+     */
     public CommandManager(FJEconomy plugin) {
         this.plugin = plugin;
         this.economyManager = new EconomyManager(plugin);
     }
 
     /**
-     * Register commands
+     * Bukkitシステムへ各種コマンド（fj、fjeadmin）のExecutorおよびTabCompleterを登録します。
      */
     public void registerCommands() {
         plugin.getCommand("fj").setExecutor(this);
@@ -33,6 +49,17 @@ public class CommandManager implements CommandExecutor, TabCompleter {
         plugin.getCommand("fjeadmin").setTabCompleter(this);
     }
 
+    /**
+     * 登録されたコマンド（/fj, /fjeadmin）が実行されたときにトリガーされます。
+     * サブコマンドが存在しない場合は自動的にヘルプを表示し、
+     * 存在する場合は各コマンド処理に適切なパラメーターを転送します。
+     *
+     * @param sender コマンドの送信者（プレイヤーまたはコンソール）
+     * @param command 実行されたコマンド
+     * @param label コマンドのメインラベル（エイリアス）
+     * @param args コマンド引数の配列
+     * @return 処理が正常に実行された場合は true
+     */
     @Override
     public boolean onCommand(org.bukkit.command.CommandSender sender, Command command, 
                             String label, String[] args) {
@@ -70,7 +97,11 @@ public class CommandManager implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * Handle balance command
+     * /fj balance (または /fj bal) - プレイヤー自身の残高を確認してフォーマット済みのテキストで表示します。
+     *
+     * @param sender コマンド送信者（プレイヤーのみ許可）
+     * @param args コマンド引数
+     * @return 処理が完了した場合は true
      */
     private boolean handleBalance(org.bukkit.command.CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
@@ -87,7 +118,12 @@ public class CommandManager implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * Handle pay command
+     * /fj pay <プレイヤー名> <金額> - 他のプレイヤーの口座へお金を送金します。
+     * 送金側は十分な残高が必要であり、相手のオンライン状態に関係なくUUIDの特定に成功すれば送金可能です。
+     *
+     * @param sender コマンド送信者（送金側プレイヤー）
+     * @param args 引数（args[1]: 送金先プレイヤー名, args[2]: 送金金額）
+     * @return 処理が完了した場合は true
      */
     private boolean handlePay(org.bukkit.command.CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
@@ -155,7 +191,11 @@ public class CommandManager implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * Handle give command (admin)
+     * /fjeadmin give <プレイヤー名> <金額> - 管理者権限を用いて特定のプレイヤーに無からお金を給付します。
+     *
+     * @param sender コマンド送信者（管理者）
+     * @param args 引数（args[1]: 対象プレイヤー, args[2]: 付与額）
+     * @return 処理が完了した場合は true
      */
     private boolean handleGive(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.admin")) {
@@ -212,7 +252,11 @@ public class CommandManager implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * Handle take command (admin)
+     * /fjeadmin take <プレイヤー名> <金額> - 管理者権限を用いて特定のプレイヤーの口座からお金を没収します。
+     *
+     * @param sender コマンド送信者（管理者）
+     * @param args 引数（args[1]: 対象プレイヤー, args[2]: 没収額）
+     * @return 処理が完了した場合は true
      */
     private boolean handleTake(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.admin")) {
@@ -269,7 +313,11 @@ public class CommandManager implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * Handle set command (admin)
+     * /fjeadmin set <プレイヤー名> <金額> - 管理者権限でプレイヤーの残高を指定額に直接上書きします。
+     *
+     * @param sender コマンド送信者（管理者）
+     * @param args 引数（args[1]: 対象プレイヤー, args[2]: 強制設定額）
+     * @return 処理が完了した場合は true
      */
     private boolean handleSet(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.admin")) {
@@ -326,7 +374,10 @@ public class CommandManager implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * Handle reload command
+     * /fjeadmin reload - 設定ファイルの再読み込みやデータベース設定の変更検知、必要に応じた接続プール等の再構築を行います。
+     *
+     * @param sender コマンド送信者（リロード権限所持者）
+     * @return 処理が完了した場合は true
      */
     private boolean handleReload(org.bukkit.command.CommandSender sender) {
         if (!sender.hasPermission("fj.reload")) {
@@ -348,7 +399,10 @@ public class CommandManager implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * Handle help command
+     * 実行者が利用可能なコマンドのヘルプテキストを色分けしてチャット欄に表示します。
+     *
+     * @param sender コマンド送信者
+     * @return 常に true
      */
     private boolean handleHelp(org.bukkit.command.CommandSender sender) {
         sender.sendMessage(MiniMessage.miniMessage().deserialize("<aqua>=== FJ Economy ヘルプ ==="));
@@ -364,6 +418,15 @@ public class CommandManager implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    /**
+     * コマンド（/fj, /fjeadmin）を入力中にタブキーを押した際、引数（サブコマンドやプレイヤー名など）を適切に自動補完します。
+     *
+     * @param sender 送信者
+     * @param command コマンド
+     * @param alias エイリアス
+     * @param args 現在入力されている引数配列
+     * @return 補完候補のリスト
+     */
     @Override
     public List<String> onTabComplete(org.bukkit.command.CommandSender sender, Command command, 
                                      String alias, String[] args) {
@@ -384,7 +447,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
                 }
             }
         } 
-        // 2つ目の引数（プレイヤー名など）の補完（ifの外に出す）
+        // 2つ目の引数（プレイヤー名など）の補完
         else if (args.length == 2) {
             String subCommand = args[0].toLowerCase();
             if ("pay".equalsIgnoreCase(subCommand) || "give".equalsIgnoreCase(subCommand) || 

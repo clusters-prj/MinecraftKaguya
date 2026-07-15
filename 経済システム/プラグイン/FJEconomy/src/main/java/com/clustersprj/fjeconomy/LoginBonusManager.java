@@ -16,20 +16,31 @@ import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import java.util.logging.Level;
 
+/**
+ * ログインボーナスシステムを制御・管理するクラスです。
+ * プレイヤーの最終受け取り日時をデータベースでチェックし、
+ * クールダウン時間が経過していれば自動的にお金を付与します。
+ */
 public class LoginBonusManager {
 
+    /** プラグインのメインクラスのインスタンス */
     private final FJEconomy plugin;
 
+    /**
+     * LoginBonusManager を初期化するためのコンストラクタです。
+     *
+     * @param plugin FJEconomy プラグインのメインクラス
+     */
     public LoginBonusManager(FJEconomy plugin) {
         this.plugin = plugin;
     }
 
     /**
-     * Checks if a player is eligible for a login bonus and grants it if so.
-     * This method should be called when a player joins the server.
+     * プレイヤーがログインボーナスを受け取る資格があるか確認し、条件を満たしていれば付与します。
+     * このメソッドは、プレイヤーがサーバーに参加した（Joinイベントが発生した）際に非同期で呼び出す必要があります。
      *
-     * @param playerUUID The UUID of the joining player.
-     * @param playerName The name of the joining player.
+     * @param playerUUID ログインしたプレイヤーのUUID
+     * @param playerName ログインしたプレイヤーの名前
      */
     public void checkAndGrantLoginBonus(UUID playerUUID, String playerName) {
         ConfigManager configManager = plugin.getConfigManager();

@@ -14,21 +14,42 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * /fjegovernment コマンド
- * 
- * 政府アカウント・税金システムの管理用コマンド
- * 権限: fj.government（管理者限定）
+ * /fjegovernment コマンドの実行およびタブ補完を管理するクラスです。
+ * <p>
+ * 政府用共通アカウントの残高確認、資金の追加・引き出し、給付金（資金分配）、
+ * 税収統計の確認、および監査用の政府取引台帳（Ledger）の表示機能を提供します。
+ * </p>
+ * 権限: fj.government（管理者限定、setコマンドのみ fj.government.set が必要）
  */
 public class GovernmentCommand implements CommandExecutor, TabCompleter {
 
+    /** プラグインのメインインスタンス */
     private final FJEconomy plugin;
+    
+    /** 政府資金や台帳を管理するマネージャー */
     private final GovernmentManager governmentManager;
 
+    /**
+     * GovernmentCommandの新しいインスタンスを構築します。
+     *
+     * @param plugin プラグインのメインインスタンス
+     * @param governmentManager 政府マネージャーのインスタンス
+     */
     public GovernmentCommand(FJEconomy plugin, GovernmentManager governmentManager) {
         this.plugin = plugin;
         this.governmentManager = governmentManager;
     }
 
+    /**
+     * /fjegovernment コマンドが実行された際に呼び出されます。
+     * 各サブコマンド（balance, add, withdraw, distribute, ledger, tax, set, info）へ処理を振り分けます。
+     *
+     * @param sender コマンドの実行者（プレイヤー、コンソールなど）
+     * @param command 実行されたコマンド
+     * @param label コマンドのエイリアス名
+     * @param args コマンドに渡された引数の配列
+     * @return コマンドの処理が正常に行われた場合は true、それ以外は false
+     */
     @Override
     public boolean onCommand(org.bukkit.command.CommandSender sender, Command command,
                             String label, String[] args) {
@@ -67,7 +88,10 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /fjegovernment balance - 政府残高確認
+     * 政府アカウントの現在の残高を表示します。
+     *
+     * @param sender コマンド送信者
+     * @return 処理が完了した場合は true
      */
     private boolean handleBalance(org.bukkit.command.CommandSender sender) {
         if (!sender.hasPermission("fj.government")) {
@@ -84,7 +108,11 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /fjegovernment add <金額> [理由] - 政府資金を追加
+     * 政府アカウントに手動で指定金額の資金を追加（発行）します。
+     *
+     * @param sender コマンド送信者
+     * @param args 引数（args[1]: 金額, args[2...]: 理由）
+     * @return 処理が完了した場合は true
      */
     private boolean handleAdd(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.government")) {
@@ -135,7 +163,11 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /fjegovernment withdraw <金額> [理由] - 政府資金を引き出す
+     * 政府アカウントから指定金額の資金を引き出します（回収・消却）。
+     *
+     * @param sender コマンド送信者
+     * @param args 引数（args[1]: 金額, args[2...]: 理由）
+     * @return 処理が完了した場合は true
      */
     private boolean handleWithdraw(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.government")) {
@@ -187,8 +219,11 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /fjegovernment distribute <プレイヤー> <金額> [理由]
-     * 政府からプレイヤーに給付金を配分
+     * 政府資金を特定のオンラインプレイヤーに対して給付金として配分します。
+     *
+     * @param sender コマンド送信者
+     * @param args 引数（args[1]: プレイヤー名, args[2]: 金額, args[3...]: 理由）
+     * @return 処理が完了した場合は true
      */
     private boolean handleDistribute(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.government")) {
@@ -257,7 +292,11 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /fjegovernment ledger [タイプ] [件数] - 政府台帳を表示
+     * 政府アカウントの入出金台帳（ログ履歴）を表示します。オプションで取引タイプや表示件数を絞り込めます。
+     *
+     * @param sender コマンド送信者
+     * @param args 引数（args[1]: タイプ（省略可）, args[2]: 取得件数（省略可））
+     * @return 処理が完了した場合は true
      */
     private boolean handleLedger(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.government")) {
@@ -307,7 +346,11 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /fjegovernment tax [期間(分)] - 税金統計
+     * 本日および直近1時間の税収統計（税額の合計値）を表示します。
+     *
+     * @param sender コマンド送信者
+     * @param args コマンド引数
+     * @return 処理が完了した場合は true
      */
     private boolean handleTax(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.government")) {
@@ -328,7 +371,11 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /fjegovernment set <金額> - 政府残高を直接設定（リセット用）
+     * 政府アカウントの残高を直接上書き設定します（トラブルシューティングやデバッグ向け）。
+     *
+     * @param sender コマンド送信者
+     * @param args 引数（args[1]: 設定する新規残高）
+     * @return 処理が完了した場合は true
      */
     private boolean handleSet(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.government.set")) {
@@ -365,7 +412,10 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /fjegovernment info - 政府アカウント情報
+     * 政府アカウントの基本情報（アカウント名、UUID、現在の残高）を表示します。
+     *
+     * @param sender コマンド送信者
+     * @return 処理が完了した場合は true
      */
     private boolean handleInfo(org.bukkit.command.CommandSender sender) {
         if (!sender.hasPermission("fj.government")) {
@@ -385,6 +435,15 @@ public class GovernmentCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    /**
+     * コマンドのタブ入力時に、サブコマンドや引数の補完候補リストを提供します。
+     *
+     * @param sender タブキーを押した送信者
+     * @param command 対象のコマンド
+     * @param alias コマンドのエイリアス
+     * @param args 入力中の引数
+     * @return 補完候補の文字列リスト
+     */
     @Override
     public List<String> onTabComplete(org.bukkit.command.CommandSender sender, Command command,
                                      String alias, String[] args) {

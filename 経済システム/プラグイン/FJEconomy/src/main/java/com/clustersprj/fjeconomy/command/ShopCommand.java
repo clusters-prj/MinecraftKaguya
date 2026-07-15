@@ -13,22 +13,53 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * /shop コマンドの実行およびタブ補完を処理するクラスです。
+ * <p>
+ * NPCをベースにしたプレイヤー店舗の作成、削除、在庫設定（追加、削除）、
+ * 価格の変更、および稼働中の店舗一覧を表示するコマンドハンドラーです。
+ * </p>
+ */
 public class ShopCommand implements CommandExecutor, TabCompleter {
 
+    /** プラグインのメインインスタンス */
     private final FJEconomy plugin;
+    
+    /** 店舗データの読み書きや同期処理を行うマネージャー */
     private final ShopManager shopManager;
 
+    /**
+     * ShopCommandの新しいインスタンスを構築します。
+     *
+     * @param plugin プラグインのメインインスタンス
+     * @param shopManager ショップマネージャー
+     */
     public ShopCommand(FJEconomy plugin, ShopManager shopManager) {
         this.plugin = plugin;
         this.shopManager = shopManager;
     }
 
+    /**
+     * デバッグログが有効な場合にコンソールへデバッグ情報を出力するヘルパーです。
+     *
+     * @param message ログに出力するデバッグメッセージ
+     */
     private void logDebug(String message) {
         if (plugin.getConfig().getString("logging.level", "INFO").equalsIgnoreCase("DEBUG")) {
             plugin.getLogger().info("[Shop-Debug] " + message);
         }
     }
 
+    /**
+     * /shop コマンドが送信された際に呼び出されます。
+     * 各サブコマンド（create, delete, list, info, setprice, setstock, addstock, removestock）を解析して実行します。
+     *
+     * @param sender コマンドの実行者
+     * @param command 実行コマンド
+     * @param label コマンドのエイリアス
+     * @param args コマンド引数の配列
+     * @return 正常終了した場合は true、それ以外は false
+     */
     @Override
     public boolean onCommand(org.bukkit.command.CommandSender sender, Command command,
                             String label, String[] args) {
@@ -64,7 +95,12 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /shop create <npcUuid> <item> <price> [stock]
+     * /shop create <npcUuid> <item> <price> [stock] - 新規店舗を立ち上げます。
+     * 実行者がプレイヤーであり、有効なNPC UUIDとアイテム素材名が指定される必要があります。
+     *
+     * @param sender コマンド送信者（プレイヤー限定）
+     * @param args サブコマンド引数の配列
+     * @return 処理が完了した場合は true
      */
     private boolean handleCreate(org.bukkit.command.CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
@@ -117,7 +153,11 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /shop delete <npcUuid>
+     * /shop delete <npcUuid> - NPCに紐づけられた店舗を完全に削除します。
+     *
+     * @param sender コマンド送信者（要権限 "fj.shop.delete"）
+     * @param args サブコマンド引数
+     * @return 処理が完了した場合は true
      */
     private boolean handleDelete(org.bukkit.command.CommandSender sender, String[] args) {
         if (!sender.hasPermission("fj.shop.delete")) {
@@ -155,7 +195,11 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /shop list [player]
+     * /shop list [player] - 指定されたプレイヤー（または自分自身）の所有している店舗一覧を出力します。
+     *
+     * @param sender コマンド送信者
+     * @param args 引数（args[1]: 対象プレイヤー（任意））
+     * @return 処理が完了した場合は true
      */
     private boolean handleList(org.bukkit.command.CommandSender sender, String[] args) {
         UUID targetUUID;
@@ -201,7 +245,11 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /shop info <npcUuid>
+     * /shop info <npcUuid> - 店舗の現在の在庫や価格を詳細に確認します。
+     *
+     * @param sender コマンド送信者
+     * @param args 引数（args[1]: 店舗のNPC UUID）
+     * @return 処理が完了した場合は true
      */
     private boolean handleInfo(org.bukkit.command.CommandSender sender, String[] args) {
         if (args.length < 2) {
@@ -240,7 +288,11 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /shop setprice <npcUuid> <price>
+     * /shop setprice <npcUuid> <price> - 所有する店舗で取り扱うアイテムの販売価格を変更します。
+     *
+     * @param sender コマンド送信者（店舗のオーナーであるプレイヤー）
+     * @param args 引数（args[1]: 店舗のNPC UUID, args[2]: 新規設定価格）
+     * @return 処理が完了した場合は true
      */
     private boolean handleSetPrice(org.bukkit.command.CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
@@ -289,7 +341,11 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /shop setstock <npcUuid> <stock>
+     * /shop setstock <npcUuid> <stock> - 所有する店舗の在庫を、任意の個数に直接上書き変更します。
+     *
+     * @param sender コマンド送信者（店舗のオーナーであるプレイヤー）
+     * @param args 引数（args[1]: 店舗のNPC UUID, args[2]: 新規在庫数）
+     * @return 処理が完了した場合は true
      */
     private boolean handleSetStock(org.bukkit.command.CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
@@ -338,7 +394,11 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /shop addstock <npcUuid> <quantity>
+     * /shop addstock <npcUuid> <quantity> - 既存の店舗在庫に指定された数量を補充加算します。
+     *
+     * @param sender コマンド送信者（店舗のオーナーであるプレイヤー）
+     * @param args 引数（args[1]: 店舗のNPC UUID, args[2]: 補充数量）
+     * @return 処理が完了した場合は true
      */
     private boolean handleAddStock(org.bukkit.command.CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
@@ -387,7 +447,11 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /shop removestock <npcUuid> <quantity>
+     * /shop removestock <npcUuid> <quantity> - 既存の店舗在庫から指定された数量を削減減算します。
+     *
+     * @param sender コマンド送信者（店舗のオーナーであるプレイヤー）
+     * @param args 引数（args[1]: 店舗のNPC UUID, args[2]: 削減数量）
+     * @return 処理が完了した場合は true
      */
     private boolean handleRemoveStock(org.bukkit.command.CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
@@ -435,6 +499,15 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    /**
+     * コマンドのタブ入力時に、各段階の引数（サブコマンド、オンラインプレイヤー、Minecraftのアイテムマテリアルなど）を候補に補完します。
+     *
+     * @param sender タブキーを押した送信者
+     * @param command 対象のコマンド
+     * @param alias コマンドのエイリアス
+     * @param args 現在入力中の引数
+     * @return 補完候補のリスト
+     */
     @Override
     public List<String> onTabComplete(org.bukkit.command.CommandSender sender, Command command,
                                      String alias, String[] args) {
