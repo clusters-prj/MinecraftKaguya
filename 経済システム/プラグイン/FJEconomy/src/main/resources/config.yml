@@ -104,3 +104,10 @@ login_bonus:
   enabled: true
   amount: 500
   cooldown_hours: 24
+
+# Webアカウント連携設定
+account_link:
+  # 連携コードの有効期限（分）
+  code_expiry_minutes: 10
+  # 連携先WebサイトのURL（案内メッセージ表示用）
+  website_url: "https://fjew.clusters-prj.com/"

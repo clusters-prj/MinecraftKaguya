@@ -7,6 +7,7 @@ import com.clustersprj.fjeconomy.config.ConfigManager;
 import com.clustersprj.fjeconomy.economy.EconomyManager;
 import com.clustersprj.fjeconomy.database.DatabaseManager;
 import com.clustersprj.fjeconomy.government.GovernmentManager;
+import com.clustersprj.fjeconomy.link.LinkManager;
 import com.clustersprj.fjeconomy.shop.ShopManager;
 import com.clustersprj.fjeconomy.shop.ShopUI; // 追加
 import com.clustersprj.fjeconomy.listener.PlayerListener;
@@ -15,42 +16,18 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.logging.Level;
 
-/**
- * FJ Economy プラグインのメインクラスです。
- * プラグインの有効化（起動）、無効化（終了）、および各管理マネージャーの初期化と提供を担当します。
- * * @author clustersprj
- * @version 1.0.0
- */
 public class FJEconomy extends JavaPlugin {
 
-    /** プラグインのシングルトンインスタンス */
     private static FJEconomy instance;
-
-    /** 設定ファイルを管理するマネージャー */
     private ConfigManager configManager;
-
-    /** データベースへの接続と初期化を管理するマネージャー */
     private DatabaseManager databaseManager;
-
-    /** 経済（お金）システムを処理するマネージャー */
     private EconomyManager economyManager; // 追加
-
-    /** コマンドの登録を統括するマネージャー */
     private CommandManager commandManager;
-
-    /** ショップ機能を管理するマネージャー */
     private ShopManager shopManager; // 追加
-
-    /** 政府システムを管理するマネージャー */
     private GovernmentManager governmentManager;
-
-    /** ログインボーナスシステムを管理するマネージャー */
+    private LinkManager linkManager; // 追加
     private LoginBonusManager loginBonusManager; // 追加
 
-    /**
-     * プラグインが有効化（サーバー起動時またはリロード時）された際に呼び出されます。
-     * 各マネージャーのインスタンス生成、データベース接続、コマンドやイベントリスナーの登録を行います。
-     */
     @Override
     public void onEnable() {
         instance = this;
@@ -108,6 +85,10 @@ public class FJEconomy extends JavaPlugin {
             this.loginBonusManager = new LoginBonusManager(this); // 追加
             getLogger().info("✓ ログインボーナスシステムを初期化しました");
 
+            // LinkManager initialization（Webアカウント連携）
+            this.linkManager = new LinkManager(this);
+            getLogger().info("✓ アカウント連携システムを初期化しました");
+
             // Event listener registration
             getServer().getPluginManager().registerEvents(new PlayerListener(this), this); // PlayerListenerのコンストラクタ変更に対応
             getServer().getPluginManager().registerEvents(new ShopUI(this), this); // ShopUIを登録
@@ -123,10 +104,6 @@ public class FJEconomy extends JavaPlugin {
         }
     }
 
-    /**
-     * プラグインが無効化（サーバー停止時またはリロード時）された際に呼び出されます。
-     * データベース接続の安全な切断などの後処理を行います。
-     */
     @Override
     public void onDisable() {
         getLogger().info("===================================");
@@ -142,82 +119,45 @@ public class FJEconomy extends JavaPlugin {
         getLogger().info("===================================");
     }
 
-    /**
-     * プラグインのシングルトンインスタンスを取得します。
-     *
-     * @return FJEconomy プラグインのインスタンス
-     */
+    // Static accessor
     public static FJEconomy getInstance() {
         return instance;
     }
 
-    /**
-     * 設定マネージャーを取得します。
-     *
-     * @return ConfigManagerのインスタンス
-     */
     public ConfigManager getConfigManager() {
         return configManager;
     }
 
-    /**
-     * データベースマネージャーを取得します。
-     *
-     * @return DatabaseManagerのインスタンス
-     */
     public DatabaseManager getDatabaseManager() {
         return databaseManager;
     }
 
-    /**
-     * 経済システムマネージャーを取得します。
-     *
-     * @return EconomyManagerのインスタンス
-     */
     public EconomyManager getEconomyManager() { // 追加
         return economyManager;
     }
 
-    /**
-     * ショップマネージャーを取得します。
-     *
-     * @return ShopManagerのインスタンス
-     */
     public ShopManager getShopManager() { // 追加
         return shopManager;
     }
 
-    /**
-     * コマンドマネージャーを取得します。
-     *
-     * @return CommandManagerのインスタンス
-     */
     public CommandManager getCommandManager() {
         return commandManager;
     }
 
-    /**
-     * 政府システムマネージャーを取得します。
-     *
-     * @return GovernmentManagerのインスタンス
-     */
     public GovernmentManager getGovernmentManager() {
         return governmentManager;
     }
     
-    /**
-     * ログインボーナスマネージャーを取得します。
-     *
-     * @return LoginBonusManagerのインスタンス
-     */
     public LoginBonusManager getLoginBonusManager() { // 追加
         return loginBonusManager;
     }
 
+    public LinkManager getLinkManager() {
+        return linkManager;
+    }
+
     /**
-     * プラグインの設定ファイルとデータベース接続をリロード（再読み込み）します。
-     * 設定に変更があった場合は、データベースへの再接続も自動で行います。
-     * * @throws RuntimeException リロード処理中にエラーが発生した場合
+     * Reload plugin configuration and database
      */
     public void reloadPlugin() {
         try {

@@ -544,4 +544,13 @@ public class ConfigManager {
     public String getMessage(String key, String defaultValue) {
         return getString("messages." + key, defaultValue);
     }
+    
+    // Account link config getters
+    public int getAccountLinkCodeExpiryMinutes() {
+        return getInt("account_link.code_expiry_minutes", 10);
+    }
+ 
+    public String getAccountLinkWebsiteUrl() {
+        return getString("account_link.website_url", "https://fjew.clusters-prj.com/");
+    }
 }
