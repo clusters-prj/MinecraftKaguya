@@ -83,6 +83,12 @@
                 </div>
             </div>
 
+            <!-- 【追加】複数アカウント連携時の一覧表示 -->
+            <div id="accountListSection" class="hidden bg-white rounded-2xl shadow-md p-4">
+                <p class="text-[10px] font-bold text-gray-400 mb-2">連携中のアカウント一覧</p>
+                <div id="accountList" class="space-y-2"></div>
+            </div>
+
             <div id="unlinkedAlert" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-800 text-xs flex flex-col gap-3">
                 <div>
                     <p class="font-bold mb-1">⚠️ マイクラアカウントが連携されていません</p>
@@ -202,6 +208,8 @@
         });
 
         // ログイン中のユーザー情報を取得して画面に反映
+        // 【修正】APIは `accounts` 配列を返す仕様なので、それに合わせて判定する
+        // (旧コードは存在しない user.uuid を見ていたため、常に「未連携」表示になっていた)
         async function loadUserProfile() {
             const res = await fetch('/api/user/me');
             if (res.status === 401) {
@@ -212,19 +220,49 @@
 
             document.getElementById('webUserEmail').innerText = user.email;
 
+            const accounts = user.accounts || [];
+            const accountListSection = document.getElementById('accountListSection');
+            const accountListEl = document.getElementById('accountList');
+            accountListEl.innerHTML = '';
+
             // マイクラ連携の状態によって表示を変える
-            if (user.uuid) {
-                document.getElementById('userBalance').innerText = Number(user.balance).toLocaleString();
-                document.getElementById('mcPlayerName').innerText = user.player_name;
+            if (accounts.length > 0) {
+                // 残高は連携中の全アカウントの合計を表示する
+                const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
+                document.getElementById('userBalance').innerText = totalBalance.toLocaleString();
+
+                // プレイヤー名表示は代表(先頭)のアカウント。複数連携時は「他n件」を添える
+                const primary = accounts[0];
+                document.getElementById('mcPlayerName').innerText = accounts.length > 1
+                    ? `${primary.player_name} 他${accounts.length - 1}件`
+                    : primary.player_name;
+
                 document.getElementById('mcStatus').innerText = '連携済み';
-                document.getElementById('mcStatus').className = 'bg-green-500 text-white text-xs px-2.5 py-1 rounded-full font-bold';
+                document.getElementById('mcStatus').className = 'bg-green-500 text-white text-xs px-2.5 py-1 rounded-full font-bold backdrop-blur-sm';
                 document.getElementById('unlinkedAlert').classList.add('hidden');
+
+                // 複数連携時（Java+Bedrockなど）は一覧も出す
+                if (accounts.length > 1) {
+                    accountListSection.classList.remove('hidden');
+                    for (const acc of accounts) {
+                        const row = document.createElement('div');
+                        row.className = 'flex justify-between items-center text-xs bg-gray-50 rounded-xl px-3 py-2';
+                        row.innerHTML = `
+                            <span class="font-bold text-gray-700">${acc.player_name} <span class="text-gray-400 font-normal">(${acc.type})</span></span>
+                            <span class="text-gray-600">¥${Number(acc.balance).toLocaleString()}</span>
+                        `;
+                        accountListEl.appendChild(row);
+                    }
+                } else {
+                    accountListSection.classList.add('hidden');
+                }
             } else {
                 document.getElementById('userBalance').innerText = '0';
                 document.getElementById('mcPlayerName').innerText = '未連携のプレイヤー';
                 document.getElementById('mcStatus').innerText = '未連携';
-                document.getElementById('mcStatus').className = 'bg-amber-500 text-white text-xs px-2.5 py-1 rounded-full font-bold';
+                document.getElementById('mcStatus').className = 'bg-amber-500 text-white text-xs px-2.5 py-1 rounded-full font-bold backdrop-blur-sm';
                 document.getElementById('unlinkedAlert').classList.remove('hidden');
+                accountListSection.classList.add('hidden');
             }
         }
 
