@@ -77,7 +77,7 @@
             <div class="paypay-gradient text-white rounded-3xl shadow-lg p-6 relative overflow-hidden">
                 <div class="flex justify-between items-start z-10 relative">
                     <div>
-                        <p class="text-xs font-medium opacity-80">現在の残高</p>
+                        <p class="text-xs font-medium opacity-80">現在の総残高</p>
                         <h3 class="text-3xl font-black tracking-tight mt-1">
                             ¥ <span id="userBalance">0</span>
                         </h3>
@@ -123,6 +123,11 @@
             <div class="bg-white rounded-2xl shadow-md p-6">
                 <h4 class="text-sm font-bold text-gray-800 mb-4 border-l-4 border-red-500 pl-2">お金を送る</h4>
                 <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">送金元アカウント</label>
+                        <select id="sendFrom" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500 bg-white">
+                        </select>
+                    </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 mb-1">送金先（プレイヤー名 または UUID）</label>
                         <input type="text" id="sendTo" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500" placeholder="相手のIDを入力">
@@ -236,21 +241,33 @@
             const accounts = user.accounts || [];
             const accountListSection = document.getElementById('accountListSection');
             const accountListEl = document.getElementById('accountList');
+            const sendFromEl = document.getElementById('sendFrom');
+            
             accountListEl.innerHTML = '';
+            sendFromEl.innerHTML = ''; // 送金元選択を一旦初期化
 
+            // マイクラ連携の状態によって表示を変える
             if (accounts.length > 0) {
+                // 残高は連携中の全アカウントの合計を表示する
                 const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
                 document.getElementById('userBalance').innerText = totalBalance.toLocaleString();
 
+                // プレイヤー名表示は代表(先頭)のアカウント。複数連携時は「他n件」を添える
                 const primary = accounts[0];
-                document.getElementById('mcPlayerName').innerText = accounts.length > 1
-                    ? `${primary.player_name} 他${accounts.length - 1}件`
-                    : primary.player_name;
-
+                document.getElementById('mcPlayerName').innerText = primary.player_name + (accounts.length > 1 ? ` 他${accounts.length - 1}件` : '');
                 document.getElementById('mcStatus').innerText = '連携済み';
                 document.getElementById('mcStatus').className = 'bg-green-500 text-white text-xs px-2.5 py-1 rounded-full font-bold backdrop-blur-sm';
                 document.getElementById('unlinkedAlert').classList.add('hidden');
 
+                // 送金元アカウントのセレクトボックスに動的に選択肢を注入
+                for (const acc of accounts) {
+                    const option = document.createElement('option');
+                    option.value = acc.uuid;
+                    option.textContent = `${acc.player_name} (${acc.type}) - ¥${Number(acc.balance).toLocaleString()}`;
+                    sendFromEl.appendChild(option);
+                }
+
+                // 複数連携時（Java+Bedrockなど）は一覧も出す
                 if (accounts.length > 1) {
                     accountListSection.classList.remove('hidden');
                     for (const acc of accounts) {
@@ -272,6 +289,13 @@
                 document.getElementById('mcStatus').className = 'bg-amber-500 text-white text-xs px-2.5 py-1 rounded-full font-bold backdrop-blur-sm';
                 document.getElementById('unlinkedAlert').classList.remove('hidden');
                 accountListSection.classList.add('hidden');
+
+                // 未連携時の送金元ダミー項目
+                const option = document.createElement('option');
+                option.textContent = 'アカウントを連携してください';
+                option.disabled = true;
+                option.selected = true;
+                sendFromEl.appendChild(option);
             }
         }
 
@@ -317,15 +341,25 @@
 
         // 送金処理
         document.getElementById('submitSend').addEventListener('click', async () => {
+            const from_uuid = document.getElementById('sendFrom').value; // 選択された送金元UUID
             const to_player = document.getElementById('sendTo').value;
             const amount = document.getElementById('sendAmount').value;
 
+            if (!from_uuid) {
+                alert('送金元のアカウントが選択されていません。先にアカウント連携をしてください。');
+                return;
+            }
+            if (!to_player || !amount || amount <= 0) {
+                alert('送金先、または金額が正しくありません');
+                return;
+            }
             if (!confirm(`${to_player} さんに ${amount} 円送金します。本当によろしいですか？`)) return;
 
             const res = await fetch('/api/wallet/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ to_player, amount })
+                // from_uuidをbodyに含めて送信
+                body: JSON.stringify({ from_uuid, to_player, amount })
             });
             const data = await res.json();
 

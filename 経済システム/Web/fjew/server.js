@@ -9,6 +9,7 @@ BigInt.prototype.toJSON = function() {
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
+const FileStore = requireconst session = require('express-session');
 const FileStore = require('session-file-store')(session);
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
@@ -31,6 +32,12 @@ const transporter = nodemailer.createTransport({
 });
 const FROM_EMAIL = `"ふじゅ〜ペイ" <${process.env.SMTP_USER}>`;
 
+>>>>>>>+main
+st pool = require('./db');
+const app = express();
+const PORT = 3200;
+
+>>>>>>> origin/main
 // リバースプロキシ(Cloudflare Tunnel等)配下で動かす場合の設定
 app.set('trust proxy', 1);
 
@@ -40,6 +47,8 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // CORSを許可
+// ※ Access-Control-Allow-Origin: "*" はCookie（セッション）を使うリクエストでは
+//   ブラウザに無視/ブロックされるため、リクエスト元のOriginをそのまま返す形にする
 app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
     res.header("Access-Control-Allow-Credentials", "true");
@@ -48,8 +57,12 @@ app.use((req, res, next) => {
 });
 
 // セッションの設定
+// ※ store未指定だとデフォルトのMemoryStoreが使われ、プロセス再起動でセッションが
+//   全て消えてしまう（＝連携済みなのにWeb側でログアウト扱い→未連携に見える原因）。
+//   ファイルストアにして再起動をまたいでも維持されるようにする。
 app.use(session({
     store: new FileStore({
+<<<<<<< main
         path: path.join(__dirname, 'sessions'),
         ttl: 60 * 60 * 24,
         retries: 0,
@@ -60,17 +73,14 @@ app.use(session({
     saveUninitialized: false,
     cookie: {
         secure: false,
-        maxAge: 1000 * 60 * 60 * 24
-    }
-}));
-
-// 政府口座のUUID定数
-const GOV_UUID = '00000000-0000-0000-0000-000000000001';
-
-// ログインチェック用ミドルウェア
-const requireAuth = (req, res, next) => {
-    if (!req.session.webUserId) {
-        return res.status(401).json({ error: "ログインが必要です" });
+        ma        path: path.join(__dirname, 'sessions'),
+        ttl: 60 * 60 * 24,
+        retries: 0,
+        logFn: () => {}
+    }),
+    secret: process.env.SESSION_SECRET || 'fje-paypay-secret-key-fallback', // 環境変数から
+>>>>>>>+main
+son({ error: "ログインが必要です" });
     }
     next();
 };
