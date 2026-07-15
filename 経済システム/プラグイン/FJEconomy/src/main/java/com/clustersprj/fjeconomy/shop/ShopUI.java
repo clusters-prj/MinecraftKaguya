@@ -27,58 +27,28 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 統合版(Geyser)ユーザーの操作性にも配慮したチェスト型ショップUIを提供するリスナークラスです[span_2](start_span)[span_2](end_span)。
- * 村人NPCへのインタラクト時のカスタムUIの表示や、GUI内での取引処理（購入、納税、売上送金など）を管理します[span_3](start_span)[span_3](end_span)。
+ * 統合版(Geyser)ユーザーの操作性にも配慮したチェスト型ショップUI
  */
 public class ShopUI implements Listener {
 
-    /** プラグインのメインクラスのインスタンス */
     private final FJEconomy plugin;
-
-    /** ショップ情報を処理・管理するマネージャー */
     private final ShopManager shopManager;
-
-    /** お金（経済）システムを制御するマネージャー */
     private final EconomyManager economyManager;
-
-    /** ショップGUIのタイトル表示名 */
     private final String GUI_TITLE = ChatColor.DARK_BLUE + "FJE ショップ";
-
-    /** NPCのUUID情報をItemStackのメタデータに保持するための永続化キー */
     private final NamespacedKey shopNpcKey;
 
-    /**
-     * EntityのUUIDをキーとしたショップ情報のキャッシュ用マップです[span_4](start_span)[span_4](end_span)。
-     * データベースへの頻繁なクエリ問い合わせを防ぎ、サーバー負荷を軽減します[span_5](start_span)[span_5](end_span)。
-     */
+    // キャッシュ用: EntityのUUID -> キャッシュデータ(Shop情報と有効期限)
     private final Map<UUID, CachedShop> shopCache = new HashMap<>();
 
-    /**
-     * キャッシュされたショップデータと、その有効期限を保持するインナークラスです[span_6](start_span)[span_6](end_span)。
-     */
     private static class CachedShop {
-        /** キャッシュされたショップオブジェクト[span_7](start_span)[span_7](end_span) */
         final ShopManager.Shop shop;
-        /** キャッシュの有効期限（ミリ秒）[span_8](start_span)[span_8](end_span) */
         final long expiry;
-
-        /**
-         * 新しいショップキャッシュインスタンスを生成します[span_9](start_span)[span_9](end_span)。
-         * デフォルトで10秒間有効です[span_10](start_span)[span_10](end_span)。
-         *
-         * @param shop キャッシュ対象のショップデータ[span_11](start_span)[span_11](end_span)
-         */
         CachedShop(ShopManager.Shop shop) {
             this.shop = shop;
             this.expiry = System.currentTimeMillis() + 10000; // 10秒間有効
         }
     }
 
-    /**
-     * ShopUI を初期化するためのコンストラクタです[span_12](start_span)[span_12](end_span)。
-     *
-     * @param plugin FJEconomy プラグインのメインクラス[span_13](start_span)[span_13](end_span)
-     */
     public ShopUI(FJEconomy plugin) {
         this.plugin = plugin;
         this.shopManager = plugin.getShopManager();
@@ -87,10 +57,7 @@ public class ShopUI implements Listener {
     }
 
     /**
-     * プレイヤーがエンティティ（村人NPCなど）を右クリックした際に呼び出されるイベントハンドラです[span_14](start_span)[span_14](end_span)。
-     * 該当エンティティにショップデータが紐づいている場合、通常の取引画面をキャンセルして独自のチェスト型GUIを開きます[span_15](start_span)[span_15](end_span)。
-     *
-     * @param event エンティティインタラクトイベント[span_16](start_span)[span_16](end_span)
+     * 村人を右クリックした際にショップを開く
      */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityInteract(PlayerInteractEntityEvent event) {
@@ -133,13 +100,6 @@ public class ShopUI implements Listener {
         }
     }
 
-    /**
-     * 対象のプレイヤーに対してショップGUIを開きます[span_17](start_span)[span_17](end_span)。
-     * 誤操作を防止するため、空のスロットは灰色ステンドグラス板で埋められます[span_18](start_span)[span_18](end_span)。
-     *
-     * @param player GUIを開く対象のプレイヤー[span_19](start_span)[span_19](end_span)
-     * @param shop   表示するショップの情報[span_20](start_span)[span_20](end_span)
-     */
     private void openShopGui(Player player, ShopManager.Shop shop) {
         // 3列(27スロット)のチェスト型GUIを作成
         Inventory gui = Bukkit.createInventory(null, 27, GUI_TITLE);
@@ -184,13 +144,6 @@ public class ShopUI implements Listener {
         player.openInventory(gui);
     }
 
-    /**
-     * ショップGUI内のインベントリクリックイベントを処理します[span_21](start_span)[span_21](end_span)。
-     * アイテムの持ち出し防止、在庫チェック、残高チェック、引き落とし、
-     * 税金の計算および国庫への送金、オーナーへの売上送金、アイテム付与を行います[span_22](start_span)[span_22](end_span)。
-     *
-     * @param event インベントリクリックイベント[span_23](start_span)[span_23](end_span)
-     */
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!event.getView().getTitle().equals(GUI_TITLE)) return;
@@ -251,13 +204,18 @@ public class ShopUI implements Listener {
                 if (ownerName == null) ownerName = shop.getOwnerUUID().toString();
                 economyManager.giveMoney(shop.getOwnerUUID(), ownerName, sellerProfit);
 
+                // 【取引記録】fje_transactions に購入履歴を記録
+                // (これが無いと購入は成立しても取引履歴が一切残らないため)
+                economyManager.recordTransaction(player.getUniqueId(), shop.getOwnerUUID(),
+                        shop.getItemMaterial(), 1, itemPrice, taxAmount, sellerProfit);
+
                 // アイテムをプレイヤーに付与
                 Material itemMaterial = Material.matchMaterial(shop.getItemMaterial());
                 if (itemMaterial != null) {
                     player.getInventory().addItem(new ItemStack(itemMaterial, 1));
                     player.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + 
                         "<green>" + economyManager.formatMoney(itemPrice) + " で " + itemMaterial.name() + " を購入しました！ " +
-                        "<gray>(内税10%: " + economyManager.formatMoney(taxAmount) + " が政府に納められました)"));
+                        "<gray>(内税" + plugin.getConfigManager().getTaxRate() + "%: " + economyManager.formatMoney(taxAmount) + " が政府に納められました)"));
                 } else {
                     player.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>アイテムの取得に失敗しました。お金は返金されました。管理者に連絡してください。"));
                     // アイテム付与失敗時はお金を返金
