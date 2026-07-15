@@ -6,10 +6,14 @@ BigInt.prototype.toJSON = function() {
 const express = require('express');
 const path = require('path');
 const session = require('express-session'); // 追加
+const FileStore = require('session-file-store')(session); // 追加：セッション永続化
 const bcrypt = require('bcrypt');           // 追加
 const pool = require('./db');
 const app = express();
 const PORT = 3200;
+
+// リバースプロキシ(Cloudflare Tunnel等)配下で動かす場合の設定
+app.set('trust proxy', 1);
 
 app.use(express.json());
 
@@ -17,14 +21,26 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // CORSを許可
+// ※ Access-Control-Allow-Origin: "*" はCookie（セッション）を使うリクエストでは
+//   ブラウザに無視/ブロックされるため、リクエスト元のOriginをそのまま返す形にする
 app.use((req, res, next) => {
-    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
+    res.header("Access-Control-Allow-Credentials", "true");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
     next();
 });
 
 // セッションの設定
+// ※ store未指定だとデフォルトのMemoryStoreが使われ、プロセス再起動でセッションが
+//   全て消えてしまう（＝連携済みなのにWeb側でログアウト扱い→未連携に見える原因）。
+//   ファイルストアにして再起動をまたいでも維持されるようにする。
 app.use(session({
+    store: new FileStore({
+        path: path.join(__dirname, 'sessions'), // Portainerでボリューム永続化推奨
+        ttl: 60 * 60 * 24,   // 1日（cookieのmaxAgeと合わせる）
+        retries: 0,
+        logFn: () => {}      // FileStoreの標準ログを抑制（必要ならconsole.logに戻す）
+    }),
     secret: 'fje-paypay-secret-key-change-this',
     resave: false,
     saveUninitialized: false,
