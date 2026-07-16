@@ -140,4 +140,4 @@ document.getElementById('submitSend').addEventListener('click', async () => {
     }
 });
 
-window.addEventListener('DOMContentLoaded', reloadProfile);
+window.fjew.onReloadNeeded(reloadProfile);

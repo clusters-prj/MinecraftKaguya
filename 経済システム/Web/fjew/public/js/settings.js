@@ -59,4 +59,21 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 
 document.getElementById('reloadStatusBtn').addEventListener('click', loadSettings);
 
-window.addEventListener('DOMContentLoaded', loadSettings);
+document.getElementById('submitLink').addEventListener('click', async () => {
+    const code = document.getElementById('linkCode').value;
+    const { data } = await window.fjew.fetchJson('/api/auth/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+    });
+
+    if (data.success) {
+        alert(data.message);
+        document.getElementById('linkCode').value = '';
+        await loadSettings();
+    } else {
+        alert('連携失敗: ' + data.error);
+    }
+});
+
+window.fjew.onReloadNeeded(loadSettings);

@@ -46,7 +46,17 @@
                 <button id="reloadStatusBtn" class="text-xs text-gray-500 hover:text-gray-700">更新</button>
             </div>
             <div id="linkedAccountList" class="space-y-2"></div>
-            <p class="text-[11px] text-gray-400 mt-3">※ 連携の追加はメインページの連携コード入力から行えます。</p>
+        </div>
+
+        <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-800 text-xs flex flex-col gap-3">
+            <div>
+                <p class="font-bold mb-1">マイクラアカウントを連携する</p>
+                <p>ゲーム内で <code class="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold text-red-600">/fje link</code> を実行し、表示された6桁のコードを入力してください。</p>
+            </div>
+            <div class="flex gap-2">
+                <input type="text" id="linkCode" class="border border-amber-300 rounded-xl px-4 py-2 text-sm text-gray-800 font-mono tracking-widest text-center w-32 focus:outline-none focus:border-red-500" placeholder="000000" maxlength="6">
+                <button id="submitLink" class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2 rounded-xl transition">連携する</button>
+            </div>
         </div>
     </main>
 

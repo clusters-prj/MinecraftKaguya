@@ -28,5 +28,18 @@ window.fjew = {
 
     formatYen(value) {
         return Number(value || 0).toLocaleString();
+    },
+
+    // bfcache(戻る/進むでページがJSごと復元される挙動)から復帰した際に
+    // 再取得処理(reloadFn)を呼び直すための共通ヘルパー。
+    // 通常のDOMContentLoadedだけだとbfcache復元時に発火しないため、
+    // pageshowイベントでevent.persistedを見て再取得する。
+    onReloadNeeded(reloadFn) {
+        window.addEventListener('DOMContentLoaded', reloadFn);
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                reloadFn();
+            }
+        });
     }
 };
