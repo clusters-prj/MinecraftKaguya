@@ -13,7 +13,7 @@ const FileStore = require('session-file-store')(session);
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
-const pool = require('./db'); // この中で process.env が正常に使えるようになる
+const pool = require('./db'); // この中で process.env が正常に使える
 const app = express();
 const PORT = 3200;
 
@@ -25,11 +25,11 @@ const transporter = nodemailer.createTransport({
     port: 587,
     secure: false,
     auth: {
-        user: process.env.SMTP_USER, // 環境変数から
-        pass: process.env.SMTP_PASS  // 環境変数から
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
     }
 });
-const FROM_EMAIL = process.env.SMTP_USER;
+const FROM_EMAIL = `"ふじゅ〜ペイ" <${process.env.SMTP_USER}>`;
 
 // リバースプロキシ(Cloudflare Tunnel等)配下で動かす場合の設定
 app.set('trust proxy', 1);
@@ -55,7 +55,7 @@ app.use(session({
         retries: 0,
         logFn: () => {}
     }),
-    secret: process.env.SESSION_SECRET || 'fje-paypay-secret-key-fallback', // 環境変数から
+    secret: process.env.SESSION_SECRET || 'fje-paypay-secret-key-fallback',
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -111,7 +111,7 @@ async function initDatabase() {
             )
         `);
 
-        // 4. 【新設】メール認証リンク一時保存テーブル
+        // 4. メール認証リンク一時保存テーブル
         await conn.query(`
             CREATE TABLE IF NOT EXISTS email_verifications (
                 email VARCHAR(255) PRIMARY KEY,
@@ -130,7 +130,7 @@ async function initDatabase() {
 }
 
 // ==========================================
-// 新設：ユーザー認証・アカウント連携関連
+// ユーザー認証・アカウント連携関連
 // ==========================================
 
 // アカウント仮登録 ＆ 認証メール送信
@@ -149,20 +149,20 @@ app.post('/api/auth/register', async (req, res) => {
         const saltRounds = 10;
         const passwordHash = await bcrypt.hash(password, saltRounds);
 
-        // 安全なランダムトークン（64文字の16進数文字列）を生成
+        // 安全なランダムトークンを生成
         const token = crypto.randomBytes(32).toString('hex');
 
-        // 一時テーブルに保存（有効期限は30分間）
+        // 一時テーブルに保存
         await conn.query(`
             INSERT INTO email_verifications (email, password_hash, token, expires_at) 
             VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL 30 MINUTE))
             ON DUPLICATE KEY UPDATE password_hash = ?, token = ?, expires_at = DATE_ADD(NOW(), INTERVAL 30 MINUTE)
         `, [email, passwordHash, token, passwordHash, token]);
 
-        // アクセスされたプロトコル(http/https)とホスト名を自動で取得してURLを構築
+        // URL構築
         const verifyUrl = `${req.protocol}://${req.get('host')}/api/auth/verify?token=${token}`;
 
-                // 認証メールの送信
+        // 認証メールの送信
         const mailOptions = {
             from: FROM_EMAIL,
             to: email,
@@ -170,30 +170,27 @@ app.post('/api/auth/register', async (req, res) => {
             text: `ふじゅ〜ペイをご利用いただきありがとうございます。\n\n以下のリンクをクリックして、アカウント登録を完了させてください。\n\n▼ 登録を完了する\n${verifyUrl}\n\n※有効期限: 30分\n※このメールに心当たりがない場合は、破棄してください。`
         };
 
-        // 送信結果を受け取るように修正
         const info = await transporter.sendMail(mailOptions);
         
-        // 送信成功ログを出力！
         console.log(`[Mail Success] メール送信完了しました！`);
         console.log(`  - To: ${email}`);
         console.log(`  - Message-ID: ${info.messageId}`);
-        console.log(`  - Response: ${info.response}`); // SMTPサーバーからの応答メッセージ
-        if (info.accepted.length > 0) console.log(`  - Accepted: ${info.accepted.join(', ')}`);
-        if (info.rejected.length > 0) console.log(`  - Rejected: ${info.rejected.join(', ')}`);
+        console.log(`  - Response: ${info.response}`);
 
         res.json({ success: true, message: "認証用メールを送信しました。メール内のリンクをクリックしてください。" });
     } catch (err) {
-        console.error("ユーザー登録・メール送信エラー:", err); // これを追加！
+        console.error("[Mail Error] ユーザー登録・メール送信プロセスでエラーが発生しました:", err);
         res.status(500).json({ error: err.message });
     } finally {
         if (conn) conn.release();
     }
 });
 
-// メール認証リンクの検証 ＆ 本登録（GETリクエスト）
+// メール認証リンクの検証 ＆ 本登録（GETリクエスト） ★デバッグログ追加
 app.get('/api/auth/verify', async (req, res) => {
     const { token } = req.query;
     if (!token) {
+        console.log("[Verify Debug] トークンなしの不正アクセスを検知しました");
         return res.status(400).send('<h1>無効なリクエストです</h1><p>トークンが存在しません。</p>');
     }
 
@@ -208,50 +205,73 @@ app.get('/api/auth/verify', async (req, res) => {
             [token]
         );
 
+        console.log("[Verify Debug] email_verifications 検索結果:", rows);
+
         if (rows.length === 0) {
             throw new Error("リンクの有効期限が切れているか、すでに使用されています。");
         }
 
         const { email, password_hash } = rows[0];
+        console.log("[Verify Debug] 取り出した本登録情報:", { email, password_hash });
 
         // 本登録（web_users）に挿入
-        await conn.query(
+        const insertRes = await conn.query(
             "INSERT INTO web_users (email, password_hash) VALUES (?, ?)",
             [email, password_hash]
         );
+        console.log("[Verify Debug] web_users へのインサート結果:", insertRes);
 
         // 一時テーブルから削除
-        await conn.query("DELETE FROM email_verifications WHERE email = ?", [email]);
+        const deleteRes = await conn.query("DELETE FROM email_verifications WHERE email = ?", [email]);
+        console.log("[Verify Debug] 一時テーブルからの削除結果:", deleteRes);
 
         await conn.commit();
+        console.log("[Verify Debug] 本登録コミット完了！ email:", email);
 
         // 認証完了フラグをURLパラメータに付けて、アプリのトップページへリダイレクト
         res.redirect('/?verified=true');
     } catch (err) {
         if (conn) await conn.rollback();
-        // エラーメッセージ付きでトップページへリダイレクト
+        console.error("[Verify Debug] 認証処理中にエラーが発生しロールバックしました:", err);
         res.redirect(`/?verify_error=${encodeURIComponent(err.message)}`);
     } finally {
         if (conn) conn.release();
     }
 });
 
-// ログイン
+// ログイン ★デバッグログ追加
 app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
+    console.log("[Login Debug] ログイン試行:", { email });
     let conn;
     try {
         conn = await pool.getConnection();
         const rows = await conn.query("SELECT id, password_hash FROM web_users WHERE email = ?", [email]);
-        if (rows.length === 0) return res.status(401).json({ error: "メアドまたはパスワードが間違っています" });
+        
+        console.log("[Login Debug] web_users 検索結果:", rows);
+
+        if (rows.length === 0) {
+            console.log("[Login Debug] ユーザーが見つかりません。 email:", email);
+            return res.status(401).json({ error: "メアドまたはパスワードが間違っています" });
+        }
 
         const user = rows[0];
+        console.log("[Login Debug] DBから取得したレコード:", { id: user.id, has_hash: !!user.password_hash });
+
+        // パスワード比較
         const match = await bcrypt.compare(password, user.password_hash);
-        if (!match) return res.status(401).json({ error: "メアドまたはパスワードが間違っています" });
+        console.log("[Login Debug] bcrypt 比較結果 (match):", match);
+
+        if (!match) {
+            console.log("[Login Debug] パスワードが一致しませんでした。");
+            return res.status(401).json({ error: "メアドまたはパスワードが間違っています" });
+        }
 
         req.session.webUserId = user.id;
+        console.log("[Login Debug] ログイン成功。セッションを確立しました。 WebUserID:", user.id);
         res.json({ success: true, message: "ログインしました" });
     } catch (err) {
+        console.error("[Login Debug] ログイン処理中に例外エラーが発生しました:", err);
         res.status(500).json({ error: err.message });
     } finally {
         if (conn) conn.release();
@@ -624,6 +644,6 @@ app.get('/api/admin/government/ledger', async (req, res) => {
 
 // 起動
 app.listen(PORT, async () => {
-    await initDatabase(); // 自動テーブル初期化を走らせる
+    await initDatabase();
     console.log(`FJ Economy Full-Featured API Server running on port ${PORT}`);
 });
