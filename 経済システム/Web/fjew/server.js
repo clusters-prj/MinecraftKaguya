@@ -18,18 +18,20 @@ const app = express();
 const PORT = 3200;
 
 // ==========================================
-// SMTPメール送信設定 (環境変数から取得)
+// SMTPメール送信設定 (環境変数から柔軟に取得)
 // ==========================================
 const transporter = nodemailer.createTransport({
-    host: 'smtp.mail.me.com',
-    port: 587,
-    secure: false,
+    host: process.env.SMTP_HOST || 'smtp.mail.me.com',
+    port: parseInt(process.env.SMTP_PORT || '587', 10),
+    secure: process.env.SMTP_PORT === '465', // 465ポートの場合はtrue、587の場合はfalse
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
     }
 });
-const FROM_EMAIL = `"ふじゅ〜ペイ" <${process.env.SMTP_USER}>`;
+
+// 送信元アドレスを.envから取得、なければフォールバック
+const FROM_EMAIL = process.env.FROM_EMAIL || `"ふじゅ〜ペイ" <no-reply@clusters-prj.com>`;
 
 // リバースプロキシ(Cloudflare Tunnel等)配下で動かす場合の設定
 app.set('trust proxy', 1);
