@@ -43,9 +43,14 @@ function renderLinkStatus(user) {
 }
 
 async function loadSettings() {
-    const user = await window.fjew.requireAuth();
-    if (!user) return;
-    renderLinkStatus(user);
+    try {
+        const user = await window.fjew.requireAuth();
+        if (!user) return;
+        renderLinkStatus(user);
+    } catch (err) {
+        console.error('設定情報取得エラー:', err);
+        alert('連携状態の取得に失敗しました: ' + err.message);
+    }
 }
 
 document.getElementById('toMainBtn').addEventListener('click', () => {

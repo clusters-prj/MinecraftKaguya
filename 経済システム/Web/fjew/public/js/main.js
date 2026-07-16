@@ -60,9 +60,14 @@ function renderMain(user) {
 }
 
 async function reloadProfile() {
-    const user = await window.fjew.requireAuth();
-    if (!user) return;
-    renderMain(user);
+    try {
+        const user = await window.fjew.requireAuth();
+        if (!user) return;
+        renderMain(user);
+    } catch (err) {
+        console.error('プロフィール取得エラー:', err);
+        alert('プロフィール情報の取得に失敗しました: ' + err.message);
+    }
 }
 
 document.getElementById('logoutBtn').addEventListener('click', async () => {
