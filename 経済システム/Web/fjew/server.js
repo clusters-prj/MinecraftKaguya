@@ -29,7 +29,7 @@ const transporter = nodemailer.createTransport({
         pass: process.env.SMTP_PASS  // 環境変数から
     }
 });
-const FROM_EMAIL = `"ふじゅ〜ペイ" <${process.env.SMTP_USER}>`;
+const FROM_EMAIL = process.env.SMTP_USER;
 
 // リバースプロキシ(Cloudflare Tunnel等)配下で動かす場合の設定
 app.set('trust proxy', 1);
