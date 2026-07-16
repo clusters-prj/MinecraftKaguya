@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ふじゅ〜ペイ | ログイン</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col justify-between font-sans">
+    <header class="bg-white shadow-sm">
+        <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-red-600 tracking-wider flex items-center gap-1">
+                <span class="bg-red-600 text-white px-2 py-0.5 rounded text-sm font-black">ふじゅ〜</span> ペイ
+            </h1>
+        </div>
+    </header>
+
+    <main class="max-w-md w-full mx-auto px-4 py-6 flex-grow">
+        <div id="loginSection" class="bg-white rounded-2xl shadow-md p-6 mt-4">
+            <h2 class="text-xl font-bold text-gray-800 mb-6 text-center">ログイン</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">メールアドレス</label>
+                    <input type="email" id="loginEmail" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500" placeholder="example@clusters-prj.com">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">パスワード</label>
+                    <input type="password" id="loginPassword" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500" placeholder="••••••••">
+                </div>
+                <button id="submitLogin" class="w-full bg-red-600 text-white font-bold py-3 rounded-xl shadow-sm hover:bg-red-700 transition">ログイン</button>
+                <p class="text-center text-xs text-gray-500 mt-4">
+                    アカウントをお持ちでないですか？ <a href="#" id="toRegister" class="text-red-500 font-bold hover:underline">新規登録</a>
+                </p>
+            </div>
+        </div>
+
+        <div id="registerSection" class="hidden bg-white rounded-2xl shadow-md p-6 mt-4">
+            <h2 class="text-xl font-bold text-gray-800 mb-6 text-center">アカウント新規作成</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">メールアドレス</label>
+                    <input type="email" id="registerEmail" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500" placeholder="example@clusters-prj.com">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">パスワード</label>
+                    <input type="password" id="registerPassword" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500" placeholder="••••••••">
+                </div>
+                <button id="submitRegister" class="w-full bg-red-600 text-white font-bold py-3 rounded-xl shadow-sm hover:bg-red-700 transition">アカウント作成</button>
+                <p class="text-center text-xs text-gray-500 mt-4">
+                    既にアカウントをお持ちですか？ <a href="#" id="toLogin" class="text-red-500 font-bold hover:underline">ログインはこちら</a>
+                </p>
+            </div>
+        </div>
+
+        <div id="verifyPendingSection" class="hidden bg-white rounded-2xl shadow-md p-6 mt-4 text-center">
+            <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 19v-8.93a2 2 0 01.89-1.664l8-5.333a2 2 0 012.22 0l8 5.333A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-2.25-1.5a2 2 0 00-2.22 0l-2.25 1.5"></path>
+                </svg>
+            </div>
+            <h2 class="text-xl font-bold text-gray-800 mb-2">確認メールを送信しました</h2>
+            <p class="text-xs text-gray-500 mb-6 leading-relaxed">
+                <span id="sentEmailAddress" class="font-bold text-gray-700"></span> 宛に送信された認証メール内の確認リンクをクリックして、登録を完了してください。
+            </p>
+            <button id="backToLoginFromPending" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl shadow-sm transition">ログイン画面に戻る</button>
+        </div>
+    </main>
+
+    <footer class="text-center py-4 text-xs text-gray-400">
+        &copy; 2026 FJ Economy / clusters-prj.com
+    </footer>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/login.js"></script>
+</body>
+</html>

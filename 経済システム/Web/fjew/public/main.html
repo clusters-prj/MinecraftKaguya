@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ふじゅ〜ペイ | メイン</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .paypay-gradient { background: linear-gradient(135deg, #ff0033 0%, #ff3366 100%); }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col justify-between font-sans">
+    <header class="bg-white shadow-sm">
+        <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center gap-2">
+            <h1 class="text-xl font-bold text-red-600 tracking-wider flex items-center gap-1">
+                <span class="bg-red-600 text-white px-2 py-0.5 rounded text-sm font-black">ふじゅ〜</span> ペイ
+            </h1>
+            <div class="flex gap-2">
+                <button id="settingsBtn" class="text-sm text-gray-500 hover:text-gray-700 font-medium">設定</button>
+                <button id="logoutBtn" class="text-sm text-gray-500 hover:text-red-600 font-medium">ログアウト</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-md w-full mx-auto px-4 py-6 flex-grow space-y-4">
+        <div class="paypay-gradient text-white rounded-3xl shadow-lg p-6 relative overflow-hidden">
+            <div class="flex justify-between items-start z-10 relative">
+                <div>
+                    <p class="text-xs font-medium opacity-80">現在の総残高</p>
+                    <h3 class="text-3xl font-black tracking-tight mt-1">
+                        ¥ <span id="userBalance">0</span>
+                    </h3>
+                </div>
+                <span class="bg-white/20 text-xs px-2.5 py-1 rounded-full font-bold backdrop-blur-sm" id="mcStatus">未連携</span>
+            </div>
+            <div class="mt-6 flex justify-between items-center z-10 relative">
+                <div>
+                    <p class="text-[10px] opacity-60">マイクラアカウント</p>
+                    <p class="text-sm font-bold mt-0.5" id="mcPlayerName">未連携のユーザー</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] opacity-60">Webアカウント</p>
+                    <p class="text-xs font-medium mt-0.5 opacity-90" id="webUserEmail">-</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="accountListSection" class="hidden bg-white rounded-2xl shadow-md p-4">
+            <p class="text-[10px] font-bold text-gray-400 mb-2">連携中のアカウント一覧</p>
+            <div id="accountList" class="space-y-2"></div>
+        </div>
+
+        <div id="unlinkedAlert" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-800 text-xs flex flex-col gap-3">
+            <div>
+                <p class="font-bold mb-1">⚠️ マイクラアカウントが連携されていません</p>
+                <p>ゲーム内で <code class="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold text-red-600">/fje link</code> を実行し、表示された6桁のコードを入力してください。</p>
+            </div>
+            <div class="flex gap-2">
+                <input type="text" id="linkCode" class="border border-amber-300 rounded-xl px-4 py-2 text-sm text-gray-800 font-mono tracking-widest text-center w-32 focus:outline-none focus:border-red-500" placeholder="000000" maxlength="6">
+                <button id="submitLink" class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2 rounded-xl transition">連携する</button>
+            </div>
+
+            <div class="mt-2 border-t border-amber-200 pt-3">
+                <p class="text-[10px] text-gray-400 font-bold mb-1">【開発用デバッグ】プラグインの代わりにコードを発行</p>
+                <div class="flex gap-2">
+                    <input type="text" id="debugUuid" class="border border-gray-300 rounded-xl px-3 py-1.5 text-xs text-gray-700 font-mono w-full focus:outline-none focus:border-gray-500" placeholder="テストしたいマイクラのUUIDを入力">
+                    <button id="submitDebugCode" class="bg-gray-500 hover:bg-gray-600 text-white font-bold px-3 py-1.5 rounded-xl text-xs whitespace-nowrap transition">コード発行</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-md p-6">
+            <h4 class="text-sm font-bold text-gray-800 mb-4 border-l-4 border-red-500 pl-2">お金を送る</h4>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">送金元アカウント</label>
+                    <select id="sendFrom" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500 bg-white"></select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">送金先（プレイヤー名 または UUID）</label>
+                    <input type="text" id="sendTo" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500" placeholder="相手のIDを入力">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">金額 (円)</label>
+                    <input type="number" id="sendAmount" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500" placeholder="0" min="1">
+                </div>
+                <button id="submitSend" class="w-full bg-red-600 text-white font-bold py-3 rounded-xl shadow-sm hover:bg-red-700 transition">送金を実行する</button>
+            </div>
+        </div>
+    </main>
+
+    <footer class="text-center py-4 text-xs text-gray-400">
+        &copy; 2026 FJ Economy / clusters-prj.com
+    </footer>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/main.js"></script>
+</body>
+</html>
