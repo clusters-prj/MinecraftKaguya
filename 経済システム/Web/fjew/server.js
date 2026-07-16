@@ -162,7 +162,7 @@ app.post('/api/auth/register', async (req, res) => {
         // アクセスされたプロトコル(http/https)とホスト名を自動で取得してURLを構築
         const verifyUrl = `${req.protocol}://${req.get('host')}/api/auth/verify?token=${token}`;
 
-        // 認証メールの送信
+                // 認証メールの送信
         const mailOptions = {
             from: FROM_EMAIL,
             to: email,
@@ -170,7 +170,16 @@ app.post('/api/auth/register', async (req, res) => {
             text: `ふじゅ〜ペイをご利用いただきありがとうございます。\n\n以下のリンクをクリックして、アカウント登録を完了させてください。\n\n▼ 登録を完了する\n${verifyUrl}\n\n※有効期限: 30分\n※このメールに心当たりがない場合は、破棄してください。`
         };
 
-        await transporter.sendMail(mailOptions);
+        // 送信結果を受け取るように修正
+        const info = await transporter.sendMail(mailOptions);
+        
+        // 送信成功ログを出力！
+        console.log(`[Mail Success] メール送信完了しました！`);
+        console.log(`  - To: ${email}`);
+        console.log(`  - Message-ID: ${info.messageId}`);
+        console.log(`  - Response: ${info.response}`); // SMTPサーバーからの応答メッセージ
+        if (info.accepted.length > 0) console.log(`  - Accepted: ${info.accepted.join(', ')}`);
+        if (info.rejected.length > 0) console.log(`  - Rejected: ${info.rejected.join(', ')}`);
 
         res.json({ success: true, message: "認証用メールを送信しました。メール内のリンクをクリックしてください。" });
     } catch (err) {
