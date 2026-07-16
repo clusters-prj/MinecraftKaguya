@@ -41,6 +41,21 @@ app.use(express.json());
 // 静的ファイルの配信設定（publicフォルダ内を公開）
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Webページ配信ルート
+app.get('/', (req, res) => {
+    const queryString = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    res.redirect(`/login${queryString}`);
+});
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+app.get('/main', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'main.html'));
+});
+app.get('/settings', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'settings.html'));
+});
+
 // CORSを許可
 app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
@@ -230,12 +245,12 @@ app.get('/api/auth/verify', async (req, res) => {
         await conn.commit();
         console.log("[Verify Debug] 本登録コミット完了！ email:", email);
 
-        // 認証完了フラグをURLパラメータに付けて、アプリのトップページへリダイレクト
-        res.redirect('/?verified=true');
+        // 認証完了フラグをURLパラメータに付けて、ログインページへリダイレクト
+        res.redirect('/login?verified=true');
     } catch (err) {
         if (conn) await conn.rollback();
         console.error("[Verify Debug] 認証処理中にエラーが発生しロールバックしました:", err);
-        res.redirect(`/?verify_error=${encodeURIComponent(err.message)}`);
+        res.redirect(`/login?verify_error=${encodeURIComponent(err.message)}`);
     } finally {
         if (conn) conn.release();
     }
