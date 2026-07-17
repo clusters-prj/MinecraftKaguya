@@ -62,7 +62,7 @@ document.getElementById('submitLogin').addEventListener('click', async () => {
     }
 });
 
-window.addEventListener('DOMContentLoaded', async () => {
+async function initLoginPage() {
     let user = null;
     try {
         user = await window.fjew.getCurrentUser();
@@ -95,4 +95,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 
     showSection('login');
-});
+}
+
+// Rocket Loader等でスクリプト実行が遅延し、DOMContentLoadedが
+// すでに発火済みになっているケースへの保険
+if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', initLoginPage);
+} else {
+    initLoginPage();
+}
