@@ -128,5 +128,8 @@ document.getElementById('submitSend').addEventListener('click', async () => {
     }
 });
 
-console.log('reloadProfile呼び出し直前');
-window.fjew.onReloadNeeded(reloadProfile);
+console.log('直接 reloadProfile を呼び出します');
+reloadProfile();
+
+//console.log('reloadProfile呼び出し直前');
+//window.fjew.onReloadNeeded(reloadProfile);
