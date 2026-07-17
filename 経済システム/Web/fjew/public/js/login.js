@@ -78,8 +78,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     const verifyError = urlParams.get('verify_error');
     const verifyErrorCode = urlParams.get('verify_error_code');
     if (verifyError) {
-        const codeSuffix = verifyErrorCode ? ` [${decodeURIComponent(verifyErrorCode)}]` : '';
-        alert('メール認証に失敗しました: ' + decodeURIComponent(verifyError) + codeSuffix);
+        document.getElementById('verifyErrorMessage').innerText = 'メール認証に失敗しました: ' + decodeURIComponent(verifyError);
+        document.getElementById('verifyErrorCodeText').innerText = verifyErrorCode ? `エラーコード: ${decodeURIComponent(verifyErrorCode)}` : '';
+        document.getElementById('verifyErrorBox').classList.remove('hidden');
         window.history.replaceState({}, document.title, '/login');
     }
 
