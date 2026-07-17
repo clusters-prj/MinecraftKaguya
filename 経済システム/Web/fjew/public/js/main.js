@@ -129,6 +129,3 @@ document.getElementById('submitSend').addEventListener('click', async () => {
 });
 
 window.fjew.onReloadNeeded(reloadProfile);
-
-// DOMの読み込みが完了したら実行する
-document.addEventListener('DOMContentLoaded', reloadProfile);

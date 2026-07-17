@@ -34,8 +34,14 @@ window.fjew = {
     // 再取得処理(reloadFn)を呼び直すための共通ヘルパー。
     // 通常のDOMContentLoadedだけだとbfcache復元時に発火しないため、
     // pageshowイベントでevent.persistedを見て再取得する。
+    // また、Rocket Loader等でスクリプト実行が遅延し、登録時点で
+    // すでにDOMContentLoadedが発火済みになっているケースにも対応する。
     onReloadNeeded(reloadFn) {
-        window.addEventListener('DOMContentLoaded', reloadFn);
+        if (document.readyState === 'loading') {
+            window.addEventListener('DOMContentLoaded', reloadFn);
+        } else {
+            reloadFn();
+        }
         window.addEventListener('pageshow', (event) => {
             if (event.persisted) {
                 reloadFn();
