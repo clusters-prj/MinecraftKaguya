@@ -467,8 +467,8 @@ app.post('/api/wallet/send', requireAuth, async (req, res) => {
         await conn.query("UPDATE fje_balances SET balance = balance + ? WHERE uuid = ?", [parsedAmount, toUuid]);
 
         await conn.query(
-            "INSERT INTO fje_transactions (buyer_uuid, owner_uuid, price_total, timestamp) VALUES (?, ?, ?, NOW())",
-            [fromUuid, toUuid, parsedAmount]
+            "INSERT INTO fje_transactions (buyer_uuid, owner_uuid, price_total, server_id, item_id, net_profit, timestamp) VALUES (?, ?, ?, 'WEB', 'WEB_PAYPAY', ?, NOW())",
+            [fromUuid, toUuid, parsedAmount, parsedAmount]
         );
 
         await conn.commit();
