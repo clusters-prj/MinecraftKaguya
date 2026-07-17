@@ -1,6 +1,8 @@
 window.fjew = {
     async fetchJson(url, options = {}) {
+        console.log('fetchJson呼び出し:', url);
         const res = await fetch(url, options);
+        console.log('fetchJsonレスポンス:', url, res.status);
         let data = {};
         try {
             data = await res.json();
