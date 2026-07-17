@@ -75,11 +75,16 @@ window.addEventListener('DOMContentLoaded', async () => {
         window.history.replaceState({}, document.title, '/login');
     }
 
-    const verifyError = urlParams.get('verify_error');
+    const VERIFY_ERROR_MESSAGES = {
+        TOKEN_EXPIRED_OR_USED: 'リンクの有効期限が切れているか、すでに使用されています。',
+        VERIFY_FAILED: 'メール認証処理中にエラーが発生しました。時間をおいて再度お試しください。'
+    };
+
     const verifyErrorCode = urlParams.get('verify_error_code');
-    if (verifyError) {
-        document.getElementById('verifyErrorMessage').innerText = 'メール認証に失敗しました: ' + decodeURIComponent(verifyError);
-        document.getElementById('verifyErrorCodeText').innerText = verifyErrorCode ? `エラーコード: ${decodeURIComponent(verifyErrorCode)}` : '';
+    if (verifyErrorCode) {
+        const message = VERIFY_ERROR_MESSAGES[verifyErrorCode] || VERIFY_ERROR_MESSAGES.VERIFY_FAILED;
+        document.getElementById('verifyErrorMessage').innerText = 'メール認証に失敗しました: ' + message;
+        document.getElementById('verifyErrorCodeText').innerText = `エラーコード: ${verifyErrorCode}`;
         document.getElementById('verifyErrorBox').classList.remove('hidden');
         window.history.replaceState({}, document.title, '/login');
     }

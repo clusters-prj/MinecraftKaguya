@@ -216,9 +216,9 @@ app.get('/api/auth/verify', async (req, res) => {
         return res.status(400).send('<h1>無効なリクエストです</h1><p>トークンが存在しません。</p>');
     }
 
-    // フロント側で分岐できるようにエラーコードを付与してリダイレクトするヘルパー
-    const redirectWithError = (code, message) => {
-        res.redirect(`/login?verify_error=${encodeURIComponent(message)}&verify_error_code=${encodeURIComponent(code)}`);
+    // フロント側で分岐できるようにエラーコードのみをクエリで渡す（メッセージ本文はURLに乗せない）
+    const redirectWithError = (code) => {
+        res.redirect(`/login?verify_error_code=${encodeURIComponent(code)}`);
     };
 
     let conn;
@@ -262,7 +262,7 @@ app.get('/api/auth/verify', async (req, res) => {
     } catch (err) {
         if (conn) await conn.rollback();
         console.error("[Verify Debug] 認証処理中にエラーが発生しロールバックしました:", err);
-        redirectWithError(err.code || "VERIFY_FAILED", err.message);
+        redirectWithError(err.code || "VERIFY_FAILED");
     } finally {
         if (conn) conn.release();
     }
