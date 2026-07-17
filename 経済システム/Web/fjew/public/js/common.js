@@ -40,7 +40,8 @@ window.fjew = {
     // すでにDOMContentLoadedが発火済みになっているケースにも対応する。
     onReloadNeeded(reloadFn) {
         if (document.readyState === 'loading') {
-            window.addEventListener('DOMContentLoaded', reloadFn);
+            // window ではなく document に変更
+            document.addEventListener('DOMContentLoaded', reloadFn);
         } else {
             reloadFn();
         }
