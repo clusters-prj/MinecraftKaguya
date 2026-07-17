@@ -63,7 +63,12 @@ document.getElementById('submitLogin').addEventListener('click', async () => {
 });
 
 window.addEventListener('DOMContentLoaded', async () => {
-    const user = await window.fjew.getCurrentUser();
+    let user = null;
+    try {
+        user = await window.fjew.getCurrentUser();
+    } catch (e) {
+        console.error('[Login] getCurrentUser 取得中にエラー:', e);
+    }
     if (user) {
         window.location.href = '/main';
         return;
