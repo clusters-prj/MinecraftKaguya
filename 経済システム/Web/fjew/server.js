@@ -20,8 +20,13 @@ const PORT = 3200;
 // ==========================================
 // SMTPメール送信設定 (環境変数から柔軟に取得)
 // ==========================================
+// SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS は .env で設定してください（特定のメールサービスに依存しません）
+if (!process.env.SMTP_HOST) {
+    console.warn("[Mail Warning] SMTP_HOST が .env に設定されていません。メール送信に失敗する可能性があります。");
+}
+
 const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.mail.me.com',
+    host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT || '587', 10),
     secure: process.env.SMTP_PORT === '465', // 465ポートの場合はtrue、587の場合はfalse
     auth: {
