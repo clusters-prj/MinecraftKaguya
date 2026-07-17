@@ -96,23 +96,6 @@ document.getElementById('submitLink').addEventListener('click', async () => {
     }
 });
 
-document.getElementById('submitDebugCode').addEventListener('click', async () => {
-    const uuid = document.getElementById('debugUuid').value;
-    if (!uuid) return alert('マイクラのUUIDを入力してください');
-
-    const { data } = await window.fjew.fetchJson('/api/debug/generate-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uuid })
-    });
-
-    if (data.success) {
-        alert(`デバッグコードを発行しました: ${data.code}`);
-        document.getElementById('linkCode').value = data.code;
-    } else {
-        alert('コード発行失敗: ' + data.error);
-    }
-});
 
 document.getElementById('submitSend').addEventListener('click', async () => {
     const from_uuid = document.getElementById('sendFrom').value;

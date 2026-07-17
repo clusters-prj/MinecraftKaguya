@@ -216,6 +216,11 @@ app.get('/api/auth/verify', async (req, res) => {
         return res.status(400).send('<h1>無効なリクエストです</h1><p>トークンが存在しません。</p>');
     }
 
+    // フロント側で分岐できるようにエラーコードを付与してリダイレクトするヘルパー
+    const redirectWithError = (code, message) => {
+        res.redirect(`/login?verify_error=${encodeURIComponent(message)}&verify_error_code=${encodeURIComponent(code)}`);
+    };
+
     let conn;
     try {
         conn = await pool.getConnection();
@@ -230,7 +235,9 @@ app.get('/api/auth/verify', async (req, res) => {
         console.log("[Verify Debug] email_verifications 検索結果:", rows);
 
         if (rows.length === 0) {
-            throw new Error("リンクの有効期限が切れているか、すでに使用されています。");
+            const err = new Error("リンクの有効期限が切れているか、すでに使用されています。");
+            err.code = "TOKEN_EXPIRED_OR_USED";
+            throw err;
         }
 
         const { email, password_hash } = rows[0];
@@ -255,7 +262,7 @@ app.get('/api/auth/verify', async (req, res) => {
     } catch (err) {
         if (conn) await conn.rollback();
         console.error("[Verify Debug] 認証処理中にエラーが発生しロールバックしました:", err);
-        res.redirect(`/login?verify_error=${encodeURIComponent(err.message)}`);
+        redirectWithError(err.code || "VERIFY_FAILED", err.message);
     } finally {
         if (conn) conn.release();
     }
@@ -470,29 +477,6 @@ app.post('/api/wallet/send', requireAuth, async (req, res) => {
     } catch (err) {
         if (conn) await conn.rollback();
         res.status(400).json({ error: err.message });
-    } finally {
-        if (conn) conn.release();
-    }
-});
-
-// 【デバッグ用】連携コード発行
-app.post('/api/debug/generate-code', async (req, res) => {
-    const { uuid } = req.body;
-    if (!uuid) return res.status(400).json({ error: "マイクラのUUIDが必要です" });
-
-    let conn;
-    try {
-        conn = await pool.getConnection();
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        
-        await conn.query(
-            "INSERT INTO link_codes (code, minecraft_uuid, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE)) ON DUPLICATE KEY UPDATE minecraft_uuid = ?, expires_at = DATE_ADD(NOW(), INTERVAL 10 MINUTE)",
-            [code, uuid, uuid]
-        );
-        
-        res.json({ success: true, code, message: `コードを発行しました。` });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
     } finally {
         if (conn) conn.release();
     }
