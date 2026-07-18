@@ -48,12 +48,18 @@ document.getElementById('backToLoginFromForgotPending').addEventListener('click'
     showSection('login');
 });
 
-document.getElementById('submitForgotPassword').addEventListener('click', async () => {
+// パスワード再設定メール送信処理
+document.getElementById('submitForgotPassword').addEventListener('click', async (e) => {
     const email = document.getElementById('forgotEmail').value;
     if (!email) {
         alert('メールアドレスを入力してください');
         return;
     }
+
+    // ボタンを無効化して連打を防止し、見た目を暗くする
+    const btn = e.target;
+    btn.disabled = true;
+    btn.classList.add('opacity-50', 'cursor-not-allowed');
 
     const { data } = await window.fjew.fetchJson('/api/auth/forgot-password', {
         method: 'POST',
@@ -65,12 +71,21 @@ document.getElementById('submitForgotPassword').addEventListener('click', async 
         showSection('forgotPending');
     } else {
         alert('エラー: ' + data.error);
+        // エラー時は再度押せるように元に戻す
+        btn.disabled = false;
+        btn.classList.remove('opacity-50', 'cursor-not-allowed');
     }
 });
 
-document.getElementById('submitRegister').addEventListener('click', async () => {
+// アカウント新規作成処理
+document.getElementById('submitRegister').addEventListener('click', async (e) => {
     const email = document.getElementById('registerEmail').value;
     const password = document.getElementById('registerPassword').value;
+
+    // ボタンを無効化して連打を防止し、見た目を暗くする
+    const btn = e.target;
+    btn.disabled = true;
+    btn.classList.add('opacity-50', 'cursor-not-allowed');
 
     const { data } = await window.fjew.fetchJson('/api/auth/register', {
         method: 'POST',
@@ -83,6 +98,9 @@ document.getElementById('submitRegister').addEventListener('click', async () => 
         showSection('verifyPending');
     } else {
         alert('エラー: ' + data.error);
+        // エラー時は再度押せるように元に戻す
+        btn.disabled = false;
+        btn.classList.remove('opacity-50', 'cursor-not-allowed');
     }
 });
 
