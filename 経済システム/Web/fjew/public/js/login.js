@@ -1,15 +1,21 @@
 const loginSection = document.getElementById('loginSection');
 const registerSection = document.getElementById('registerSection');
 const verifyPendingSection = document.getElementById('verifyPendingSection');
+const forgotPasswordSection = document.getElementById('forgotPasswordSection');
+const forgotPendingSection = document.getElementById('forgotPendingSection');
 
 function showSection(section) {
     loginSection.classList.add('hidden');
     registerSection.classList.add('hidden');
     verifyPendingSection.classList.add('hidden');
+    forgotPasswordSection.classList.add('hidden');
+    forgotPendingSection.classList.add('hidden');
 
     if (section === 'login') loginSection.classList.remove('hidden');
     if (section === 'register') registerSection.classList.remove('hidden');
     if (section === 'verifyPending') verifyPendingSection.classList.remove('hidden');
+    if (section === 'forgotPassword') forgotPasswordSection.classList.remove('hidden');
+    if (section === 'forgotPending') forgotPendingSection.classList.remove('hidden');
 }
 
 document.getElementById('toRegister').addEventListener('click', (e) => {
@@ -25,6 +31,41 @@ document.getElementById('toLogin').addEventListener('click', (e) => {
 document.getElementById('backToLoginFromPending').addEventListener('click', (e) => {
     e.preventDefault();
     showSection('login');
+});
+
+document.getElementById('toForgotPassword').addEventListener('click', (e) => {
+    e.preventDefault();
+    showSection('forgotPassword');
+});
+
+document.getElementById('toLoginFromForgot').addEventListener('click', (e) => {
+    e.preventDefault();
+    showSection('login');
+});
+
+document.getElementById('backToLoginFromForgotPending').addEventListener('click', (e) => {
+    e.preventDefault();
+    showSection('login');
+});
+
+document.getElementById('submitForgotPassword').addEventListener('click', async () => {
+    const email = document.getElementById('forgotEmail').value;
+    if (!email) {
+        alert('メールアドレスを入力してください');
+        return;
+    }
+
+    const { data } = await window.fjew.fetchJson('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+    });
+
+    if (data.success) {
+        showSection('forgotPending');
+    } else {
+        alert('エラー: ' + data.error);
+    }
 });
 
 document.getElementById('submitRegister').addEventListener('click', async () => {

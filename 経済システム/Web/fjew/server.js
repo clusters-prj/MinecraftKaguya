@@ -54,6 +54,9 @@ app.get('/', (req, res) => {
 app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
+app.get('/reset-password', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'reset-password.html'));
+});
 app.get('/main', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'main.html'));
 });
@@ -138,6 +141,15 @@ async function initDatabase() {
             CREATE TABLE IF NOT EXISTS email_verifications (
                 email VARCHAR(255) PRIMARY KEY,
                 password_hash VARCHAR(255) NOT NULL,
+                token VARCHAR(255) NOT NULL,
+                expires_at TIMESTAMP NOT NULL
+            )
+        `);
+
+        // 5. パスワードリセット一時保存テーブル
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS password_resets (
+                email VARCHAR(255) PRIMARY KEY,
                 token VARCHAR(255) NOT NULL,
                 expires_at TIMESTAMP NOT NULL
             )
@@ -314,6 +326,95 @@ app.post('/api/auth/logout', (req, res) => {
         res.clearCookie('connect.sid');
         res.json({ success: true, message: "ログアウトしました" });
     });
+});
+
+// パスワードリセット申請（メール送信）
+app.post('/api/auth/forgot-password', async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "メールアドレスを入力してください" });
+
+    let conn;
+    try {
+        conn = await pool.getConnection();
+
+        // ユーザーが実在するか確認（存在有無を外部に漏らさないよう、常に同じレスポンスを返す）
+        const existing = await conn.query("SELECT id FROM web_users WHERE email = ?", [email]);
+
+        if (existing.length > 0) {
+            const token = crypto.randomBytes(32).toString('hex');
+
+            await conn.query(`
+                INSERT INTO password_resets (email, token, expires_at)
+                VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 30 MINUTE))
+                ON DUPLICATE KEY UPDATE token = ?, expires_at = DATE_ADD(NOW(), INTERVAL 30 MINUTE)
+            `, [email, token, token]);
+
+            const resetUrl = `${req.protocol}://${req.get('host')}/reset-password?token=${token}`;
+
+            const mailOptions = {
+                from: FROM_EMAIL,
+                to: email,
+                subject: '【ふじゅ〜ペイ】パスワード再設定のご案内',
+                text: `パスワード再設定のリクエストを受け付けました。\n\n以下のリンクをクリックして、新しいパスワードを設定してください。\n\n▼ パスワードを再設定する\n${resetUrl}\n\n※有効期限: 30分\n※このメールに心当たりがない場合は、破棄してください。`
+            };
+
+            try {
+                const info = await transporter.sendMail(mailOptions);
+                console.log(`[Mail Success] パスワードリセットメール送信完了: ${email} (${info.messageId})`);
+            } catch (mailErr) {
+                console.error("[Mail Error] パスワードリセットメール送信に失敗しました:", mailErr);
+            }
+        } else {
+            console.log(`[Reset Debug] 未登録メールへのリセット申請: ${email}`);
+        }
+
+        // アカウントの存在有無に関わらず同じメッセージを返す（メールアドレス列挙対策）
+        res.json({ success: true, message: "パスワード再設定用のメールを送信しました。メールをご確認ください。" });
+    } catch (err) {
+        console.error("[Reset Debug] パスワードリセット申請処理でエラー:", err);
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// パスワードリセット実行（トークン検証 ＆ 更新）
+app.post('/api/auth/reset-password', async (req, res) => {
+    const { token, password } = req.body;
+    if (!token || !password) return res.status(400).json({ error: "トークンと新しいパスワードを入力してください" });
+    if (password.length < 8) return res.status(400).json({ error: "パスワードは8文字以上で入力してください" });
+
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        const rows = await conn.query(
+            "SELECT email FROM password_resets WHERE token = ? AND expires_at > NOW()",
+            [token]
+        );
+
+        if (rows.length === 0) {
+            throw new Error("リンクの有効期限が切れているか、無効なリンクです。もう一度お試しください。");
+        }
+
+        const { email } = rows[0];
+        const saltRounds = 10;
+        const passwordHash = await bcrypt.hash(password, saltRounds);
+
+        await conn.query("UPDATE web_users SET password_hash = ? WHERE email = ?", [passwordHash, email]);
+        await conn.query("DELETE FROM password_resets WHERE email = ?", [email]);
+
+        await conn.commit();
+        console.log(`[Reset Debug] パスワード再設定完了: ${email}`);
+
+        res.json({ success: true, message: "パスワードを再設定しました。新しいパスワードでログインしてください。" });
+    } catch (err) {
+        if (conn) await conn.rollback();
+        res.status(400).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
 });
 
 // マイクラアカウント連携（ワンタイムコード検証）
