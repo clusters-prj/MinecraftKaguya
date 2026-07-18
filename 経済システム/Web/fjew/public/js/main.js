@@ -128,5 +128,9 @@ document.getElementById('submitSend').addEventListener('click', async () => {
     }
 });
 
+document.getElementById('historyBtn').addEventListener('click', () => {
+    window.location.href = '/history';
+});
+
 console.log('reloadProfile呼び出し直前');
 window.fjew.onReloadNeeded(reloadProfile);
