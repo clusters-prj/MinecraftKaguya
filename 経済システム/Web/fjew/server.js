@@ -13,6 +13,7 @@ const FileStore = require('session-file-store')(session);
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const rateLimit = require('express-rate-limit');
 const pool = require('./db'); // この中で process.env が正常に使える
 const app = express();
 const PORT = 3200;
@@ -51,6 +52,27 @@ const APP_BASE_URL = (process.env.APP_BASE_URL || '').replace(/\/+$/, '');
 
 // リバースプロキシ(Cloudflare Tunnel等)配下で動かす場合の設定
 app.set('trust proxy', 1);
+
+// ==========================================
+// Rate Limit
+// ==========================================
+const createLimiter = (windowMs, max) =>
+    rateLimit({
+        windowMs,
+        max,
+        standardHeaders: true,
+        legacyHeaders: false,
+        message: {
+            error: "試行回数が多すぎます。しばらく待ってから再度お試しください。"
+        }
+    });
+
+const loginLimiter = createLimiter(15 * 60 * 1000, 5);
+const registerLimiter = createLimiter(60 * 60 * 1000, 3);
+const forgotPasswordLimiter = createLimiter(60 * 60 * 1000, 3);
+const resetPasswordLimiter = createLimiter(30 * 60 * 1000, 5);
+const linkLimiter = createLimiter(10 * 60 * 1000, 10);
+const verifyLimiter = createLimiter(10 * 60 * 1000, 20);
 
 app.use(express.json());
 
@@ -179,7 +201,7 @@ async function initDatabase() {
 // ==========================================
 
 // アカウント仮登録 ＆ 認証メール送信
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', registerLimiter, async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: "メアドとパスワードを入力してください" });
 
@@ -232,7 +254,7 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // メール認証リンクの検証 ＆ 本登録（GETリクエスト） ★デバッグログ追加
-app.get('/api/auth/verify', async (req, res) => {
+app.get('/api/auth/verify', verifyLimiter, async (req, res) => {
     const { token } = req.query;
     if (!token) {
         console.log("[Verify Debug] トークンなしの不正アクセスを検知しました");
@@ -292,7 +314,7 @@ app.get('/api/auth/verify', async (req, res) => {
 });
 
 // ログイン ★デバッグログ追加
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', loginLimiter, async (req, res) => {
     const { email, password } = req.body;
     console.log("[Login Debug] ログイン試行:", { email });
     let conn;
@@ -340,7 +362,7 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 // パスワードリセット申請（メール送信）
-app.post('/api/auth/forgot-password', async (req, res) => {
+app.post('/api/auth/forgot-password', forgotPasswordLimiter, async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: "メールアドレスを入力してください" });
 
@@ -391,7 +413,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 });
 
 // パスワードリセット実行（トークン検証 ＆ 更新）
-app.post('/api/auth/reset-password', async (req, res) => {
+app.post('/api/auth/reset-password', resetPasswordLimiter, async (req, res) => {
     const { token, password } = req.body;
     if (!token || !password) return res.status(400).json({ error: "トークンと新しいパスワードを入力してください" });
     if (password.length < 8) return res.status(400).json({ error: "パスワードは8文字以上で入力してください" });
@@ -430,7 +452,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 // マイクラアカウント連携（ワンタイムコード検証）
-app.post('/api/auth/link', requireAuth, async (req, res) => {
+app.post('/api/auth/link', requireAuth, linkLimiter, async (req, res) => {
     const { code } = req.body;
     if (!code || code.length !== 6) {
         return res.status(400).json({ error: "6桁のコードを入力してください" });
