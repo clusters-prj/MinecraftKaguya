@@ -201,6 +201,9 @@ app.get('/reset-password', (req, res) => {
 app.get('/main', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'main.html'));
 });
+app.get('/history', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'history.html'));
+});
 app.get('/settings', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'settings.html'));
 });
