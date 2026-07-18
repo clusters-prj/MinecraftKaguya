@@ -97,11 +97,26 @@ app.get('/settings', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'settings.html'));
 });
 
-// CORSを許可
+// CORS設定
+const allowedOrigin = APP_BASE_URL
+    ? new URL(APP_BASE_URL).origin
+    : null;
+
 app.use((req, res, next) => {
-    res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
+    const origin = req.headers.origin;
+
+    if (allowedOrigin && origin === allowedOrigin) {
+        res.header("Access-Control-Allow-Origin", origin);
+    }
+
     res.header("Access-Control-Allow-Credentials", "true");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+
+    if (req.method === "OPTIONS") {
+        return res.sendStatus(204);
+    }
+
     next();
 });
 
@@ -116,8 +131,10 @@ app.use(session({
     secret: process.env.SESSION_SECRET || 'fje-paypay-secret-key-fallback',
     resave: false,
     saveUninitialized: false,
-    cookie: {
-        secure: false,
+    cookie:{
+        secure:true,
+        httpOnly:true,
+        sameSite:"lax",
         maxAge: 1000 * 60 * 60 * 24
     }
 }));
@@ -257,7 +274,6 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
 app.get('/api/auth/verify', verifyLimiter, async (req, res) => {
     const { token } = req.query;
     if (!token) {
-        console.log("[Verify Debug] トークンなしの不正アクセスを検知しました");
         return res.status(400).send('<h1>無効なリクエストです</h1><p>トークンが存在しません。</p>');
     }
 
@@ -277,8 +293,6 @@ app.get('/api/auth/verify', verifyLimiter, async (req, res) => {
             [token]
         );
 
-        console.log("[Verify Debug] email_verifications 検索結果:", rows);
-
         if (rows.length === 0) {
             const err = new Error("リンクの有効期限が切れているか、すでに使用されています。");
             err.code = "TOKEN_EXPIRED_OR_USED";
@@ -286,21 +300,17 @@ app.get('/api/auth/verify', verifyLimiter, async (req, res) => {
         }
 
         const { email, password_hash } = rows[0];
-        console.log("[Verify Debug] 取り出した本登録情報:", { email, password_hash });
 
         // 本登録（web_users）に挿入
         const insertRes = await conn.query(
             "INSERT INTO web_users (email, password_hash) VALUES (?, ?)",
             [email, password_hash]
         );
-        console.log("[Verify Debug] web_users へのインサート結果:", insertRes);
 
         // 一時テーブルから削除
         const deleteRes = await conn.query("DELETE FROM email_verifications WHERE email = ?", [email]);
-        console.log("[Verify Debug] 一時テーブルからの削除結果:", deleteRes);
 
         await conn.commit();
-        console.log("[Verify Debug] 本登録コミット完了！ email:", email);
 
         // 認証完了フラグをURLパラメータに付けて、ログインページへリダイレクト
         res.redirect('/login?verified=true');
@@ -316,36 +326,27 @@ app.get('/api/auth/verify', verifyLimiter, async (req, res) => {
 // ログイン ★デバッグログ追加
 app.post('/api/auth/login', loginLimiter, async (req, res) => {
     const { email, password } = req.body;
-    console.log("[Login Debug] ログイン試行:", { email });
     let conn;
     try {
         conn = await pool.getConnection();
         const rows = await conn.query("SELECT id, password_hash FROM web_users WHERE email = ?", [email]);
-        
-        console.log("[Login Debug] web_users 検索結果:", rows);
 
         if (rows.length === 0) {
-            console.log("[Login Debug] ユーザーが見つかりません。 email:", email);
             return res.status(401).json({ error: "メアドまたはパスワードが間違っています" });
         }
 
         const user = rows[0];
-        console.log("[Login Debug] DBから取得したレコード:", { id: user.id, has_hash: !!user.password_hash });
 
         // パスワード比較
         const match = await bcrypt.compare(password, user.password_hash);
-        console.log("[Login Debug] bcrypt 比較結果 (match):", match);
 
         if (!match) {
-            console.log("[Login Debug] パスワードが一致しませんでした。");
             return res.status(401).json({ error: "メアドまたはパスワードが間違っています" });
         }
 
         req.session.webUserId = user.id;
-        console.log("[Login Debug] ログイン成功。セッションを確立しました。 WebUserID:", user.id);
         res.json({ success: true, message: "ログインしました" });
     } catch (err) {
-        console.error("[Login Debug] ログイン処理中に例外エラーが発生しました:", err);
         res.status(500).json({ error: err.message });
     } finally {
         if (conn) conn.release();
