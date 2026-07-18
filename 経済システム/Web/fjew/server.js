@@ -649,6 +649,119 @@ app.get('/api/transactions/player/:uuid', async (req, res) => {
     }
 });
 
+// 自分（連携中の全アカウント）が関わった取引履歴を取得
+// ?type=all|sent|received  … 絞り込み（省略時 all）
+// ?page=1&limit=20         … ページネーション
+app.get('/api/wallet/history', requireAuth, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+
+        const links = await conn.query(
+            "SELECT minecraft_uuid FROM account_links WHERE web_user_id = ?",
+            [req.session.webUserId]
+        );
+        if (links.length === 0) {
+            return res.json({ transactions: [], total: 0, page: 1, limit: 20, has_more: false });
+        }
+        const myUuids = links.map(l => l.minecraft_uuid);
+
+        const type = req.query.type || 'all'; // all | sent | received
+        const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+        const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+        const offset = (page - 1) * limit;
+
+        const placeholders = myUuids.map(() => '?').join(',');
+
+        let whereClause;
+        let whereParams;
+        if (type === 'sent') {
+            whereClause = `t.buyer_uuid IN (${placeholders})`;
+            whereParams = [...myUuids];
+        } else if (type === 'received') {
+            whereClause = `t.owner_uuid IN (${placeholders})`;
+            whereParams = [...myUuids];
+        } else {
+            whereClause = `(t.buyer_uuid IN (${placeholders}) OR t.owner_uuid IN (${placeholders}))`;
+            whereParams = [...myUuids, ...myUuids];
+        }
+
+        const countRows = await conn.query(
+            `SELECT COUNT(*) AS cnt FROM fje_transactions t WHERE ${whereClause}`,
+            whereParams
+        );
+        const total = Number(countRows[0].cnt);
+
+        const rows = await conn.query(`
+            SELECT
+                t.id,
+                t.timestamp,
+                t.server_id,
+                t.item_id,
+                t.price_total,
+                t.tax_amount,
+                t.net_profit,
+                t.buyer_uuid,
+                t.owner_uuid,
+                bb.player_name AS buyer_name,
+                ob.player_name AS owner_name
+            FROM fje_transactions t
+            LEFT JOIN fje_balances bb ON t.buyer_uuid = bb.uuid
+            LEFT JOIN fje_balances ob ON t.owner_uuid = ob.uuid
+            WHERE ${whereClause}
+            ORDER BY t.timestamp DESC
+            LIMIT ? OFFSET ?
+        `, [...whereParams, limit, offset]);
+
+        // 自分視点での「入金/出金」「相手」「種別」を付与
+        const transactions = rows.map(r => {
+            const iAmBuyer = myUuids.includes(r.buyer_uuid);
+            const iAmOwner = myUuids.includes(r.owner_uuid);
+            const isInternalBoth = iAmBuyer && iAmOwner; // 自分の複数アカウント間送金
+
+            let direction; // 'out' = 自分の残高が減った, 'in' = 増えた
+            let counterpartName;
+            if (isInternalBoth) {
+                direction = 'internal';
+                counterpartName = '自分の別アカウント';
+            } else if (iAmBuyer) {
+                direction = 'out';
+                counterpartName = r.owner_name || '(不明なプレイヤー)';
+            } else {
+                direction = 'in';
+                counterpartName = r.buyer_name || '(不明なプレイヤー)';
+            }
+
+            const isTransfer = r.item_id === 'WEB_PAYPAY';
+
+            return {
+                id: r.id,
+                timestamp: r.timestamp,
+                server_id: r.server_id,
+                item_id: r.item_id,
+                type: isTransfer ? 'transfer' : 'shop',
+                direction,
+                counterpart_name: counterpartName,
+                amount: r.price_total,
+                tax_amount: r.tax_amount,
+                net_profit: r.net_profit
+            };
+        });
+
+        res.json({
+            transactions,
+            total,
+            page,
+            limit,
+            has_more: offset + rows.length < total
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
 app.get('/api/analytics/shop/:uuid', async (req, res) => {
     let conn;
     try {

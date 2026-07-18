@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ふじゅ〜ペイ | 取引履歴</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .paypay-gradient { background: linear-gradient(135deg, #ff0033 0%, #ff3366 100%); }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col justify-between font-sans">
+    <header class="bg-white shadow-sm">
+        <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center gap-2">
+            <div class="flex items-center gap-2">
+                <button id="backBtn" class="text-gray-500 hover:text-gray-700 text-lg leading-none">←</button>
+                <h1 class="text-lg font-bold text-red-600 tracking-wider">取引履歴</h1>
+            </div>
+            <button id="logoutBtn" class="text-sm text-gray-500 hover:text-red-600 font-medium">ログアウト</button>
+        </div>
+    </header>
+
+    <main class="max-w-md w-full mx-auto px-4 py-6 flex-grow space-y-4">
+        <!-- フィルタタブ -->
+        <div class="bg-white rounded-2xl shadow-sm p-1 flex gap-1">
+            <button data-type="all" class="filterTab flex-1 text-xs font-bold py-2 rounded-xl transition bg-red-600 text-white">すべて</button>
+            <button data-type="received" class="filterTab flex-1 text-xs font-bold py-2 rounded-xl transition text-gray-500 hover:bg-gray-100">入金</button>
+            <button data-type="sent" class="filterTab flex-1 text-xs font-bold py-2 rounded-xl transition text-gray-500 hover:bg-gray-100">出金</button>
+        </div>
+
+        <div id="emptyState" class="hidden bg-white rounded-2xl shadow-sm p-8 text-center text-gray-400 text-sm">
+            取引履歴がありません
+        </div>
+
+        <div id="historyList" class="space-y-2"></div>
+
+        <button id="loadMoreBtn" class="hidden w-full bg-white text-gray-600 font-bold py-3 rounded-xl shadow-sm hover:bg-gray-50 transition text-sm">
+            さらに読み込む
+        </button>
+
+        <div id="loadingIndicator" class="text-center text-xs text-gray-400 py-4">読み込み中...</div>
+    </main>
+
+    <footer class="text-center py-4 text-xs text-gray-400">
+        &copy; 2026 FJ Economy / clusters-prj.com
+    </footer>
+
+    <!-- 取引詳細モーダル -->
+    <div id="detailModal" class="hidden fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50" role="dialog" aria-modal="true">
+        <div class="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md p-6 space-y-4">
+            <div class="flex justify-between items-center">
+                <h3 class="font-bold text-gray-800">取引の詳細</h3>
+                <button id="closeModalBtn" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+            </div>
+            <div id="detailContent" class="space-y-3 text-sm"></div>
+        </div>
+    </div>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/history.js"></script>
+</body>
+</html>
