@@ -38,6 +38,17 @@ const transporter = nodemailer.createTransport({
 // 送信元アドレスを.envから取得、なければフォールバック
 const FROM_EMAIL = process.env.FROM_EMAIL || `"ふじゅ〜ペイ" <no-reply@clusters-prj.com>`;
 
+// ==========================================
+// アプリのベースURL (.envから取得)
+// ==========================================
+// メール内のリンク生成にはリクエストのHostヘッダーを使わず、
+// 信頼できる.envの値のみを使用する (Host Header Poisoning対策)
+// 例: APP_BASE_URL=https://fjew.clusters-prj.com
+if (!process.env.APP_BASE_URL) {
+    console.warn("[Config Warning] APP_BASE_URL が .env に設定されていません。メール内のリンクが正しく生成できません。");
+}
+const APP_BASE_URL = (process.env.APP_BASE_URL || '').replace(/\/+$/, '');
+
 // リバースプロキシ(Cloudflare Tunnel等)配下で動かす場合の設定
 app.set('trust proxy', 1);
 
@@ -193,8 +204,8 @@ app.post('/api/auth/register', async (req, res) => {
             ON DUPLICATE KEY UPDATE password_hash = ?, token = ?, expires_at = DATE_ADD(NOW(), INTERVAL 30 MINUTE)
         `, [email, passwordHash, token, passwordHash, token]);
 
-        // URL構築
-        const verifyUrl = `${req.protocol}://${req.get('host')}/api/auth/verify?token=${token}`;
+        // URL構築（Hostヘッダーではなく.envの信頼済みベースURLを使用）
+        const verifyUrl = `${APP_BASE_URL}/api/auth/verify?token=${token}`;
 
         // 認証メールの送信
         const mailOptions = {
@@ -349,7 +360,8 @@ app.post('/api/auth/forgot-password', async (req, res) => {
                 ON DUPLICATE KEY UPDATE token = ?, expires_at = DATE_ADD(NOW(), INTERVAL 30 MINUTE)
             `, [email, token, token]);
 
-            const resetUrl = `${req.protocol}://${req.get('host')}/reset-password?token=${token}`;
+            // Hostヘッダーではなく.envの信頼済みベースURLを使用（Host Header Poisoning対策）
+            const resetUrl = `${APP_BASE_URL}/reset-password?token=${token}`;
 
             const mailOptions = {
                 from: FROM_EMAIL,
