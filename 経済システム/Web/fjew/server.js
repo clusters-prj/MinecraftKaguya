@@ -17,6 +17,14 @@ const rateLimit = require('express-rate-limit');
 const pool = require('./db'); // この中で process.env が正常に使える
 const app = express();
 const PORT = 3200;
+const helmet = require("helmet");
+
+app.use(helmet());
+
+// シークレットがないとき通知だけ
+if (!process.env.SESSION_SECRET) {
+    throw new Error("SESSION_SECRET is not set.");
+}
 
 // ==========================================
 // SMTPメール送信設定 (環境変数から柔軟に取得)
@@ -128,7 +136,7 @@ app.use(session({
         retries: 0,
         logFn: () => {}
     }),
-    secret: process.env.SESSION_SECRET || 'fje-paypay-secret-key-fallback',
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie:{
