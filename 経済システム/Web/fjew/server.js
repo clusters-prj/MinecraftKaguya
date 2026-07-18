@@ -19,7 +19,10 @@ const app = express();
 const PORT = 3200;
 const helmet = require("helmet");
 
-app.use(helmet());
+// 自動防御の設定
+app.use(helmet({
+    contentSecurityPolicy: false
+}));
 
 // シークレットがないとき通知だけ
 if (!process.env.SESSION_SECRET) {
