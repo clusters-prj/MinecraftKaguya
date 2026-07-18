@@ -1,11 +1,9 @@
 // ★ 一番最初に追加して環境変数をロードする
 require('dotenv').config();
 
-// BigIntをJSONで出力できるようにシリアライズ方法を定義
-BigInt.prototype.toJSON = function() {
-    return this.toString();
-};
-
+// ==========================================
+// 1. モジュール読み込み ＆ 基本設定
+// ==========================================
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
@@ -14,25 +12,36 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const rateLimit = require('express-rate-limit');
+const helmet = require("helmet");
 const pool = require('./db'); // この中で process.env が正常に使える
+
+// BigIntをJSONで出力できるようにシリアライズ方法を定義
+BigInt.prototype.toJSON = function() {
+    return this.toString();
+};
+
 const app = express();
 const PORT = 3200;
-const helmet = require("helmet");
 
-// 自動防御の設定
-app.use(helmet({
-    contentSecurityPolicy: false
-}));
+// ==========================================
+// 2. 定数 ＆ 環境変数チェック
+// ==========================================
+// 政府口座のUUID定数
+const GOV_UUID = '00000000-0000-0000-0000-000000000001';
 
 // シークレットがないとき通知だけ
 if (!process.env.SESSION_SECRET) {
     throw new Error("SESSION_SECRET is not set.");
 }
 
-// ==========================================
-// SMTPメール送信設定 (環境変数から柔軟に取得)
-// ==========================================
-// SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS は .env で設定してください（特定のメールサービスに依存しません）
+// アプリのベースURL (.envから取得)
+// メール内のリンク生成にはリクエストのHostヘッダーを使わず、信頼できる.envの値のみを使用する (Host Header Poisoning対策)
+if (!process.env.APP_BASE_URL) {
+    console.warn("[Config Warning] APP_BASE_URL が .env に設定されていません。メール内のリンクが正しく生成できません。");
+}
+const APP_BASE_URL = (process.env.APP_BASE_URL || '').replace(/\/+$/, '');
+
+// SMTPメール送信設定
 if (!process.env.SMTP_HOST) {
     console.warn("[Mail Warning] SMTP_HOST が .env に設定されていません。メール送信に失敗する可能性があります。");
 }
@@ -46,36 +55,27 @@ const transporter = nodemailer.createTransport({
         pass: process.env.SMTP_PASS
     }
 });
-
-// 送信元アドレスを.envから取得、なければフォールバック
 const FROM_EMAIL = process.env.FROM_EMAIL || `"ふじゅ〜ペイ" <no-reply@clusters-prj.com>`;
 
 // ==========================================
-// アプリのベースURL (.envから取得)
+// 3. ミドルウェア設定 (セキュリティ・制限・CORS・セッション)
 // ==========================================
-// メール内のリンク生成にはリクエストのHostヘッダーを使わず、
-// 信頼できる.envの値のみを使用する (Host Header Poisoning対策)
-// 例: APP_BASE_URL=https://fjew.clusters-prj.com
-if (!process.env.APP_BASE_URL) {
-    console.warn("[Config Warning] APP_BASE_URL が .env に設定されていません。メール内のリンクが正しく生成できません。");
-}
-const APP_BASE_URL = (process.env.APP_BASE_URL || '').replace(/\/+$/, '');
-
 // リバースプロキシ(Cloudflare Tunnel等)配下で動かす場合の設定
 app.set('trust proxy', 1);
 
-// ==========================================
-// Rate Limit
-// ==========================================
+// 自動防御の設定
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Rate Limitの設定
 const createLimiter = (windowMs, max) =>
     rateLimit({
         windowMs,
         max,
         standardHeaders: true,
         legacyHeaders: false,
-        message: {
-            error: "試行回数が多すぎます。しばらく待ってから再度お試しください。"
-        }
+        message: { error: "試行回数が多すぎます。しばらく待ってから再度お試しください。" }
     });
 
 const loginLimiter = createLimiter(15 * 60 * 1000, 5);
@@ -85,41 +85,13 @@ const resetPasswordLimiter = createLimiter(30 * 60 * 1000, 5);
 const linkLimiter = createLimiter(10 * 60 * 1000, 10);
 const verifyLimiter = createLimiter(10 * 60 * 1000, 20);
 
-app.use(express.json());
-
-// 静的ファイルの配信設定（publicフォルダ内を公開）
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Webページ配信ルート
-app.get('/', (req, res) => {
-    const queryString = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
-    res.redirect(`/login${queryString}`);
-});
-app.get('/login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-app.get('/reset-password', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'reset-password.html'));
-});
-app.get('/main', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'main.html'));
-});
-app.get('/settings', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'settings.html'));
-});
-
 // CORS設定
-const allowedOrigin = APP_BASE_URL
-    ? new URL(APP_BASE_URL).origin
-    : null;
-
+const allowedOrigin = APP_BASE_URL ? new URL(APP_BASE_URL).origin : null;
 app.use((req, res, next) => {
     const origin = req.headers.origin;
-
     if (allowedOrigin && origin === allowedOrigin) {
         res.header("Access-Control-Allow-Origin", origin);
     }
-
     res.header("Access-Control-Allow-Credentials", "true");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
     res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
@@ -127,7 +99,6 @@ app.use((req, res, next) => {
     if (req.method === "OPTIONS") {
         return res.sendStatus(204);
     }
-
     next();
 });
 
@@ -142,16 +113,13 @@ app.use(session({
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    cookie:{
-        secure:true,
-        httpOnly:true,
-        sameSite:"lax",
+    cookie: {
+        secure: true,
+        httpOnly: true,
+        sameSite: "lax",
         maxAge: 1000 * 60 * 60 * 24
     }
 }));
-
-// 政府口座のUUID定数
-const GOV_UUID = '00000000-0000-0000-0000-000000000001';
 
 // ログインチェック用ミドルウェア
 const requireAuth = (req, res, next) => {
@@ -161,13 +129,14 @@ const requireAuth = (req, res, next) => {
     next();
 };
 
-// データベース初期化関数（テーブル自動作成）
+// ==========================================
+// 4. データベース初期化
+// ==========================================
 async function initDatabase() {
     let conn;
     try {
         conn = await pool.getConnection();
         
-        // 1. Webユーザーテーブル
         await conn.query(`
             CREATE TABLE IF NOT EXISTS web_users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -177,8 +146,6 @@ async function initDatabase() {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
-
-        // 2. アカウント連携テーブル
         await conn.query(`
             CREATE TABLE IF NOT EXISTS account_links (
                 web_user_id INT NOT NULL,
@@ -187,8 +154,6 @@ async function initDatabase() {
                 FOREIGN KEY (web_user_id) REFERENCES web_users(id) ON DELETE CASCADE
             )
         `);
-
-        // 3. 連携コード一時保持テーブル
         await conn.query(`
             CREATE TABLE IF NOT EXISTS link_codes (
                 code VARCHAR(6) PRIMARY KEY,
@@ -196,8 +161,6 @@ async function initDatabase() {
                 expires_at TIMESTAMP NOT NULL
             )
         `);
-
-        // 4. メール認証リンク一時保存テーブル
         await conn.query(`
             CREATE TABLE IF NOT EXISTS email_verifications (
                 email VARCHAR(255) PRIMARY KEY,
@@ -206,8 +169,6 @@ async function initDatabase() {
                 expires_at TIMESTAMP NOT NULL
             )
         `);
-
-        // 5. パスワードリセット一時保存テーブル
         await conn.query(`
             CREATE TABLE IF NOT EXISTS password_resets (
                 email VARCHAR(255) PRIMARY KEY,
@@ -225,7 +186,27 @@ async function initDatabase() {
 }
 
 // ==========================================
-// ユーザー認証・アカウント連携関連
+// 5. ページ配信ルート (フロントエンド)
+// ==========================================
+app.get('/', (req, res) => {
+    const queryString = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    res.redirect(`/login${queryString}`);
+});
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+app.get('/reset-password', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'reset-password.html'));
+});
+app.get('/main', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'main.html'));
+});
+app.get('/settings', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'settings.html'));
+});
+
+// ==========================================
+// 6. APIルート: 認証・アカウント連携
 // ==========================================
 
 // アカウント仮登録 ＆ 認証メール送信
@@ -236,28 +217,20 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
     let conn;
     try {
         conn = await pool.getConnection();
-        
-        // すでに本登録が完了しているかチェック
         const existing = await conn.query("SELECT id FROM web_users WHERE email = ?", [email]);
         if (existing.length > 0) return res.status(400).json({ error: "このメールアドレスは既に登録されています" });
 
         const saltRounds = 10;
         const passwordHash = await bcrypt.hash(password, saltRounds);
-
-        // 安全なランダムトークンを生成
         const token = crypto.randomBytes(32).toString('hex');
 
-        // 一時テーブルに保存
         await conn.query(`
             INSERT INTO email_verifications (email, password_hash, token, expires_at) 
             VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL 30 MINUTE))
             ON DUPLICATE KEY UPDATE password_hash = ?, token = ?, expires_at = DATE_ADD(NOW(), INTERVAL 30 MINUTE)
         `, [email, passwordHash, token, passwordHash, token]);
 
-        // URL構築（Hostヘッダーではなく.envの信頼済みベースURLを使用）
         const verifyUrl = `${APP_BASE_URL}/api/auth/verify?token=${token}`;
-
-        // 認証メールの送信
         const mailOptions = {
             from: FROM_EMAIL,
             to: email,
@@ -266,11 +239,7 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
         };
 
         const info = await transporter.sendMail(mailOptions);
-        
-        console.log(`[Mail Success] メール送信完了しました！`);
-        console.log(`  - To: ${email}`);
-        console.log(`  - Message-ID: ${info.messageId}`);
-        console.log(`  - Response: ${info.response}`);
+        console.log(`[Mail Success] メール送信完了しました！\n  - To: ${email}\n  - Message-ID: ${info.messageId}\n  - Response: ${info.response}`);
 
         res.json({ success: true, message: "認証用メールを送信しました。メール内のリンクをクリックしてください。" });
     } catch (err) {
@@ -281,14 +250,11 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
     }
 });
 
-// メール認証リンクの検証 ＆ 本登録（GETリクエスト） ★デバッグログ追加
+// メール認証リンクの検証 ＆ 本登録
 app.get('/api/auth/verify', verifyLimiter, async (req, res) => {
     const { token } = req.query;
-    if (!token) {
-        return res.status(400).send('<h1>無効なリクエストです</h1><p>トークンが存在しません。</p>');
-    }
+    if (!token) return res.status(400).send('<h1>無効なリクエストです</h1><p>トークンが存在しません。</p>');
 
-    // フロント側で分岐できるようにエラーコードのみをクエリで渡す（メッセージ本文はURLに乗せない）
     const redirectWithError = (code) => {
         res.redirect(`/login?verify_error_code=${encodeURIComponent(code)}`);
     };
@@ -298,7 +264,6 @@ app.get('/api/auth/verify', verifyLimiter, async (req, res) => {
         conn = await pool.getConnection();
         await conn.beginTransaction();
 
-        // トークンが一致し、期限内の一時登録情報を取得
         const rows = await conn.query(
             "SELECT email, password_hash FROM email_verifications WHERE token = ? AND expires_at > NOW()",
             [token]
@@ -311,19 +276,10 @@ app.get('/api/auth/verify', verifyLimiter, async (req, res) => {
         }
 
         const { email, password_hash } = rows[0];
-
-        // 本登録（web_users）に挿入
-        const insertRes = await conn.query(
-            "INSERT INTO web_users (email, password_hash) VALUES (?, ?)",
-            [email, password_hash]
-        );
-
-        // 一時テーブルから削除
-        const deleteRes = await conn.query("DELETE FROM email_verifications WHERE email = ?", [email]);
+        await conn.query("INSERT INTO web_users (email, password_hash) VALUES (?, ?)", [email, password_hash]);
+        await conn.query("DELETE FROM email_verifications WHERE email = ?", [email]);
 
         await conn.commit();
-
-        // 認証完了フラグをURLパラメータに付けて、ログインページへリダイレクト
         res.redirect('/login?verified=true');
     } catch (err) {
         if (conn) await conn.rollback();
@@ -334,7 +290,7 @@ app.get('/api/auth/verify', verifyLimiter, async (req, res) => {
     }
 });
 
-// ログイン ★デバッグログ追加
+// ログイン
 app.post('/api/auth/login', loginLimiter, async (req, res) => {
     const { email, password } = req.body;
     let conn;
@@ -342,20 +298,12 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
         conn = await pool.getConnection();
         const rows = await conn.query("SELECT id, password_hash FROM web_users WHERE email = ?", [email]);
 
-        if (rows.length === 0) {
-            return res.status(401).json({ error: "メアドまたはパスワードが間違っています" });
-        }
+        if (rows.length === 0) return res.status(401).json({ error: "メアドまたはパスワードが間違っています" });
 
-        const user = rows[0];
+        const match = await bcrypt.compare(password, rows[0].password_hash);
+        if (!match) return res.status(401).json({ error: "メアドまたはパスワードが間違っています" });
 
-        // パスワード比較
-        const match = await bcrypt.compare(password, user.password_hash);
-
-        if (!match) {
-            return res.status(401).json({ error: "メアドまたはパスワードが間違っています" });
-        }
-
-        req.session.webUserId = user.id;
+        req.session.webUserId = rows[0].id;
         res.json({ success: true, message: "ログインしました" });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -373,7 +321,7 @@ app.post('/api/auth/logout', (req, res) => {
     });
 });
 
-// パスワードリセット申請（メール送信）
+// パスワードリセット申請
 app.post('/api/auth/forgot-password', forgotPasswordLimiter, async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: "メールアドレスを入力してください" });
@@ -381,22 +329,17 @@ app.post('/api/auth/forgot-password', forgotPasswordLimiter, async (req, res) =>
     let conn;
     try {
         conn = await pool.getConnection();
-
-        // ユーザーが実在するか確認（存在有無を外部に漏らさないよう、常に同じレスポンスを返す）
         const existing = await conn.query("SELECT id FROM web_users WHERE email = ?", [email]);
 
         if (existing.length > 0) {
             const token = crypto.randomBytes(32).toString('hex');
-
             await conn.query(`
                 INSERT INTO password_resets (email, token, expires_at)
                 VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 30 MINUTE))
                 ON DUPLICATE KEY UPDATE token = ?, expires_at = DATE_ADD(NOW(), INTERVAL 30 MINUTE)
             `, [email, token, token]);
 
-            // Hostヘッダーではなく.envの信頼済みベースURLを使用（Host Header Poisoning対策）
             const resetUrl = `${APP_BASE_URL}/reset-password?token=${token}`;
-
             const mailOptions = {
                 from: FROM_EMAIL,
                 to: email,
@@ -414,7 +357,6 @@ app.post('/api/auth/forgot-password', forgotPasswordLimiter, async (req, res) =>
             console.log(`[Reset Debug] 未登録メールへのリセット申請: ${email}`);
         }
 
-        // アカウントの存在有無に関わらず同じメッセージを返す（メールアドレス列挙対策）
         res.json({ success: true, message: "パスワード再設定用のメールを送信しました。メールをご確認ください。" });
     } catch (err) {
         console.error("[Reset Debug] パスワードリセット申請処理でエラー:", err);
@@ -424,7 +366,7 @@ app.post('/api/auth/forgot-password', forgotPasswordLimiter, async (req, res) =>
     }
 });
 
-// パスワードリセット実行（トークン検証 ＆ 更新）
+// パスワードリセット実行
 app.post('/api/auth/reset-password', resetPasswordLimiter, async (req, res) => {
     const { token, password } = req.body;
     if (!token || !password) return res.status(400).json({ error: "トークンと新しいパスワードを入力してください" });
@@ -435,14 +377,8 @@ app.post('/api/auth/reset-password', resetPasswordLimiter, async (req, res) => {
         conn = await pool.getConnection();
         await conn.beginTransaction();
 
-        const rows = await conn.query(
-            "SELECT email FROM password_resets WHERE token = ? AND expires_at > NOW()",
-            [token]
-        );
-
-        if (rows.length === 0) {
-            throw new Error("リンクの有効期限が切れているか、無効なリンクです。もう一度お試しください。");
-        }
+        const rows = await conn.query("SELECT email FROM password_resets WHERE token = ? AND expires_at > NOW()", [token]);
+        if (rows.length === 0) throw new Error("リンクの有効期限が切れているか、無効なリンクです。もう一度お試しください。");
 
         const { email } = rows[0];
         const saltRounds = 10;
@@ -453,7 +389,6 @@ app.post('/api/auth/reset-password', resetPasswordLimiter, async (req, res) => {
 
         await conn.commit();
         console.log(`[Reset Debug] パスワード再設定完了: ${email}`);
-
         res.json({ success: true, message: "パスワードを再設定しました。新しいパスワードでログインしてください。" });
     } catch (err) {
         if (conn) await conn.rollback();
@@ -463,44 +398,30 @@ app.post('/api/auth/reset-password', resetPasswordLimiter, async (req, res) => {
     }
 });
 
-// マイクラアカウント連携（ワンタイムコード検証）
+// マイクラアカウント連携
 app.post('/api/auth/link', requireAuth, linkLimiter, async (req, res) => {
     const { code } = req.body;
-    if (!code || code.length !== 6) {
-        return res.status(400).json({ error: "6桁のコードを入力してください" });
-    }
+    if (!code || code.length !== 6) return res.status(400).json({ error: "6桁のコードを入力してください" });
 
     let conn;
     try {
         conn = await pool.getConnection();
         await conn.beginTransaction();
 
-        // 1. コードの有効性をチェック
-        const rows = await conn.query(
-            "SELECT minecraft_uuid FROM link_codes WHERE code = ? AND expires_at > NOW()",
-            [code]
-        );
-        if (rows.length === 0) {
-            throw new Error("コードが無効か、有効期限が切れています");
-        }
+        const rows = await conn.query("SELECT minecraft_uuid FROM link_codes WHERE code = ? AND expires_at > NOW()", [code]);
+        if (rows.length === 0) throw new Error("コードが無効か、有効期限が切れています");
+        
         const minecraftUuid = rows[0].minecraft_uuid;
-
-        // 1.5 連携しようとしているプレイヤーの名前を取得して、Javaか統合版か判定
         const pRows = await conn.query("SELECT player_name FROM fje_balances WHERE uuid = ?", [minecraftUuid]);
-        if (pRows.length === 0) {
-            throw new Error("マイクラのプレイヤーデータが存在しません");
-        }
+        if (pRows.length === 0) throw new Error("マイクラのプレイヤーデータが存在しません");
+        
         const playerName = pRows[0].player_name;
         const isBedrock = minecraftUuid.startsWith('00000000-0000-0000-') || (playerName && playerName.startsWith('.'));
         const accountType = isBedrock ? 'BEDROCK' : 'JAVA';
 
-        // 2. 重複チェック
         const existingLink = await conn.query("SELECT web_user_id FROM account_links WHERE minecraft_uuid = ?", [minecraftUuid]);
-        if (existingLink.length > 0) {
-            throw new Error("このマイクラアカウントは既に別のWebアカウントに連携されています");
-        }
+        if (existingLink.length > 0) throw new Error("このマイクラアカウントは既に別のWebアカウントに連携されています");
 
-        // 2.5 同一タイプ重複チェック
         const myLinks = await conn.query(`
             SELECT l.minecraft_uuid, b.player_name 
             FROM account_links l
@@ -516,18 +437,11 @@ app.post('/api/auth/link', requireAuth, linkLimiter, async (req, res) => {
             }
         }
 
-        // 3. 紐づけ情報を保存
-        await conn.query(
-            "INSERT INTO account_links (web_user_id, minecraft_uuid) VALUES (?, ?)",
-            [req.session.webUserId, minecraftUuid]
-        );
-
-        // 4. 使い終わったコードを削除
+        await conn.query("INSERT INTO account_links (web_user_id, minecraft_uuid) VALUES (?, ?)", [req.session.webUserId, minecraftUuid]);
         await conn.query("DELETE FROM link_codes WHERE code = ?", [code]);
 
         await conn.commit();
         res.json({ success: true, message: `${accountType === 'JAVA' ? 'Java版' : '統合版'}アカウントの連携が完了しました！` });
-
     } catch (err) {
         if (conn) await conn.rollback();
         res.status(400).json({ error: err.message });
@@ -535,6 +449,10 @@ app.post('/api/auth/link', requireAuth, linkLimiter, async (req, res) => {
         if (conn) conn.release();
     }
 });
+
+// ==========================================
+// 7. APIルート: ユーザー情報 ＆ ウォレット (送金)
+// ==========================================
 
 // ログイン中のユーザー情報取得
 app.get('/api/user/me', requireAuth, async (req, res) => {
@@ -578,9 +496,7 @@ app.post('/api/wallet/send', requireAuth, async (req, res) => {
     const { from_uuid, to_player, amount } = req.body;
     const parsedAmount = BigInt(amount);
 
-    if (!to_player || parsedAmount <= 0n) {
-        return res.status(400).json({ error: "送金先、または金額が正しくありません" });
-    }
+    if (!to_player || parsedAmount <= 0n) return res.status(400).json({ error: "送金先、または金額が正しくありません" });
 
     let conn;
     try {
@@ -600,14 +516,14 @@ app.post('/api/wallet/send', requireAuth, async (req, res) => {
 
         const fromRows = await conn.query("SELECT balance FROM fje_balances WHERE uuid = ?", [fromUuid]);
         if (fromRows.length === 0) throw new Error("あなたのマイクラデータが見つかりません");
+        
         const fromBalance = BigInt(fromRows[0].balance);
-
         if (fromBalance < parsedAmount) throw new Error("残高が不足しています");
 
         const toRows = await conn.query("SELECT uuid FROM fje_balances WHERE player_name = ? OR uuid = ?", [to_player, to_player]);
         if (toRows.length === 0) throw new Error("送金先のプレイヤーが見つかりませんでした");
+        
         const toUuid = toRows[0].uuid;
-
         if (fromUuid === toUuid) throw new Error("自分自身には送金できません");
 
         await conn.query("UPDATE fje_balances SET balance = balance - ? WHERE uuid = ?", [parsedAmount, fromUuid]);
@@ -620,7 +536,6 @@ app.post('/api/wallet/send', requireAuth, async (req, res) => {
 
         await conn.commit();
         res.json({ success: true, message: `${to_player} さんに ${amount} 円送金しました` });
-
     } catch (err) {
         if (conn) await conn.rollback();
         res.status(400).json({ error: err.message });
@@ -630,9 +545,8 @@ app.post('/api/wallet/send', requireAuth, async (req, res) => {
 });
 
 // ==========================================
-// その他API（残高取得・ランキング・ショップ・履歴など）
+// 8. APIルート: 経済データ・ショップ・履歴等
 // ==========================================
-
 app.get('/api/economy/balance/:uuid', async (req, res) => {
     let conn;
     try {
@@ -651,10 +565,7 @@ app.get('/api/economy/ranking', async (req, res) => {
     let conn;
     try {
         conn = await pool.getConnection();
-        const rows = await conn.query(
-            "SELECT player_name, balance FROM fje_balances WHERE uuid != ? ORDER BY balance DESC LIMIT 100", 
-            [GOV_UUID]
-        );
+        const rows = await conn.query("SELECT player_name, balance FROM fje_balances WHERE uuid != ? ORDER BY balance DESC LIMIT 100", [GOV_UUID]);
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -761,11 +672,13 @@ app.get('/api/analytics/shop/:uuid', async (req, res) => {
     }
 });
 
+// ==========================================
+// 9. APIルート: 管理者用データ取得
+// ==========================================
 app.get('/api/admin/economy/summary', async (req, res) => {
     let conn;
     try {
         conn = await pool.getConnection();
-        
         const totalAmountRow = await conn.query("SELECT SUM(balance) AS total FROM fje_balances WHERE uuid != ?", [GOV_UUID]);
         const govBalanceRow = await conn.query("SELECT balance FROM fje_balances WHERE uuid = ?", [GOV_UUID]);
         const totalTaxRow = await conn.query("SELECT SUM(tax_amount) AS total_tax FROM fje_transactions");
@@ -795,7 +708,9 @@ app.get('/api/admin/government/ledger', async (req, res) => {
     }
 });
 
-// 起動
+// ==========================================
+// 10. サーバー起動処理
+// ==========================================
 app.listen(PORT, async () => {
     await initDatabase();
     console.log(`FJ Economy Full-Featured API Server running on port ${PORT}`);
