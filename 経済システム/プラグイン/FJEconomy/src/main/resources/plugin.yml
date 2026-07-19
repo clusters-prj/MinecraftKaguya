@@ -1,8 +1,8 @@
 name: FJEconomy
-version: 1.0.10
+version: 2.0.0
 description: Integrated economy system for Paper servers with database sync
-author: Clusters-Prj
-website: https://clusters-prj.com
+author: Clusters-PRJ
+website: https://www.clusters-prj.com
 api-version: '26.1.2'
 
 main: com.clustersprj.fjeconomy.FJEconomy
@@ -34,37 +34,37 @@ commands:
 permissions:
   fj.use:
     description: Use FJ Economy commands
-    default: true
+    default: false
   
   fj.pay:
     description: Send money to other players
-    default: true
+    default: false
   
   fj.admin:
     description: Admin commands for FJ Economy
-    default: op
+    default: false
   
   fj.reload:
     description: Reload FJ Economy config
-    default: op
+    default: false
 
   fj.shop.create:
     description: Create a shop
-    default: true
+    default: false
 
   fj.shop.delete:
     description: Delete a shop
-    default: op
+    default: false
 
   fj.shop.manage:
     description: Manage shops (price, stock)
-    default: true
+    default: false
 
   fj.government:
     description: Government account management
-    default: op
+    default: false
     children:
-      fj.government.set: true
+      fj.government.set: false
 
   fj.government.set:
     description: Set government balance directly (dangerous)
