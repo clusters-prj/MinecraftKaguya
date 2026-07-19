@@ -9,6 +9,7 @@ const path = require('path');
 const session = require('express-session');
 const FileStore = require('session-file-store')(session);
 const bcrypt = require('bcrypt');
+const fs = require('fs');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const rateLimit = require('express-rate-limit');
@@ -56,6 +57,11 @@ const transporter = nodemailer.createTransport({
     }
 });
 const FROM_EMAIL = process.env.FROM_EMAIL || `"ふじゅ〜ペイ" <no-reply@clusters-prj.com>`;
+
+const GTM_ID = process.env.GTM_ID || '';
+if (!GTM_ID) {
+    console.warn("[Config Warning] GTM_ID が .env に設定されていません。GTMタグは出力されません。");
+}
 
 // ==========================================
 // 3. ミドルウェア設定 (セキュリティ・制限・CORS・セッション)
@@ -188,24 +194,62 @@ async function initDatabase() {
 // ==========================================
 // 5. ページ配信ルート (フロントエンド)
 // ==========================================
+
+// HTMLを読み込んでGTMタグを動的に挿入するヘルパー関数
+const sendHtmlWithGTM = (filePath, res) => {
+    fs.readFile(filePath, 'utf8', (err, data) => {
+        if (err) {
+            console.error("HTMLファイルの読み込みエラー:", err);
+            return res.status(500).send("Internal Server Error");
+        }
+
+        let html = data;
+        
+        // GTM_IDが設定されている場合のみタグを挿入
+        if (GTM_ID) {
+            const gtmHead = `
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','${GTM_ID}');</script>
+<!-- End Google Tag Manager -->
+`;
+            const gtmBody = `
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=${GTM_ID}"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+`;
+            // <head>タグと<body>タグの直後にそれぞれ挿入する
+            html = html.replace(/(<head[^>]*>)/i, `$1\n${gtmHead}`);
+            html = html.replace(/(<body[^>]*>)/i, `$1\n${gtmBody}`);
+        }
+
+        res.send(html);
+    });
+};
+
 app.get('/', (req, res) => {
     const queryString = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
     res.redirect(`/login${queryString}`);
 });
+
 app.get('/login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+    sendHtmlWithGTM(path.join(__dirname, 'public', 'login.html'), res);
 });
 app.get('/reset-password', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'reset-password.html'));
+    sendHtmlWithGTM(path.join(__dirname, 'public', 'reset-password.html'), res);
 });
 app.get('/main', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'main.html'));
+    sendHtmlWithGTM(path.join(__dirname, 'public', 'main.html'), res);
 });
 app.get('/history', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'history.html'));
+    sendHtmlWithGTM(path.join(__dirname, 'public', 'history.html'), res);
 });
 app.get('/settings', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'settings.html'));
+    sendHtmlWithGTM(path.join(__dirname, 'public', 'settings.html'), res);
 });
 
 // ==========================================
