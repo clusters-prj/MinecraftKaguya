@@ -138,5 +138,19 @@ document.getElementById('historyBtn').addEventListener('click', () => {
     window.location.href = '/history';
 });
 
+document.getElementById('webUserEmail').addEventListener('click', (e) => {
+    const el = e.currentTarget;
+    const fullEmail = el.dataset.email;
+    if (!fullEmail) return;
+
+    if (el.dataset.visible === 'true') {
+        el.innerText = '••••••••';
+        el.dataset.visible = 'false';
+    } else {
+        el.innerText = fullEmail;
+        el.dataset.visible = 'true';
+    }
+});
+
 console.log('reloadProfile呼び出し直前');
 window.fjew.onReloadNeeded(reloadProfile);
