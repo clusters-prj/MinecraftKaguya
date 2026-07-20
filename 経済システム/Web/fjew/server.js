@@ -70,7 +70,11 @@ if (!GTM_ID) {
 app.set('trust proxy', 1);
 
 // 自動防御の設定
-app.use(helmet({ contentSecurityPolicy: false }));
+// 自動防御の設定
+app.use(helmet({ 
+    contentSecurityPolicy: false,
+    crossOriginOpenerPolicy: false // ★ これを追加（GTMのデバッグ通信を許可）
+}));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -206,10 +210,10 @@ const sendHtmlWithGTM = (filePath, res) => {
         let html = data;
         
         // GTM_IDが設定されている場合のみタグを挿入
-        if (GTM_ID) {
+            if (GTM_ID) {
             const gtmHead = `
 <!-- Google Tag Manager -->
-<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+<script data-cfasync="false">(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
 j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
