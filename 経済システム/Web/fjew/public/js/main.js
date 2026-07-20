@@ -1,7 +1,13 @@
 let cachedAccounts = [];
 
 function renderMain(user) {
-    document.getElementById('webUserEmail').innerText = user.email;
+    const emailEl = document.getElementById('webUserEmail');
+    emailEl.dataset.email = user.email;
+    if (emailEl.dataset.visible !== 'true') {
+        emailEl.innerText = '••••••••';
+    } else {
+        emailEl.innerText = user.email;
+    }
 
     const accounts = user.accounts || [];
     cachedAccounts = accounts;
