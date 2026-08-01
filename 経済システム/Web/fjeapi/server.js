@@ -313,6 +313,47 @@ app.get('/api/v1/wallet/me', apiLimiter, requireApiKey, async (req, res) => {
     }
 });
 
+// [APIキー認証専用] キーに紐づくマイクラアカウント本人の取引履歴を取得する
+app.get('/api/v1/wallet/transactions', apiLimiter, requireApiKey, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query(
+            "SELECT * FROM fje_transactions WHERE buyer_uuid = ? OR owner_uuid = ? ORDER BY timestamp DESC LIMIT 50",
+            [req.minecraftUuid, req.minecraftUuid]
+        );
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// [APIキー認証専用] キーに紐づくマイクラアカウント本人の売上統計を取得する
+app.get('/api/v1/wallet/analytics', apiLimiter, requireApiKey, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query(`
+            SELECT
+                DATE_FORMAT(timestamp, '%Y-%m-%d') AS date,
+                COUNT(*) AS sales_count,
+                SUM(price_total) AS total_revenue,
+                SUM(net_profit) AS total_profit
+            FROM fje_transactions
+            WHERE owner_uuid = ?
+            GROUP BY date
+            ORDER BY date DESC LIMIT 30
+        `, [req.minecraftUuid]);
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
 // [APIキー認証専用] 自動送金エンドポイント
 app.post('/api/v1/wallet/send', apiLimiter, requireApiKey, async (req, res) => {
     const { to_player, amount } = req.body;
