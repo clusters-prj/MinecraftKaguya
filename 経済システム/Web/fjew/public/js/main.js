@@ -138,6 +138,10 @@ document.getElementById('historyBtn').addEventListener('click', () => {
     window.location.href = '/history';
 });
 
+document.getElementById('arenaBtn').addEventListener('click', () => {
+    window.location.href = '/arena';
+});
+
 document.getElementById('webUserEmail').addEventListener('click', (e) => {
     const el = e.currentTarget;
     const fullEmail = el.dataset.email;

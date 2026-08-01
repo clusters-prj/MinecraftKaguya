@@ -1,5 +1,6 @@
 package com.clustersprj.fjeconomy;
 
+import com.clustersprj.fjeconomy.arena.ArenaManager;
 import com.clustersprj.fjeconomy.command.CommandManager;
 import com.clustersprj.fjeconomy.command.GovernmentCommand;
 import com.clustersprj.fjeconomy.command.ShopCommand;
@@ -27,6 +28,7 @@ public class FJEconomy extends JavaPlugin {
     private GovernmentManager governmentManager;
     private LinkManager linkManager; // 追加
     private LoginBonusManager loginBonusManager; // 追加
+    private ArenaManager arenaManager; // 追加
 
     @Override
     public void onEnable() {
@@ -88,6 +90,10 @@ public class FJEconomy extends JavaPlugin {
             // LinkManager initialization（Webアカウント連携）
             this.linkManager = new LinkManager(this);
             getLogger().info("✓ アカウント連携システムを初期化しました");
+
+            // ArenaManager initialization（アリーナ監視・優勝者予想ベット）
+            this.arenaManager = new ArenaManager(this);
+            getLogger().info("✓ アリーナシステムを初期化しました");
 
             // Event listener registration
             getServer().getPluginManager().registerEvents(new PlayerListener(this), this); // PlayerListenerのコンストラクタ変更に対応
@@ -154,6 +160,10 @@ public class FJEconomy extends JavaPlugin {
 
     public LinkManager getLinkManager() {
         return linkManager;
+    }
+
+    public ArenaManager getArenaManager() {
+        return arenaManager;
     }
 
     /**

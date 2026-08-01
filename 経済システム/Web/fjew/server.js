@@ -139,6 +139,29 @@ const requireAuth = (req, res, next) => {
     next();
 };
 
+// 管理者チェック用ミドルウェア（requireAuthの後に使用する）
+// .env の ADMIN_EMAILS（カンマ区切り）に自分のメールアドレスが含まれるかで判定する
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(e => e.length > 0);
+
+const requireAdmin = async (req, res, next) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query("SELECT email FROM web_users WHERE id = ?", [req.session.webUserId]);
+        if (rows.length === 0 || !ADMIN_EMAILS.includes(rows[0].email.toLowerCase())) {
+            return res.status(403).json({ error: "管理者権限が必要です" });
+        }
+        next();
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+};
+
 // ==========================================
 // 4. データベース初期化
 // ==========================================
@@ -254,6 +277,12 @@ app.get('/history', (req, res) => {
 });
 app.get('/settings', (req, res) => {
     sendHtmlWithGTM(path.join(__dirname, 'public', 'settings.html'), res);
+});
+app.get('/arena', (req, res) => {
+    sendHtmlWithGTM(path.join(__dirname, 'public', 'arena.html'), res);
+});
+app.get('/arena-admin', (req, res) => {
+    sendHtmlWithGTM(path.join(__dirname, 'public', 'arena-admin.html'), res);
 });
 
 // ==========================================
@@ -873,7 +902,216 @@ app.get('/api/admin/government/ledger', async (req, res) => {
 });
 
 // ==========================================
-// 10. サーバー起動処理
+// 10. APIルート: アリーナ監視イベント・優勝者予想ベット
+// ==========================================
+
+// [管理者専用] イベント作成
+app.post('/api/admin/arena/events', requireAuth, requireAdmin, async (req, res) => {
+    const { name, world, x, y, z, radius, prize_amount, participants } = req.body;
+
+    if (!name || !world || !Array.isArray(participants) || participants.length < 2) {
+        return res.status(400).json({ error: "name, world, participants(2件以上) が必要です" });
+    }
+    const centerX = Number(x), centerY = Number(y), centerZ = Number(z), r = Number(radius);
+    if ([centerX, centerY, centerZ, r].some(n => Number.isNaN(n)) || r <= 0) {
+        return res.status(400).json({ error: "座標・半径は数値で指定してください" });
+    }
+    const prizeAmount = BigInt(prize_amount || 0);
+    if (prizeAmount < 0n) return res.status(400).json({ error: "賞金額が正しくありません" });
+
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        const participantRows = await conn.query(
+            `SELECT uuid, player_name FROM fje_balances WHERE uuid IN (${participants.map(() => '?').join(',')}) OR player_name IN (${participants.map(() => '?').join(',')})`,
+            [...participants, ...participants]
+        );
+        if (participantRows.length !== participants.length) {
+            throw new Error("対戦プレイヤーの一部が見つかりませんでした");
+        }
+
+        const eventResult = await conn.query(
+            "INSERT INTO fje_arena_events (name, world, center_x, center_y, center_z, radius, prize_amount) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [name, world, centerX, centerY, centerZ, r, prizeAmount]
+        );
+        const eventId = eventResult.insertId;
+
+        for (const p of participantRows) {
+            await conn.query(
+                "INSERT INTO fje_arena_participants (event_id, minecraft_uuid, player_name) VALUES (?, ?, ?)",
+                [eventId, p.uuid, p.player_name]
+            );
+        }
+
+        await conn.commit();
+        res.json({ success: true, event_id: Number(eventId) });
+    } catch (err) {
+        if (conn) await conn.rollback();
+        res.status(400).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// [管理者専用] イベント一覧（全ステータス）
+app.get('/api/admin/arena/events', requireAuth, requireAdmin, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const events = await conn.query("SELECT * FROM fje_arena_events ORDER BY created_at DESC LIMIT 100");
+        const participants = await conn.query(
+            "SELECT event_id, minecraft_uuid, player_name FROM fje_arena_participants WHERE event_id IN (?)",
+            [events.length ? events.map(e => e.id) : [0]]
+        );
+        const byEvent = {};
+        for (const p of participants) {
+            (byEvent[p.event_id] ??= []).push({ uuid: p.minecraft_uuid, player_name: p.player_name });
+        }
+        res.json(events.map(e => ({ ...e, participants: byEvent[e.id] || [] })));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// [管理者専用] イベントのキャンセル（ベットは全額払い戻し）
+app.post('/api/admin/arena/events/:id/cancel', requireAuth, requireAdmin, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        const eventRows = await conn.query("SELECT * FROM fje_arena_events WHERE id = ? AND status = 'ACTIVE'", [req.params.id]);
+        if (eventRows.length === 0) throw new Error("キャンセル可能なアクティブイベントが見つかりません");
+
+        const bets = await conn.query("SELECT * FROM fje_arena_bets WHERE event_id = ? AND status = 'PLACED'", [req.params.id]);
+        for (const bet of bets) {
+            await conn.query("UPDATE fje_balances SET balance = balance + ? WHERE uuid = ?", [bet.amount, bet.bettor_uuid]);
+            await conn.query("UPDATE fje_arena_bets SET status = 'REFUNDED', payout_amount = ? WHERE id = ?", [bet.amount, bet.id]);
+        }
+        await conn.query("UPDATE fje_arena_events SET status = 'CANCELLED', resolved_at = NOW() WHERE id = ?", [req.params.id]);
+
+        await conn.commit();
+        res.json({ success: true, message: "イベントをキャンセルし、ベットを全額払い戻しました" });
+    } catch (err) {
+        if (conn) await conn.rollback();
+        res.status(400).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// アクティブなアリーナイベント一覧（ベット用）
+app.get('/api/arena/events', requireAuth, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const events = await conn.query("SELECT id, name, world, prize_amount, status, created_at FROM fje_arena_events WHERE status = 'ACTIVE' ORDER BY created_at DESC");
+        const participants = await conn.query(
+            "SELECT event_id, minecraft_uuid, player_name FROM fje_arena_participants WHERE event_id IN (?)",
+            [events.length ? events.map(e => e.id) : [0]]
+        );
+        const pools = await conn.query(
+            "SELECT event_id, SUM(amount) AS pool FROM fje_arena_bets WHERE event_id IN (?) AND status = 'PLACED' GROUP BY event_id",
+            [events.length ? events.map(e => e.id) : [0]]
+        );
+        const byEvent = {};
+        for (const p of participants) {
+            (byEvent[p.event_id] ??= []).push({ uuid: p.minecraft_uuid, player_name: p.player_name });
+        }
+        const poolByEvent = {};
+        for (const row of pools) poolByEvent[row.event_id] = row.pool;
+
+        res.json(events.map(e => ({
+            ...e,
+            participants: byEvent[e.id] || [],
+            bet_pool: poolByEvent[e.id] || 0
+        })));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 優勝者予想ベットを行う
+app.post('/api/arena/events/:id/bet', requireAuth, async (req, res) => {
+    const { predicted_uuid, amount } = req.body;
+    const parsedAmount = BigInt(amount || 0);
+
+    if (!predicted_uuid || parsedAmount <= 0n) {
+        return res.status(400).json({ error: "予想するプレイヤーと賭け金を正しく指定してください" });
+    }
+
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        const links = await conn.query("SELECT minecraft_uuid FROM account_links WHERE web_user_id = ?", [req.session.webUserId]);
+        if (links.length === 0) throw new Error("マイクラアカウントが連携されていません");
+        const bettorUuid = links[0].minecraft_uuid;
+
+        const eventRows = await conn.query("SELECT * FROM fje_arena_events WHERE id = ? AND status = 'ACTIVE'", [req.params.id]);
+        if (eventRows.length === 0) throw new Error("受付中のイベントではありません");
+
+        const participantRows = await conn.query(
+            "SELECT 1 FROM fje_arena_participants WHERE event_id = ? AND minecraft_uuid = ?",
+            [req.params.id, predicted_uuid]
+        );
+        if (participantRows.length === 0) throw new Error("予想したプレイヤーはこの対戦の参加者ではありません");
+
+        const balanceRows = await conn.query("SELECT balance FROM fje_balances WHERE uuid = ?", [bettorUuid]);
+        if (balanceRows.length === 0) throw new Error("あなたのマイクラデータが見つかりません");
+        if (BigInt(balanceRows[0].balance) < parsedAmount) throw new Error("残高が不足しています");
+
+        await conn.query("UPDATE fje_balances SET balance = balance - ? WHERE uuid = ?", [parsedAmount, bettorUuid]);
+        await conn.query(
+            "INSERT INTO fje_arena_bets (event_id, bettor_uuid, predicted_uuid, amount) VALUES (?, ?, ?, ?)",
+            [req.params.id, bettorUuid, predicted_uuid, parsedAmount]
+        );
+
+        await conn.commit();
+        res.json({ success: true, message: `${amount} 円を賭けました` });
+    } catch (err) {
+        if (conn) await conn.rollback();
+        res.status(400).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 自分のベット履歴
+app.get('/api/arena/my-bets', requireAuth, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const links = await conn.query("SELECT minecraft_uuid FROM account_links WHERE web_user_id = ?", [req.session.webUserId]);
+        if (links.length === 0) return res.json([]);
+        const myUuids = links.map(l => l.minecraft_uuid);
+        const placeholders = myUuids.map(() => '?').join(',');
+
+        const rows = await conn.query(`
+            SELECT b.*, e.name AS event_name, e.status AS event_status, pb.player_name AS predicted_player_name
+            FROM fje_arena_bets b
+            JOIN fje_arena_events e ON b.event_id = e.id
+            LEFT JOIN fje_balances pb ON b.predicted_uuid = pb.uuid
+            WHERE b.bettor_uuid IN (${placeholders})
+            ORDER BY b.created_at DESC LIMIT 50
+        `, myUuids);
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// ==========================================
+// 11. サーバー起動処理
 // ==========================================
 app.listen(PORT, async () => {
     await initDatabase();

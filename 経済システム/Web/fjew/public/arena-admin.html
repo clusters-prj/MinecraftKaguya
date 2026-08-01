@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ふじゅ〜ペイ | アリーナ管理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .paypay-gradient { background: linear-gradient(135deg, #ff0033 0%, #ff3366 100%); }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col justify-between font-sans">
+    <header class="bg-white shadow-sm">
+        <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center gap-2">
+            <div class="flex items-center gap-2">
+                <button id="backBtn" class="text-gray-500 hover:text-gray-700 text-lg leading-none">←</button>
+                <h1 class="text-lg font-bold text-red-600 tracking-wider">アリーナ管理</h1>
+            </div>
+            <button id="logoutBtn" class="text-sm text-gray-500 hover:text-red-600 font-medium">ログアウト</button>
+        </div>
+    </header>
+
+    <main class="max-w-md w-full mx-auto px-4 py-6 flex-grow space-y-6">
+        <div id="forbidden" class="hidden bg-white rounded-2xl shadow-sm p-8 text-center text-gray-400 text-sm">
+            管理者権限がありません
+        </div>
+
+        <div id="adminContent" class="hidden space-y-6">
+            <section class="bg-white rounded-2xl shadow-sm p-4 space-y-3">
+                <h2 class="text-sm font-bold text-gray-500">新規イベント作成</h2>
+                <input id="fName" type="text" placeholder="イベント名（例: 第1回闘技場大会）" class="w-full border rounded-xl px-3 py-2 text-sm">
+                <input id="fWorld" type="text" placeholder="ワールド名（例: world）" class="w-full border rounded-xl px-3 py-2 text-sm">
+                <div class="grid grid-cols-3 gap-2">
+                    <input id="fX" type="number" placeholder="X" class="border rounded-xl px-3 py-2 text-sm">
+                    <input id="fY" type="number" placeholder="Y" class="border rounded-xl px-3 py-2 text-sm">
+                    <input id="fZ" type="number" placeholder="Z" class="border rounded-xl px-3 py-2 text-sm">
+                </div>
+                <input id="fRadius" type="number" min="1" placeholder="半径（ブロック）" class="w-full border rounded-xl px-3 py-2 text-sm">
+                <input id="fPrize" type="number" min="0" placeholder="優勝賞金（0で賞金なし）" class="w-full border rounded-xl px-3 py-2 text-sm">
+                <input id="fParticipants" type="text" placeholder="対戦プレイヤー名をカンマ区切りで（例: Alice,Bob）" class="w-full border rounded-xl px-3 py-2 text-sm">
+                <button id="createEventBtn" class="w-full paypay-gradient text-white font-bold py-3 rounded-xl shadow-sm">イベントを作成</button>
+            </section>
+
+            <section>
+                <h2 class="text-sm font-bold text-gray-500 mb-2">イベント一覧</h2>
+                <div id="eventList" class="space-y-3"></div>
+            </section>
+        </div>
+    </main>
+
+    <footer class="text-center py-4 text-xs text-gray-400">
+        &copy; 2026 FJ Economy / clusters-prj.com
+    </footer>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/arena-admin.js"></script>
+</body>
+</html>

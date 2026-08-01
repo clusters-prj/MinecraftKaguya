@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ふじゅ〜ペイ | アリーナ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .paypay-gradient { background: linear-gradient(135deg, #ff0033 0%, #ff3366 100%); }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col justify-between font-sans">
+    <header class="bg-white shadow-sm">
+        <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center gap-2">
+            <div class="flex items-center gap-2">
+                <button id="backBtn" class="text-gray-500 hover:text-gray-700 text-lg leading-none">←</button>
+                <h1 class="text-lg font-bold text-red-600 tracking-wider">アリーナ賭け</h1>
+            </div>
+            <button id="logoutBtn" class="text-sm text-gray-500 hover:text-red-600 font-medium">ログアウト</button>
+        </div>
+    </header>
+
+    <main class="max-w-md w-full mx-auto px-4 py-6 flex-grow space-y-6">
+        <section>
+            <h2 class="text-sm font-bold text-gray-500 mb-2">受付中の対戦</h2>
+            <div id="emptyEvents" class="hidden bg-white rounded-2xl shadow-sm p-8 text-center text-gray-400 text-sm">
+                現在受付中の対戦はありません
+            </div>
+            <div id="eventList" class="space-y-3"></div>
+        </section>
+
+        <section>
+            <h2 class="text-sm font-bold text-gray-500 mb-2">自分の賭け履歴</h2>
+            <div id="emptyBets" class="hidden bg-white rounded-2xl shadow-sm p-8 text-center text-gray-400 text-sm">
+                賭け履歴がありません
+            </div>
+            <div id="betList" class="space-y-2"></div>
+        </section>
+    </main>
+
+    <footer class="text-center py-4 text-xs text-gray-400">
+        &copy; 2026 FJ Economy / clusters-prj.com
+    </footer>
+
+    <!-- 賭けフォームモーダル -->
+    <div id="betModal" class="hidden fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50" role="dialog" aria-modal="true">
+        <div class="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md p-6 space-y-4">
+            <div class="flex justify-between items-center">
+                <h3 class="font-bold text-gray-800">優勝者予想ベット</h3>
+                <button id="closeBetModalBtn" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+            </div>
+            <p id="betEventName" class="text-sm text-gray-500"></p>
+            <div id="betParticipants" class="space-y-2"></div>
+            <div>
+                <label class="text-xs text-gray-400 block mb-1">賭け金</label>
+                <input id="betAmount" type="number" min="1" step="1" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="例: 1000">
+            </div>
+            <button id="submitBetBtn" class="w-full paypay-gradient text-white font-bold py-3 rounded-xl shadow-sm">賭ける</button>
+        </div>
+    </div>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/arena.js"></script>
+</body>
+</html>

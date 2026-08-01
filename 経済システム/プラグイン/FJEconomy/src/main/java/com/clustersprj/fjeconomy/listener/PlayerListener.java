@@ -1,11 +1,14 @@
 package com.clustersprj.fjeconomy.listener;
 
 import com.clustersprj.fjeconomy.FJEconomy;
+import com.clustersprj.fjeconomy.arena.ArenaManager;
 import com.clustersprj.fjeconomy.economy.EconomyManager;
 import com.clustersprj.fjeconomy.LoginBonusManager;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 
 /**
@@ -19,6 +22,7 @@ public class PlayerListener implements Listener {
     private final FJEconomy plugin;
     private final EconomyManager economyManager;
     private final LoginBonusManager loginBonusManager;
+    private final ArenaManager arenaManager;
 
     /**
      * PlayerListener を構築します。
@@ -31,6 +35,7 @@ public class PlayerListener implements Listener {
         // EconomyManager は FJEconomy から取得するように変更
         this.economyManager = plugin.getEconomyManager(); // FJEconomyにgetterを追加するか、直接インスタンスを渡す
         this.loginBonusManager = plugin.getLoginBonusManager();
+        this.arenaManager = plugin.getArenaManager();
     }
 
     /**
@@ -57,5 +62,21 @@ public class PlayerListener implements Listener {
                 event.getPlayer().getUniqueId(), event.getPlayer().getName());
 
         plugin.getLogger().info("プレイヤー " + event.getPlayer().getName() + " のアカウントを確認しました");
+    }
+
+    /**
+     * プレイヤーが死亡した際に呼び出されるイベントハンドラです。
+     * <p>
+     * キルしたプレイヤーがいる場合、アリーナ監視イベントの対戦カード・座標条件に一致するかを
+     * {@link ArenaManager} に判定させ、一致すれば賞金付与・ベット精算を行わせます。
+     * </p>
+     *
+     * @param event プレイヤーの死亡イベントオブジェクト
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerDeath(PlayerDeathEvent event) {
+        Player victim = event.getEntity();
+        Player killer = victim.getKiller();
+        arenaManager.checkKillTrigger(killer, victim);
     }
 }

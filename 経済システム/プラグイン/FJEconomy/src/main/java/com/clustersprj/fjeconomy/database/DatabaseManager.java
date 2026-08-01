@@ -148,6 +148,53 @@ public class DatabaseManager {
                     "  INDEX idx_uuid (minecraft_uuid)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+            // fje_arena_events（アリーナ監視イベント。Web管理画面から作成される）
+            executeUpdate(conn,
+                    "CREATE TABLE IF NOT EXISTS fje_arena_events (" +
+                    "  id INT AUTO_INCREMENT PRIMARY KEY," +
+                    "  name VARCHAR(100) NOT NULL," +
+                    "  world VARCHAR(64) NOT NULL," +
+                    "  center_x DOUBLE NOT NULL," +
+                    "  center_y DOUBLE NOT NULL," +
+                    "  center_z DOUBLE NOT NULL," +
+                    "  radius DOUBLE NOT NULL," +
+                    "  prize_amount BIGINT NOT NULL DEFAULT 0," +
+                    "  status ENUM('ACTIVE','RESOLVED','CANCELLED') NOT NULL DEFAULT 'ACTIVE'," +
+                    "  winner_uuid UUID NULL," +
+                    "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                    "  resolved_at TIMESTAMP NULL DEFAULT NULL," +
+                    "  INDEX idx_status (status)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+            // fje_arena_participants（アリーナイベントの対戦カード）
+            executeUpdate(conn,
+                    "CREATE TABLE IF NOT EXISTS fje_arena_participants (" +
+                    "  event_id INT NOT NULL," +
+                    "  minecraft_uuid UUID NOT NULL," +
+                    "  player_name VARCHAR(255) NOT NULL," +
+                    "  PRIMARY KEY (event_id, minecraft_uuid)," +
+                    "  FOREIGN KEY (event_id) REFERENCES fje_arena_events(id) ON DELETE CASCADE," +
+                    "  FOREIGN KEY (minecraft_uuid) REFERENCES fje_balances(uuid)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+            // fje_arena_bets（優勝者予想ベット）
+            executeUpdate(conn,
+                    "CREATE TABLE IF NOT EXISTS fje_arena_bets (" +
+                    "  id INT AUTO_INCREMENT PRIMARY KEY," +
+                    "  event_id INT NOT NULL," +
+                    "  bettor_uuid UUID NOT NULL," +
+                    "  predicted_uuid UUID NOT NULL," +
+                    "  amount BIGINT NOT NULL," +
+                    "  status ENUM('PLACED','WON','LOST','REFUNDED') NOT NULL DEFAULT 'PLACED'," +
+                    "  payout_amount BIGINT NULL," +
+                    "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                    "  INDEX idx_event (event_id)," +
+                    "  INDEX idx_bettor (bettor_uuid)," +
+                    "  FOREIGN KEY (event_id) REFERENCES fje_arena_events(id) ON DELETE CASCADE," +
+                    "  FOREIGN KEY (bettor_uuid) REFERENCES fje_balances(uuid)," +
+                    "  FOREIGN KEY (predicted_uuid) REFERENCES fje_balances(uuid)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
 
             plugin.getLogger().info("✓ テーブルを確認/作成しました");
 
