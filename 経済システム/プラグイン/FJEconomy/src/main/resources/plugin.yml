@@ -69,3 +69,7 @@ permissions:
   fj.government.set:
     description: Set government balance directly (dangerous)
     default: false
+
+  fj.arena.bypass:
+    description: Allowed to enter arena zones even when not a registered participant
+    default: op

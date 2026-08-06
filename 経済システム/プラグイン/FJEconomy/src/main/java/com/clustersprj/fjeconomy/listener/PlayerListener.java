@@ -8,8 +8,10 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 
 /**
  * プレイヤーの行動に関するイベントを監視し、経済システムや特典処理へ仲介するリスナークラスです。
@@ -78,5 +80,27 @@ public class PlayerListener implements Listener {
         Player victim = event.getEntity();
         Player killer = victim.getKiller();
         arenaManager.checkKillTrigger(killer, victim);
+    }
+
+    /**
+     * プレイヤーの移動を監視し、アリーナ範囲(円形)への出入りを {@link ArenaManager} に判定させます。
+     * 対戦参加者以外の立ち入りはここでキャンセルされる可能性があります。
+     *
+     * @param event プレイヤーの移動イベントオブジェクト
+     */
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onPlayerMove(PlayerMoveEvent event) {
+        arenaManager.handlePlayerMove(event);
+    }
+
+    /**
+     * プレイヤー同士のダメージを監視し、アリーナ範囲(円形)内での対戦者同士のPvPを
+     * WorldGuard等の地域フラグによる拒否より優先して許可します。
+     *
+     * @param event エンティティダメージイベントオブジェクト
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
+        arenaManager.handleEntityDamage(event);
     }
 }

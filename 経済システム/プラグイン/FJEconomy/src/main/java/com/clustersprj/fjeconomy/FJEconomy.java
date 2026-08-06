@@ -93,6 +93,7 @@ public class FJEconomy extends JavaPlugin {
 
             // ArenaManager initialization（アリーナ監視・優勝者予想ベット）
             this.arenaManager = new ArenaManager(this);
+            arenaManager.startZoneWatcher();
             getLogger().info("✓ アリーナシステムを初期化しました");
 
             // Event listener registration
