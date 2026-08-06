@@ -213,12 +213,14 @@ public class ArenaManager {
         return isWithinRadius(loc, event.world, event.x, event.y, event.z, event.radius);
     }
 
+    // 円柱判定（Y座標は無視し、水平距離のみで判定する）
+    // 段差や崖からの落下でも、着地点の高さに関わらず水平位置だけで境界を判定するため。
+    // WorldGuardの円形リージョンが表現できないのと同じ「XZ平面の円」を再現している。
     private boolean isWithinRadius(Location loc, String world, double x, double y, double z, double radius) {
         if (loc.getWorld() == null || !loc.getWorld().getName().equals(world)) return false;
         double dx = loc.getX() - x;
-        double dy = loc.getY() - y;
         double dz = loc.getZ() - z;
-        return (dx * dx + dy * dy + dz * dz) <= (radius * radius);
+        return (dx * dx + dz * dz) <= (radius * radius);
     }
 
     // ==========================================
