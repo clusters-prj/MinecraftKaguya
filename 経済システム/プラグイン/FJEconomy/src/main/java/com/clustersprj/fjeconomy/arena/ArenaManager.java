@@ -42,6 +42,8 @@ public class ArenaManager {
     private final Map<Integer, CachedEvent> activeEventsCache = new ConcurrentHashMap<>();
     // 現在サバイバル化・インベントリ退避中のプレイヤー
     private final Map<UUID, ParticipantState> participantStates = new ConcurrentHashMap<>();
+    // 立ち入り拒否メッセージの連投防止（プレイヤーUUID -> 最終送信時刻）
+    private final Map<UUID, Long> blockedWarnings = new ConcurrentHashMap<>();
 
     public ArenaManager(FJEconomy plugin) {
         this.plugin = plugin;
@@ -238,28 +240,62 @@ public class ArenaManager {
      */
     public void handlePlayerMove(PlayerMoveEvent event) {
         if (activeEventsCache.isEmpty()) return;
-        Location from = event.getFrom();
         Location to = event.getTo();
         if (to == null) return;
-        // ブロック座標が変わらない移動（見回し等）は判定不要
-        if (from.getBlockX() == to.getBlockX() && from.getBlockY() == to.getBlockY() && from.getBlockZ() == to.getBlockZ()) {
-            return;
-        }
 
         Player player = event.getPlayer();
         for (CachedEvent arenaEvent : activeEventsCache.values()) {
-            boolean wasInside = isWithinRadius(arenaEvent, from);
-            boolean isInside = isWithinRadius(arenaEvent, to);
-            if (wasInside || !isInside) continue; // 新規侵入時のみ判定
+            if (!isWithinRadius(arenaEvent, to)) continue;
 
             if (arenaEvent.participants.contains(player.getUniqueId())) {
-                enterMatch(player, arenaEvent);
+                enterMatch(player, arenaEvent); // 初回のみ退避処理が走る
             } else if (!player.hasPermission("fj.arena.bypass") && !player.isOp()) {
-                event.setTo(from);
-                player.sendMessage("§c[アリーナ] §f対戦中のため立ち入りできません（「" + arenaEvent.name + "」）");
+                // 侵入した瞬間だけでなく、範囲内にいる限り毎回外へ押し出す
+                // （落下や勢いで一度入られると以降スキップされてしまうのを防ぐ）
+                event.setTo(pushOutside(arenaEvent, to));
+                warnBlocked(player, arenaEvent);
             }
             return;
         }
+    }
+
+    /**
+     * 指定地点から見て、アリーナ範囲の外側（境界より少し外）へ押し出した位置を返します。
+     */
+    private Location pushOutside(CachedEvent event, Location loc) {
+        double dx = loc.getX() - event.x;
+        double dz = loc.getZ() - event.z;
+        double distance = Math.sqrt(dx * dx + dz * dz);
+
+        // 中心にぴったり重なっている場合は適当な方向へ逃がす
+        if (distance < 0.001) {
+            dx = 1.0;
+            dz = 0.0;
+            distance = 1.0;
+        }
+
+        double targetDistance = event.radius + 1.5; // 境界のすぐ外側
+        double newX = event.x + (dx / distance) * targetDistance;
+        double newZ = event.z + (dz / distance) * targetDistance;
+
+        Location pushed = new Location(loc.getWorld(), newX, loc.getY(), newZ, loc.getYaw(), loc.getPitch());
+        // 埋まってしまわないよう、地面が無ければ地表へ乗せる
+        if (pushed.getBlock().getType().isSolid()) {
+            pushed.setY(loc.getWorld().getHighestBlockYAt(pushed) + 1);
+        }
+        return pushed;
+    }
+
+    /**
+     * 立ち入り拒否メッセージを送ります（毎tick押し出されるためチャット連投を防ぐ）。
+     */
+    private void warnBlocked(Player player, CachedEvent event) {
+        long now = System.currentTimeMillis();
+        Long lastWarned = blockedWarnings.get(player.getUniqueId());
+        if (lastWarned != null && now - lastWarned < 3000L) return;
+
+        blockedWarnings.put(player.getUniqueId(), now);
+        player.sendMessage("§c[アリーナ] §f対戦中のため立ち入りできません（「" + event.name + "」）");
     }
 
     /**
