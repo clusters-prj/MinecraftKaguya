@@ -7,6 +7,9 @@ import com.clustersprj.fjeconomy.government.GovernmentManager;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -33,6 +36,12 @@ import java.util.logging.Level;
  */
 public class ArenaManager {
 
+    // 押し出し先を境界からどれだけ外側に置くか（ブロック）
+    private static final double EJECT_MARGIN = 2.0;
+    // 押し出し先の足場を探すとき、元のY座標から何ブロック下まで許容するか
+    // （段差1〜数ブロックの地形で、いきなり山の頂上へ飛ばされないようにするため）
+    private static final int EJECT_MAX_DROP = 4;
+
     private final FJEconomy plugin;
     private final DatabaseManager dbManager;
     private final EconomyManager economyManager;
@@ -53,12 +62,45 @@ public class ArenaManager {
     }
 
     /**
-     * アリーナイベントのキャッシュを定期更新するスケジューラを開始します。
-     * Web管理画面での新規作成・キャンセルを検知し、ゾーン監視の状態を最新に保ちます。
+     * アリーナイベントのキャッシュを定期更新するスケジューラと、
+     * 範囲内に居るプレイヤーを定期的に走査するスケジューラを開始します。
+     * <p>
+     * キャッシュ更新はWeb管理画面での新規作成・キャンセルを検知し、ゾーン監視の状態を最新に保ちます。
+     * 走査の方は {@link PlayerMoveEvent} を取りこぼした場合（テレポート、ログイン、
+     * ノックバック、その場から動かない等）の保険として、範囲内に残っている部外者を押し出します。
+     * </p>
      */
     public void startZoneWatcher() {
         refreshActiveEventsCache();
         plugin.getServer().getScheduler().runTaskTimer(plugin, this::refreshActiveEventsCache, 100L, 100L); // 5秒ごと
+        plugin.getServer().getScheduler().runTaskTimer(plugin, this::sweepPlayersInZones, 20L, 10L); // 0.5秒ごと
+    }
+
+    /**
+     * オンラインプレイヤー全員を走査し、アリーナ範囲内に居る者を処理します。
+     * 参加者なら入場処理を、部外者なら範囲外へ押し出します。
+     */
+    private void sweepPlayersInZones() {
+        if (activeEventsCache.isEmpty()) return;
+
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            Location loc = player.getLocation();
+            for (CachedEvent arenaEvent : activeEventsCache.values()) {
+                if (!isWithinRadius(arenaEvent, loc)) continue;
+
+                if (arenaEvent.participants.contains(player.getUniqueId())) {
+                    enterMatch(player, arenaEvent); // 初回のみ退避処理が走る
+                } else if (!isAllowedToBypass(player)) {
+                    player.teleport(findEjectLocation(arenaEvent, loc));
+                    warnBlocked(player, arenaEvent);
+                }
+                break;
+            }
+        }
+    }
+
+    private boolean isAllowedToBypass(Player player) {
+        return player.hasPermission("fj.arena.bypass") || player.isOp();
     }
 
     private static final class ActiveEvent {
@@ -249,10 +291,10 @@ public class ArenaManager {
 
             if (arenaEvent.participants.contains(player.getUniqueId())) {
                 enterMatch(player, arenaEvent); // 初回のみ退避処理が走る
-            } else if (!player.hasPermission("fj.arena.bypass") && !player.isOp()) {
+            } else if (!isAllowedToBypass(player)) {
                 // 侵入した瞬間だけでなく、範囲内にいる限り毎回外へ押し出す
                 // （落下や勢いで一度入られると以降スキップされてしまうのを防ぐ）
-                event.setTo(pushOutside(arenaEvent, to));
+                event.setTo(findEjectLocation(arenaEvent, to));
                 warnBlocked(player, arenaEvent);
             }
             return;
@@ -260,9 +302,16 @@ public class ArenaManager {
     }
 
     /**
-     * 指定地点から見て、アリーナ範囲の外側（境界より少し外）へ押し出した位置を返します。
+     * 指定地点から見て、アリーナ範囲の外側へ押し出した位置を返します。
+     * <p>
+     * 中心から見た放射方向（＝境界までの最短経路）にそのまま出すので、
+     * 円周のどの角度から侵入されても最短距離で範囲外へ出ます。
+     * Y座標は押し出し先の地形に合わせて足場のある高さを探し直します
+     * （そのままのYだと壁や山の内部に埋まり、サーバー側に押し戻されて
+     * 結果的に範囲内へ戻されてしまうため）。
+     * </p>
      */
-    private Location pushOutside(CachedEvent event, Location loc) {
+    private Location findEjectLocation(CachedEvent event, Location loc) {
         double dx = loc.getX() - event.x;
         double dz = loc.getZ() - event.z;
         double distance = Math.sqrt(dx * dx + dz * dz);
@@ -274,16 +323,65 @@ public class ArenaManager {
             distance = 1.0;
         }
 
-        double targetDistance = event.radius + 1.5; // 境界のすぐ外側
+        double targetDistance = event.radius + EJECT_MARGIN; // 境界のすぐ外側
         double newX = event.x + (dx / distance) * targetDistance;
         double newZ = event.z + (dz / distance) * targetDistance;
 
-        Location pushed = new Location(loc.getWorld(), newX, loc.getY(), newZ, loc.getYaw(), loc.getPitch());
-        // 埋まってしまわないよう、地面が無ければ地表へ乗せる
-        if (pushed.getBlock().getType().isSolid()) {
-            pushed.setY(loc.getWorld().getHighestBlockYAt(pushed) + 1);
+        World world = loc.getWorld();
+        double safeY = findStandableY(world, newX, newZ, loc.getY());
+        return new Location(world, newX, safeY, newZ, loc.getYaw(), loc.getPitch());
+    }
+
+    /**
+     * 指定XZで立てる高さ（足元が固体で、体2ブロック分が通り抜けられる高さ）を探します。
+     * <p>
+     * 元のYの少し下までを先に見て、見つからなければ上へ探していきます。
+     * 段差程度なら元の高さのまま／少し下に降りるだけで済み、壁や山の中に
+     * 埋まる位置だった場合はその上の地面まで持ち上げられます。
+     * </p>
+     *
+     * @return 足を置く高さ。適切な足場が見つからない場合は地表の高さ
+     */
+    private double findStandableY(World world, double x, double z, double preferredY) {
+        int bx = (int) Math.floor(x);
+        int bz = (int) Math.floor(z);
+        int minY = world.getMinHeight() + 1;
+        int maxY = world.getMaxHeight() - 2;
+        int startY = Math.max(minY, Math.min(maxY, (int) Math.floor(preferredY)));
+
+        // 元の高さから少し下まで（段差を降りる程度の範囲）
+        for (int y = startY; y >= Math.max(minY, startY - EJECT_MAX_DROP); y--) {
+            if (isStandable(world, bx, y, bz)) return y;
         }
-        return pushed;
+        // 見つからなければ上方向（壁・山の内部に埋まっているケース）
+        for (int y = startY + 1; y <= maxY; y++) {
+            if (isStandable(world, bx, y, bz)) return y;
+        }
+        // 空中に浮いた土地なども考慮し、最後は地表へ
+        return world.getHighestBlockYAt(bx, bz) + 1.0;
+    }
+
+    /**
+     * 足元が固体で、体2ブロック分が空いていて安全に立てるかを判定します。
+     */
+    private boolean isStandable(World world, int x, int y, int z) {
+        Block ground = world.getBlockAt(x, y - 1, z);
+        if (!ground.getType().isSolid()) return false;
+        if (isDangerous(ground.getType())) return false;
+
+        Block feet = world.getBlockAt(x, y, z);
+        Block head = world.getBlockAt(x, y + 1, z);
+        if (!feet.isPassable() || !head.isPassable()) return false;
+        return !isDangerous(feet.getType()) && !isDangerous(head.getType());
+    }
+
+    private boolean isDangerous(Material material) {
+        return material == Material.LAVA
+                || material == Material.FIRE
+                || material == Material.SOUL_FIRE
+                || material == Material.MAGMA_BLOCK
+                || material == Material.CAMPFIRE
+                || material == Material.SOUL_CAMPFIRE;
     }
 
     /**
