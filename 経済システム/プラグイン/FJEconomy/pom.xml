@@ -36,6 +36,11 @@
             <id>sonatype</id>
             <url>https://oss.sonatype.org/content/repositories/snapshots</url>
         </repository>
+        <!-- CoreProtect API（建築量ポイント集計で使用） -->
+        <repository>
+            <id>playpro</id>
+            <url>https://maven.playpro.com</url>
+        </repository>
     </repositories>
 
     <dependencies>
@@ -45,6 +50,20 @@
             <artifactId>paper-api</artifactId>
             <version>${paper.version}</version>
             <scope>provided</scope>
+        </dependency>
+
+        <!-- CoreProtect（建築ログの参照のみ。サーバー上のプラグインを使うので shade しない） -->
+        <dependency>
+            <groupId>net.coreprotect</groupId>
+            <artifactId>coreprotect</artifactId>
+            <version>24.0</version>
+            <scope>provided</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- Database -->

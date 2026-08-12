@@ -7,6 +7,9 @@ api-version: '26.1.2'
 
 main: com.clustersprj.fjeconomy.FJEconomy
 
+# CoreProtect: 建築量ポイントの集計に使用（未導入でも起動はする）
+softdepend: [CoreProtect]
+
 # Suppress Nag about System.out/err usage in dependencies
 suppress-nag:
   - use-of-base-classes

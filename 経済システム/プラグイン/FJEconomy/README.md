@@ -153,6 +153,33 @@ government:
   name: "GOVERNMENT"                            # 政府口座名
 ```
 
+### build_reward セクション（建築量ポイント）
+
+CoreProtect のブロックログを集計し、建築量に応じてポイントを付与します。
+**CoreProtect が導入されていない場合、この機能だけが自動的に無効化されます**（プラグイン自体は起動します）。
+
+```yaml
+build_reward:
+  enabled: true
+  interval_hours: 3          # 集計間隔。0時起点で区切るため 24 の約数を指定する
+  points_per_block: 1        # 設置1ブロックあたりのポイント
+  subtract_breaks: true      # 破壊数をスコアから差し引く（設置→破壊の繰り返し稼ぎ対策）
+  min_blocks: 10             # この数未満はポイント付与なし（ログには残る）
+  max_points_per_period: 3000  # 1期間あたりの上限（0で無制限）
+  from_government: true      # ポイントの原資を国庫から支出する
+  excluded_materials: []     # 集計から除外するブロック
+  max_players: 500           # 集計対象にするプレイヤー数の上限
+  query_poll_seconds: 10     # Web管理画面からの集計リクエストを拾う間隔
+  max_lookup_days: 30        # Web管理画面から遡れる最大日数
+```
+
+運用上の注意：
+
+- **WorldEdit による設置も集計対象**です。CoreProtect 側の `config.yml` で `worldedit: true`（既定値）になっている必要があります。
+- 集計対象は `fje_balances` に登録済みのプレイヤーのうち、`last_update` が新しい順に `max_players` 件までです（CoreProtect の API はユーザー無指定の全体検索を許可していないため）。
+- 複数のマイクラサーバーで **CoreProtect のデータベースを共有している場合**、各サーバーが同じログを数えて多重付与になります。その構成では 1 サーバーだけ `enabled: true` にしてください。
+- Web管理画面（`/build-admin`）からの任意期間集計は**ランキング表示専用でポイントを付与しません**。リクエストは `fje_build_queries` を介して対象サーバーのプラグインが処理します。
+
 ## リロード方法
 
 config.yml を編集した後、以下のコマンドで変更を反映させます：

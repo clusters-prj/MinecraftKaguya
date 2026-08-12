@@ -45,6 +45,43 @@ Webでの売上分析・政府監視用の「レシート」データ。
 | type | VARCHAR(20) | NOT NULL | - | TAX_IN, EVENT_OUT等 |
 | amount | INT | NOT NULL | 0 | 動いた金額 |
 | description | TEXT | - | NULL | 理由・用途の詳細 |
+### ⑤ fje_build_rewards（建築量ポイントの定期集計）
+CoreProtect のブロックログを一定間隔（既定3時間）で集計した結果と、付与したポイントの記録。
+`(server_id, period_start, minecraft_uuid)` にユニーク制約があり、再起動後の再集計でも二重付与にならない。
+| 列名 | 型 | 制約 | デフォルト | 備考 |
+|---|---|---|---|---|
+| id | INT | **Primary Key** | AUTO_INC | 記録ID |
+| server_id | VARCHAR(20) | NOT NULL | - | 集計したサーバー |
+| period_start | DATETIME | NOT NULL | - | 集計期間の始端 |
+| period_end | DATETIME | NOT NULL | - | 集計期間の終端 |
+| minecraft_uuid | UUID | NOT NULL | - | プレイヤーのUUID |
+| player_name | VARCHAR(255) | NOT NULL | - | 集計時のプレイヤー名 |
+| blocks_placed | INT | NOT NULL | 0 | 設置ブロック数（WorldEdit含む） |
+| blocks_broken | INT | NOT NULL | 0 | 破壊ブロック数 |
+| score | INT | NOT NULL | 0 | ポイント算出に使ったスコア |
+| points_granted | BIGINT | NOT NULL | 0 | 実際に付与したポイント |
+### ⑥ fje_build_queries（任意期間の集計リクエスト）
+Web管理画面（`/build-admin`）が登録し、対象サーバーのプラグインがポーリングして処理する。**ポイントは付与しない**。
+| 列名 | 型 | 制約 | デフォルト | 備考 |
+|---|---|---|---|---|
+| id | INT | **Primary Key** | AUTO_INC | リクエストID |
+| server_id | VARCHAR(20) | NOT NULL | - | 集計を実行するサーバー |
+| requested_by | INT | - | NULL | web_users.id |
+| range_start | DATETIME | NOT NULL | - | 集計開始日時 |
+| range_end | DATETIME | NOT NULL | - | 集計終了日時 |
+| status | ENUM | NOT NULL | PENDING | PENDING/RUNNING/DONE/ERROR |
+| error_message | TEXT | - | NULL | エラー内容・警告 |
+| completed_at | TIMESTAMP | - | NULL | 完了日時 |
+### ⑦ fje_build_query_results（集計リクエストの結果）
+⑥ の結果。ランキング表示用で、`score` の降順に並べて使う。
+| 列名 | 型 | 制約 | デフォルト | 備考 |
+|---|---|---|---|---|
+| query_id | INT | **Primary Key** | - | fje_build_queries.id |
+| minecraft_uuid | UUID | **Primary Key** | - | プレイヤーのUUID |
+| player_name | VARCHAR(255) | NOT NULL | - | プレイヤー名 |
+| blocks_placed | INT | NOT NULL | 0 | 設置ブロック数 |
+| blocks_broken | INT | NOT NULL | 0 | 破壊ブロック数 |
+| score | INT | NOT NULL | 0 | スコア |
 ## 3. インフラ構成図
  1. **DB Server (10.2.1.27):** データの永続化。
  2. **MC Servers:**

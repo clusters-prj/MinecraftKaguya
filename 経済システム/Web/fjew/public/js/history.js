@@ -23,9 +23,15 @@ function directionMeta(direction) {
     }
 }
 
+function typeLabelOf(tx, withItem = false) {
+    if (tx.type === 'transfer') return '個人送金';
+    if (tx.type === 'build_reward') return '建築ボーナス';
+    return withItem ? `ショップ取引 (${tx.item_id})` : 'ショップ取引';
+}
+
 function renderRow(tx) {
     const meta = directionMeta(tx.direction);
-    const typeLabel = tx.type === 'transfer' ? '個人送金' : `ショップ取引 (${tx.item_id})`;
+    const typeLabel = typeLabelOf(tx, true);
 
     const row = document.createElement('div');
     row.className = 'bg-white rounded-2xl shadow-sm p-4 flex justify-between items-center cursor-pointer hover:bg-gray-50 transition';
@@ -49,10 +55,10 @@ function showDetail(tx) {
     const content = document.getElementById('detailContent');
     content.innerHTML = `
         <div class="flex justify-between"><span class="text-gray-400">日時</span><span class="font-bold text-gray-700">${formatDate(tx.timestamp)}</span></div>
-        <div class="flex justify-between"><span class="text-gray-400">種別</span><span class="font-bold text-gray-700">${tx.type === 'transfer' ? '個人送金' : 'ショップ取引'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-400">種別</span><span class="font-bold text-gray-700">${typeLabelOf(tx)}</span></div>
         <div class="flex justify-between"><span class="text-gray-400">相手</span><span class="font-bold text-gray-700">${tx.counterpart_name}</span></div>
         <div class="flex justify-between"><span class="text-gray-400">サーバー</span><span class="font-bold text-gray-700">${tx.server_id}</span></div>
-        ${tx.type !== 'transfer' ? `
+        ${tx.type === 'shop' ? `
         <div class="flex justify-between"><span class="text-gray-400">アイテム</span><span class="font-bold text-gray-700">${tx.item_id}</span></div>
         <div class="flex justify-between"><span class="text-gray-400">税額</span><span class="font-bold text-gray-700">¥${window.fjew.formatYen(tx.tax_amount)}</span></div>
         ` : ''}

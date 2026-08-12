@@ -6,7 +6,9 @@ import org.yaml.snakeyaml.Yaml;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -545,6 +547,119 @@ public class ConfigManager {
         return getString("messages." + key, defaultValue);
     }
     
+    // ==========================================
+    // 建築量ポイント設定 ゲッター
+    // ==========================================
+
+    /**
+     * 建築量ポイント（CoreProtect集計）が有効かどうかを取得します。
+     *
+     * @return 有効な場合は true（デフォルト: false）
+     */
+    public boolean isBuildRewardEnabled() {
+        return getBoolean("build_reward.enabled", false);
+    }
+
+    /**
+     * 建築量の集計間隔（時間）を取得します。0時を起点に区切るため 24 の約数を想定しています。
+     *
+     * @return 集計間隔（デフォルト: 3時間）
+     */
+    public int getBuildRewardIntervalHours() {
+        return getInt("build_reward.interval_hours", 3);
+    }
+
+    /**
+     * 設置1ブロックあたりに付与するポイントを取得します。
+     *
+     * @return 1ブロックあたりのポイント（デフォルト: 1）
+     */
+    public long getBuildRewardPointsPerBlock() {
+        return getLong("build_reward.points_per_block", 1);
+    }
+
+    /**
+     * 破壊したブロック数をスコアから差し引くかどうかを取得します。
+     *
+     * @return 差し引く場合は true（デフォルト: true）
+     */
+    public boolean isBuildRewardSubtractBreaks() {
+        return getBoolean("build_reward.subtract_breaks", true);
+    }
+
+    /**
+     * ポイント付与の下限となるスコア（設置ブロック数）を取得します。
+     *
+     * @return 下限スコア（デフォルト: 10）
+     */
+    public int getBuildRewardMinBlocks() {
+        return getInt("build_reward.min_blocks", 10);
+    }
+
+    /**
+     * 1期間あたりに付与できる上限ポイントを取得します。
+     *
+     * @return 上限ポイント。0の場合は無制限（デフォルト: 3000）
+     */
+    public long getBuildRewardMaxPointsPerPeriod() {
+        return getLong("build_reward.max_points_per_period", 3000);
+    }
+
+    /**
+     * ポイントの原資を国庫から支出するかどうかを取得します。
+     *
+     * @return 国庫から支出する場合は true（デフォルト: true）
+     */
+    public boolean isBuildRewardFromGovernment() {
+        return getBoolean("build_reward.from_government", true);
+    }
+
+    /**
+     * 集計から除外するブロック（マテリアル名）の一覧を取得します。
+     *
+     * @return マテリアル名のリスト。未設定の場合は空リスト
+     */
+    public List<String> getBuildRewardExcludedMaterials() {
+        Object value = getByPath("build_reward.excluded_materials");
+        if (!(value instanceof List<?> list)) {
+            return new ArrayList<>();
+        }
+        List<String> materials = new ArrayList<>();
+        for (Object item : list) {
+            if (item != null) {
+                materials.add(item.toString());
+            }
+        }
+        return materials;
+    }
+
+    /**
+     * 集計対象にするプレイヤー数の上限を取得します。
+     *
+     * @return プレイヤー数の上限（デフォルト: 500）
+     */
+    public int getBuildRewardMaxPlayers() {
+        return getInt("build_reward.max_players", 500);
+    }
+
+    /**
+     * Web管理画面からの集計リクエストをポーリングする間隔（秒）を取得します。
+     *
+     * @return ポーリング間隔（デフォルト: 10秒）
+     */
+    public int getBuildRewardQueryPollSeconds() {
+        return getInt("build_reward.query_poll_seconds", 10);
+    }
+
+    /**
+     * Web管理画面からの集計で遡れる最大日数を取得します。
+     *
+     * @return 最大日数（デフォルト: 30日）
+     */
+    public int getBuildRewardMaxLookupDays() {
+        return getInt("build_reward.max_lookup_days", 30);
+    }
+
     // Account link config getters
     public int getAccountLinkCodeExpiryMinutes() {
         return getInt("account_link.code_expiry_minutes", 10);
