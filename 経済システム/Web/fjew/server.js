@@ -894,7 +894,7 @@ app.get('/api/analytics/shop/:uuid', async (req, res) => {
 // ==========================================
 // 9. APIルート: 管理者用データ取得
 // ==========================================
-app.get('/api/admin/economy/summary', async (req, res) => {
+app.get('/api/admin/economy/summary', requireAuth, requireAdmin, async (req, res) => {
     let conn;
     try {
         conn = await pool.getConnection();
@@ -914,7 +914,7 @@ app.get('/api/admin/economy/summary', async (req, res) => {
     }
 });
 
-app.get('/api/admin/government/ledger', async (req, res) => {
+app.get('/api/admin/government/ledger', requireAuth, requireAdmin, async (req, res) => {
     let conn;
     try {
         conn = await pool.getConnection();
