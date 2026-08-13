@@ -1,0 +1,20 @@
+# 既定はテキストとして自動判定し、リポジトリ内では LF に正規化する
+* text=auto eol=lf
+
+# Windows 上で編集されるスクリプトは CRLF のまま
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# シェルスクリプトは必ず LF（CRLF だとサーバー上で実行できない）
+*.sh text eol=lf
+
+# バイナリ（差分を取らず、改行変換もしない）
+*.jar binary
+*.class binary
+*.zip binary
+*.mcpack binary
+*.ogg binary
+*.png binary
+*.bbmodel binary
+*.drawio.png binary
