@@ -1,7 +1,0 @@
-com\clusters_prj\wra\Main.class
-com\clusters_prj\wra\task\RegionTask.class
-com\clusters_prj\wra\listener\AxeSubmitListener$1.class
-com\clusters_prj\wra\worldguard\WorldGuardHandler.class
-com\clusters_prj\wra\database\DatabaseManager$StatementSetter.class
-com\clusters_prj\wra\listener\AxeSubmitListener.class
-com\clusters_prj\wra\database\DatabaseManager.class
