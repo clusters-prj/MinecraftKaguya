@@ -85,7 +85,7 @@ async function initDatabase() {
 // Botや外部スクリプトの過剰アクセスを防ぐレートリミット設定（1分間に60回まで）
 const apiLimiter = rateLimit({
     windowMs: 1 * 60 * 1000,
-    max: 60,
+    limit: 60,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "リクエスト回数の制限を超えました。しばらく待ってから再度お試しください。" }

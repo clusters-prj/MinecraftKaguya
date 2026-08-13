@@ -79,10 +79,10 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Rate Limitの設定
-const createLimiter = (windowMs, max) =>
+const createLimiter = (windowMs, limit) =>
     rateLimit({
         windowMs,
-        max,
+        limit,
         standardHeaders: true,
         legacyHeaders: false,
         message: { error: "試行回数が多すぎます。しばらく待ってから再度お試しください。" }
