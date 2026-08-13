@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ふじゅ〜ペイ | 建築量集計</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .paypay-gradient { background: linear-gradient(135deg, #ff0033 0%, #ff3366 100%); }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col justify-between font-sans">
+    <header class="bg-white shadow-sm">
+        <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center gap-2">
+            <div class="flex items-center gap-2">
+                <button id="backBtn" class="text-gray-500 hover:text-gray-700 text-lg leading-none">←</button>
+                <h1 class="text-lg font-bold text-red-600 tracking-wider">建築量集計</h1>
+            </div>
+            <button id="logoutBtn" class="text-sm text-gray-500 hover:text-red-600 font-medium">ログアウト</button>
+        </div>
+    </header>
+
+    <main class="max-w-md w-full mx-auto px-4 py-6 flex-grow space-y-6">
+        <div id="forbidden" class="hidden bg-white rounded-2xl shadow-sm p-8 text-center text-gray-400 text-sm">
+            管理者権限がありません
+        </div>
+
+        <div id="adminContent" class="hidden space-y-6">
+            <section class="bg-white rounded-2xl shadow-sm p-4 space-y-3">
+                <h2 class="text-sm font-bold text-gray-500">期間を指定して集計</h2>
+                <p class="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                    CoreProtect のログ（WorldEdit の設置分を含む）を集計します。この集計ではポイントは付与されません。
+                </p>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">対象サーバー</label>
+                    <select id="fServer" class="w-full border rounded-xl px-3 py-2 text-sm bg-white"></select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">開始日時</label>
+                    <input id="fStart" type="datetime-local" class="w-full border rounded-xl px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">終了日時</label>
+                    <input id="fEnd" type="datetime-local" class="w-full border rounded-xl px-3 py-2 text-sm">
+                </div>
+                <button id="runBtn" class="w-full paypay-gradient text-white font-bold py-3 rounded-xl shadow-sm">集計する</button>
+            </section>
+
+            <section id="resultSection" class="hidden space-y-2">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-sm font-bold text-gray-500">集計結果</h2>
+                    <span id="resultStatus" class="text-xs font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500"></span>
+                </div>
+                <p id="resultRange" class="text-[10px] text-gray-400"></p>
+                <p id="resultNote" class="hidden text-[10px] text-amber-700"></p>
+                <div id="ranking" class="space-y-2"></div>
+                <p id="rankingEmpty" class="hidden text-center text-xs text-gray-400 py-6">該当する建築ログはありませんでした</p>
+            </section>
+
+            <section>
+                <h2 class="text-sm font-bold text-gray-500 mb-2">過去の集計</h2>
+                <div id="queryList" class="space-y-2"></div>
+            </section>
+        </div>
+    </main>
+
+    <footer class="text-center py-4 text-xs text-gray-400">
+        &copy; 2026 FJ Economy / clusters-prj.com
+    </footer>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/build-admin.js"></script>
+</body>
+</html>

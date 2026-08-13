@@ -9,8 +9,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # リリースを自動作成・更新するために必要
 
     steps:
       - name: Checkout repository
@@ -23,33 +21,17 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Update Version and Build via Parent POM
+      # -SNAPSHOT があれば -bXX-SNAPSHOT、無ければ -bXX を付与してビルド
+      - name: Update Version and Build
         run: |
-          DIST_DIR="$GITHUB_WORKSPACE/dist" && mkdir -p "$DIST_DIR"
-          ROOT_DIR=$(pwd)
-          
-          # 1. 各pom.xmlを回ってバージョン更新のみを行う（ここではビルドしない）
-          find . -name pom.xml | while read -r pom; do
-            pom_dir=$(dirname "$pom") && cd "$ROOT_DIR/$pom_dir"
-            CURRENT_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-            mvn versions:set -DnewVersion="${CURRENT_VERSION}-b${{ github.run_number }}"
-          done
-          
-          # 2. 親POM（ルート）に戻って一括でクリーンパッケージを実行
-          cd "$ROOT_DIR" && mvn -B clean package
-          
-          # 3. 各子モジュールのtargetから完成版jarをdistフォルダに集める
-          find . -mindepth 2 -path "*/target/*.jar" ! -name "original-*.jar" ! -path "*/target/archive-tmp/*" -exec cp {} "$DIST_DIR/" \;
+          ROOT_DIR=$(pwd) && find . -name pom.xml | while read -r pom; do pom_dir=$(dirname "$pom") && cd "$ROOT_DIR/$pom_dir" && CURRENT_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout) && if echo "$CURRENT_VERSION" | grep -q "-SNAPSHOT"; then BASE_VER=$(echo "$CURRENT_VERSION" | sed 's/-SNAPSHOT//') && NEW_VER="${BASE_VER}-b${{ github.run_number }}-SNAPSHOT"; else NEW_VER="${CURRENT_VERSION}-b${{ github.run_number }}"; fi && mvn versions:set -DnewVersion="$NEW_VER"; done && cd "$ROOT_DIR" && mvn -B clean package
 
-      - name: Update Latest Release
-        uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/main' # mainブランチへの反映時のみリリースを更新
-        with:
-          tag_name: "latest"
-          name: "Development Build"
-          body: |
-            Automated development build.
-            Build Number: b${{ github.run_number }}
-            Commit: ${{ github.sha }}
-          prerelease: true
-          files: "dist/*.jar"
+      # -SNAPSHOT の有無で /snapshots と /releases を自動判定してデプロイ
+      - name: Deploy Artifacts to Reposilite
+        if: github.ref == 'refs/heads/main'
+        env:
+          REPO_USER: ${{ secrets.REPOSILITE_USER }}
+          REPO_TOKEN: ${{ secrets.REPOSILITE_TOKEN }}
+          REPO_BASE_URL: "https://reposilite.clusters-prj.com" # 末尾のリポジトリ名は除いたベースURL
+        run: |
+          ROOT_DIR=$(pwd) && find . -mindepth 2 -name pom.xml | while read -r pom; do pom_dir=$(dirname "$pom") && cd "$ROOT_DIR/$pom_dir" && ARTIFACT_ID=$(mvn help:evaluate -Dexpression=project.artifactId -q -DforceStdout) && FULL_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout) && if echo "$FULL_VERSION" | grep -q "-SNAPSHOT"; then REPO_TYPE="snapshots" && BASE_VERSION=$(echo "$FULL_VERSION" | sed -E 's/-b[0-9]+-SNAPSHOT/-SNAPSHOT/') && LATEST_NAME="${ARTIFACT_ID}-${BASE_VERSION}-latest.jar"; else REPO_TYPE="releases" && BASE_VERSION=$(echo "$FULL_VERSION" | sed -E 's/-b[0-9]+$//') && LATEST_NAME="${ARTIFACT_ID}-${BASE_VERSION}-latest.jar"; fi && JAR_FILE="target/${ARTIFACT_ID}-${FULL_VERSION}.jar" && if [ -f "$JAR_FILE" ]; then echo "Uploading $JAR_FILE to $REPO_TYPE/$ARTIFACT_ID/$BASE_VERSION/..." && curl -s -u "$REPO_USER:$REPO_TOKEN" -X PUT "$REPO_BASE_URL/$REPO_TYPE/$ARTIFACT_ID/$BASE_VERSION/${ARTIFACT_ID}-${FULL_VERSION}.jar" --upload-file "$JAR_FILE" && curl -s -u "$REPO_USER:$REPO_TOKEN" -X PUT "$REPO_BASE_URL/$REPO_TYPE/$ARTIFACT_ID/$BASE_VERSION/$LATEST_NAME" --upload-file "$JAR_FILE"; fi; done

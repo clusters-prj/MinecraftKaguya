@@ -94,6 +94,7 @@ const forgotPasswordLimiter = createLimiter(60 * 60 * 1000, 3);
 const resetPasswordLimiter = createLimiter(30 * 60 * 1000, 5);
 const linkLimiter = createLimiter(10 * 60 * 1000, 10);
 const verifyLimiter = createLimiter(10 * 60 * 1000, 20);
+const buildQueryLimiter = createLimiter(10 * 60 * 1000, 20);
 
 // CORS設定
 const allowedOrigin = APP_BASE_URL ? new URL(APP_BASE_URL).origin : null;
@@ -283,6 +284,9 @@ app.get('/arena', (req, res) => {
 });
 app.get('/arena-admin', (req, res) => {
     sendHtmlWithGTM(path.join(__dirname, 'public', 'arena-admin.html'), res);
+});
+app.get('/build-admin', (req, res) => {
+    sendHtmlWithGTM(path.join(__dirname, 'public', 'build-admin.html'), res);
 });
 
 // ==========================================
@@ -812,14 +816,19 @@ app.get('/api/wallet/history', requireAuth, async (req, res) => {
                 counterpartName = r.buyer_name || '(不明なプレイヤー)';
             }
 
-            const isTransfer = r.item_id === 'WEB_PAYPAY';
+            let txType = 'shop';
+            if (r.item_id === 'WEB_PAYPAY') {
+                txType = 'transfer';
+            } else if (r.item_id === 'BUILD_REWARD') {
+                txType = 'build_reward';
+            }
 
             return {
                 id: r.id,
                 timestamp: r.timestamp,
                 server_id: r.server_id,
                 item_id: r.item_id,
-                type: isTransfer ? 'transfer' : 'shop',
+                type: txType,
                 direction,
                 counterpart_name: counterpartName,
                 amount: r.price_total,
@@ -1111,7 +1120,116 @@ app.get('/api/arena/my-bets', requireAuth, async (req, res) => {
 });
 
 // ==========================================
-// 11. サーバー起動処理
+// 11. APIルート: 建築量ポイント（CoreProtect集計）
+// ==========================================
+
+// datetime-local（2026-08-12T15:04）や通常の日時文字列を MySQL の DATETIME 形式に正規化する
+const normalizeDateTime = (value) => {
+    if (typeof value !== 'string') return null;
+    const matched = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if (!matched) return null;
+    const [, year, month, day, hour, minute, second] = matched;
+    const parsed = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second || '00'}`);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return `${year}-${month}-${day} ${hour}:${minute}:${second || '00'}`;
+};
+
+// [管理者専用] 集計先として選べるサーバーID一覧
+app.get('/api/admin/build/servers', requireAuth, requireAdmin, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query(`
+            SELECT DISTINCT server_id FROM fje_build_rewards
+            UNION
+            SELECT DISTINCT server_id FROM fje_transactions WHERE server_id NOT IN ('WEB')
+            ORDER BY server_id
+        `);
+        res.json(rows.map(r => r.server_id));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// [管理者専用] 任意期間の集計リクエストを登録する（実際の集計はマイクラ側プラグインが行う／ポイントは不加算）
+app.post('/api/admin/build/queries', requireAuth, requireAdmin, buildQueryLimiter, async (req, res) => {
+    const { server_id, range_start, range_end } = req.body;
+
+    if (!server_id || !/^[A-Za-z0-9_-]{1,20}$/.test(server_id)) {
+        return res.status(400).json({ error: "サーバーIDが正しくありません" });
+    }
+    const rangeStart = normalizeDateTime(range_start);
+    const rangeEnd = normalizeDateTime(range_end);
+    if (!rangeStart || !rangeEnd) {
+        return res.status(400).json({ error: "集計期間の日時を正しく指定してください" });
+    }
+    if (rangeStart >= rangeEnd) {
+        return res.status(400).json({ error: "終了日時は開始日時より後にしてください" });
+    }
+
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const result = await conn.query(
+            "INSERT INTO fje_build_queries (server_id, requested_by, range_start, range_end) VALUES (?, ?, ?, ?)",
+            [server_id, req.session.webUserId, rangeStart, rangeEnd]
+        );
+        res.json({ success: true, query_id: Number(result.insertId) });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// [管理者専用] 直近の集計リクエスト一覧
+app.get('/api/admin/build/queries', requireAuth, requireAdmin, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query(`
+            SELECT q.id, q.server_id, q.range_start, q.range_end, q.status, q.error_message,
+                   q.created_at, q.completed_at, u.email AS requested_by_email
+            FROM fje_build_queries q
+            LEFT JOIN web_users u ON q.requested_by = u.id
+            ORDER BY q.id DESC LIMIT 20
+        `);
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// [管理者専用] 集計リクエストの状態とランキング結果
+app.get('/api/admin/build/queries/:id', requireAuth, requireAdmin, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const queries = await conn.query("SELECT * FROM fje_build_queries WHERE id = ?", [req.params.id]);
+        if (queries.length === 0) return res.status(404).json({ error: "集計リクエストが見つかりません" });
+
+        const ranking = await conn.query(`
+            SELECT minecraft_uuid, player_name, blocks_placed, blocks_broken, score
+            FROM fje_build_query_results
+            WHERE query_id = ?
+            ORDER BY score DESC, blocks_placed DESC
+            LIMIT 100
+        `, [req.params.id]);
+
+        res.json({ ...queries[0], ranking });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// ==========================================
+// 12. サーバー起動処理
 // ==========================================
 app.listen(PORT, async () => {
     await initDatabase();

@@ -195,6 +195,52 @@ public class DatabaseManager {
                     "  FOREIGN KEY (predicted_uuid) REFERENCES fje_balances(uuid)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+            // fje_build_rewards（建築量ポイントの定期集計結果。1期間・1プレイヤーにつき1行）
+            executeUpdate(conn,
+                    "CREATE TABLE IF NOT EXISTS fje_build_rewards (" +
+                    "  id INT AUTO_INCREMENT PRIMARY KEY," +
+                    "  server_id VARCHAR(20) NOT NULL," +
+                    "  period_start DATETIME NOT NULL," +
+                    "  period_end DATETIME NOT NULL," +
+                    "  minecraft_uuid UUID NOT NULL," +
+                    "  player_name VARCHAR(255) NOT NULL," +
+                    "  blocks_placed INT NOT NULL DEFAULT 0," +
+                    "  blocks_broken INT NOT NULL DEFAULT 0," +
+                    "  score INT NOT NULL DEFAULT 0," +
+                    "  points_granted BIGINT NOT NULL DEFAULT 0," +
+                    "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                    "  UNIQUE KEY uk_period_player (server_id, period_start, minecraft_uuid)," +
+                    "  INDEX idx_period (period_start)," +
+                    "  FOREIGN KEY (minecraft_uuid) REFERENCES fje_balances(uuid)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+            // fje_build_queries（Web管理画面からの任意期間の集計リクエスト。ポイントは付与しない）
+            executeUpdate(conn,
+                    "CREATE TABLE IF NOT EXISTS fje_build_queries (" +
+                    "  id INT AUTO_INCREMENT PRIMARY KEY," +
+                    "  server_id VARCHAR(20) NOT NULL," +
+                    "  requested_by INT NULL," +
+                    "  range_start DATETIME NOT NULL," +
+                    "  range_end DATETIME NOT NULL," +
+                    "  status ENUM('PENDING','RUNNING','DONE','ERROR') NOT NULL DEFAULT 'PENDING'," +
+                    "  error_message TEXT NULL," +
+                    "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                    "  completed_at TIMESTAMP NULL DEFAULT NULL," +
+                    "  INDEX idx_status (status, server_id)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+            // fje_build_query_results（上記リクエストの集計結果。ランキング表示用）
+            executeUpdate(conn,
+                    "CREATE TABLE IF NOT EXISTS fje_build_query_results (" +
+                    "  query_id INT NOT NULL," +
+                    "  minecraft_uuid UUID NOT NULL," +
+                    "  player_name VARCHAR(255) NOT NULL," +
+                    "  blocks_placed INT NOT NULL DEFAULT 0," +
+                    "  blocks_broken INT NOT NULL DEFAULT 0," +
+                    "  score INT NOT NULL DEFAULT 0," +
+                    "  PRIMARY KEY (query_id, minecraft_uuid)," +
+                    "  FOREIGN KEY (query_id) REFERENCES fje_build_queries(id) ON DELETE CASCADE" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
             plugin.getLogger().info("✓ テーブルを確認/作成しました");
 

@@ -105,6 +105,31 @@ login_bonus:
   amount: 500
   cooldown_hours: 24
 
+# 建築量ポイント設定（CoreProtect のログを集計してポイントを付与する）
+# WorldEdit による設置も CoreProtect 側の config.yml で worldedit: true になっていれば集計対象になる
+build_reward:
+  enabled: true
+  # 集計間隔（時間）。0時を起点に区切るため 24 の約数（1/2/3/4/6/8/12/24）を指定すること
+  interval_hours: 3
+  # 設置1ブロックあたりのポイント
+  points_per_block: 1
+  # 破壊したブロック数をスコアから差し引くか（設置→破壊の繰り返し稼ぎ対策）
+  subtract_breaks: true
+  # この設置数未満の期間はポイントを付与しない（ログには残る）
+  min_blocks: 10
+  # 1期間あたりの上限ポイント（0で無制限）
+  max_points_per_period: 3000
+  # ポイントの原資を国庫から支出するか（false の場合は新規発行）
+  from_government: true
+  # 集計から除外するブロック（例: [DIRT, COBBLESTONE]）
+  excluded_materials: []
+  # 集計対象にするプレイヤー数の上限（fje_balances の最終更新が新しい順）
+  max_players: 500
+  # Web管理画面からの集計リクエストを拾う間隔（秒）
+  query_poll_seconds: 10
+  # Web管理画面から遡れる最大日数
+  max_lookup_days: 30
+
 # Webアカウント連携設定
 account_link:
   # 連携コードの有効期限（分）
