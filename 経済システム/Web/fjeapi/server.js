@@ -31,6 +31,20 @@ app.use((req, res, next) => {
 // 政府口座のUUID定数
 const GOV_UUID = '00000000-0000-0000-0000-000000000001';
 
+// 金額パース用ヘルパー
+// isNaN("1.5") は false なので、そのまま BigInt("1.5") を呼ぶと例外になり
+// 400 ではなく 500 が返ってしまう。整数文字列のみ受け付け、それ以外は null を返す。
+const parseAmount = (value) => {
+    if (value === null || value === undefined || value === '') return null;
+    const text = String(value).trim();
+    if (!/^-?\d+$/.test(text)) return null;
+    try {
+        return BigInt(text);
+    } catch {
+        return null;
+    }
+};
+
 // ==========================================
 // 0. データベース初期化 ＆ レートリミット設定
 // ==========================================
@@ -358,8 +372,8 @@ app.get('/api/v1/wallet/analytics', apiLimiter, requireApiKey, async (req, res) 
 app.post('/api/v1/wallet/send', apiLimiter, requireApiKey, async (req, res) => {
     const { to_player, amount } = req.body;
     
-    if (!amount || isNaN(amount)) return res.status(400).json({ error: "金額を正しい数値形式で指定してください" });
-    const parsedAmount = BigInt(amount);
+    const parsedAmount = parseAmount(amount);
+    if (parsedAmount === null) return res.status(400).json({ error: "金額を正しい整数形式で指定してください" });
     if (!to_player || parsedAmount <= 0n) return res.status(400).json({ error: "送金先、または金額が正しくありません" });
 
     const fromUuid = req.minecraftUuid; // APIキーから特定した送金元UUID
@@ -397,8 +411,8 @@ app.post('/api/v1/wallet/send', apiLimiter, requireApiKey, async (req, res) => {
         await conn.commit();
         res.json({ 
             success: true, 
-            message: `${toPlayerName} さんに ${amount} 円送金しました`,
-            tx: { from: fromUuid, to: toUuid, amount: amount.toString() }
+            message: `${toPlayerName} さんに ${parsedAmount} 円送金しました`,
+            tx: { from: fromUuid, to: toUuid, amount: parsedAmount.toString() }
         });
     } catch (err) {
         if (conn) await conn.rollback();

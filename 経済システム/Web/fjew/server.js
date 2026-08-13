@@ -132,6 +132,21 @@ app.use(session({
     }
 }));
 
+// 金額パース用ヘルパー
+// BigInt() は "abc" や undefined、"1.5" を渡すと例外を投げるため、
+// バリデーション前に直接呼ぶと 400 ではなく 500 になってしまう。
+// パースできない場合は null を返し、呼び出し側で 400 を返す。
+const parseAmount = (value) => {
+    if (value === null || value === undefined || value === '') return null;
+    const text = String(value).trim();
+    if (!/^-?\d+$/.test(text)) return null;
+    try {
+        return BigInt(text);
+    } catch {
+        return null;
+    }
+};
+
 // ログインチェック用ミドルウェア
 const requireAuth = (req, res, next) => {
     if (!req.session.webUserId) {
@@ -578,9 +593,11 @@ app.get('/api/user/me', requireAuth, async (req, res) => {
 // 送金
 app.post('/api/wallet/send', requireAuth, async (req, res) => {
     const { from_uuid, to_player, amount } = req.body;
-    const parsedAmount = BigInt(amount);
+    const parsedAmount = parseAmount(amount);
 
-    if (!to_player || parsedAmount <= 0n) return res.status(400).json({ error: "送金先、または金額が正しくありません" });
+    if (!to_player || parsedAmount === null || parsedAmount <= 0n) {
+        return res.status(400).json({ error: "送金先、または金額が正しくありません" });
+    }
 
     let conn;
     try {
@@ -925,8 +942,8 @@ app.post('/api/admin/arena/events', requireAuth, requireAdmin, async (req, res) 
     if ([centerX, centerY, centerZ, r].some(n => Number.isNaN(n)) || r <= 0) {
         return res.status(400).json({ error: "座標・半径は数値で指定してください" });
     }
-    const prizeAmount = BigInt(prize_amount || 0);
-    if (prizeAmount < 0n) return res.status(400).json({ error: "賞金額が正しくありません" });
+    const prizeAmount = parseAmount(prize_amount ?? 0);
+    if (prizeAmount === null || prizeAmount < 0n) return res.status(400).json({ error: "賞金額が正しくありません" });
 
     let conn;
     try {
@@ -1049,9 +1066,9 @@ app.get('/api/arena/events', requireAuth, async (req, res) => {
 // 優勝者予想ベットを行う
 app.post('/api/arena/events/:id/bet', requireAuth, async (req, res) => {
     const { predicted_uuid, amount } = req.body;
-    const parsedAmount = BigInt(amount || 0);
+    const parsedAmount = parseAmount(amount);
 
-    if (!predicted_uuid || parsedAmount <= 0n) {
+    if (!predicted_uuid || parsedAmount === null || parsedAmount <= 0n) {
         return res.status(400).json({ error: "予想するプレイヤーと賭け金を正しく指定してください" });
     }
 
