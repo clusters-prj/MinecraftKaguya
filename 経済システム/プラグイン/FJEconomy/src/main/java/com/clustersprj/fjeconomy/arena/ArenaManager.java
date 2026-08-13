@@ -189,6 +189,19 @@ public class ArenaManager {
         activeEventsCache.putAll(latest);
     }
 
+    /**
+     * 退避中の参加者全員に持ち物を返却します（サーバー停止・プラグイン無効化時用）。
+     * <p>
+     * participantStates はメモリ上にしか存在しないため、ここで返却しないと
+     * 試合中に停止したサーバーの参加者は持ち物を失いサバイバルのまま取り残されます。
+     * </p>
+     */
+    public void restoreAllParticipants() {
+        for (UUID uuid : new HashSet<>(participantStates.keySet())) {
+            restorePlayer(uuid);
+        }
+    }
+
     private void restoreParticipantsForEvent(int eventId) {
         for (Map.Entry<UUID, ParticipantState> entry : new HashMap<>(participantStates).entrySet()) {
             if (entry.getValue().eventId == eventId) {

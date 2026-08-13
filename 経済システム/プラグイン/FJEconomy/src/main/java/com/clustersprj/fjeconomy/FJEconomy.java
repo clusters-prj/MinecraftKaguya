@@ -123,6 +123,13 @@ public class FJEconomy extends JavaPlugin {
         getLogger().info("===================================");
         getLogger().info("FJ Economy を無効化しています...");
 
+        // DB切断より先に行う（退避中の持ち物はメモリ上にしかないため、
+        // ここで返却しないと試合中のプレイヤーが持ち物を失う）
+        if (arenaManager != null) {
+            arenaManager.restoreAllParticipants();
+            getLogger().info("✓ アリーナ参加者の持ち物を返却しました");
+        }
+
         if (databaseManager != null) {
             databaseManager.shutdown();
             getLogger().info("✓ データベース接続を切断しました");
