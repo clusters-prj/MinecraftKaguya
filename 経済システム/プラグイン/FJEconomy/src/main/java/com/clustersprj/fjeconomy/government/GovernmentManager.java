@@ -40,7 +40,10 @@ public class GovernmentManager {
         this.plugin = plugin;
         this.dbManager = plugin.getDatabaseManager();
         this.configManager = plugin.getConfigManager();
-        this.economyManager = new EconomyManager(plugin);
+        // 他クラスと同じく、FJEconomy#onEnable() が生成した共有インスタンスを使う。
+        // ここで new すると EconomyManager が二重に存在し、DatabaseManager の
+        // 張り替えなど片方だけに反映される変更を取りこぼす。
+        this.economyManager = plugin.getEconomyManager();
 
         this.governmentUUID = UUID.fromString(configManager.getGovernmentUUID());
         this.governmentName = configManager.getGovernmentName();
