@@ -116,6 +116,13 @@ public class CommandManager implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        // 検索は大文字小文字を区別しないため、以降は入力値ではなく登録名を使う
+        // （入力値のまま残高操作すると登録名が入力どおりに書き換わってしまう）
+        String canonicalName = economyManager.getPlayerNameByUUID(targetUUID);
+        if (canonicalName != null) {
+            targetName = canonicalName;
+        }
+
         long amount;
         try {
             amount = Long.parseLong(args[2]);
@@ -182,6 +189,13 @@ public class CommandManager implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        // 検索は大文字小文字を区別しないため、以降は入力値ではなく登録名を使う
+        // （入力値のまま残高操作すると登録名が入力どおりに書き換わってしまう）
+        String canonicalName = economyManager.getPlayerNameByUUID(targetUUID);
+        if (canonicalName != null) {
+            targetName = canonicalName;
+        }
+
         long amount;
         try {
             amount = Long.parseLong(args[2]);
@@ -239,6 +253,13 @@ public class CommandManager implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        // 検索は大文字小文字を区別しないため、以降は入力値ではなく登録名を使う
+        // （入力値のまま残高操作すると登録名が入力どおりに書き換わってしまう）
+        String canonicalName = economyManager.getPlayerNameByUUID(targetUUID);
+        if (canonicalName != null) {
+            targetName = canonicalName;
+        }
+
         long amount;
         try {
             amount = Long.parseLong(args[2]);
@@ -294,6 +315,13 @@ public class CommandManager implements CommandExecutor, TabCompleter {
             sender.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + "<red>プレイヤーが見つかりません"));
             return true;
+        }
+
+        // 検索は大文字小文字を区別しないため、以降は入力値ではなく登録名を使う
+        // （入力値のまま残高操作すると登録名が入力どおりに書き換わってしまう）
+        String canonicalName = economyManager.getPlayerNameByUUID(targetUUID);
+        if (canonicalName != null) {
+            targetName = canonicalName;
         }
 
         long amount;

@@ -40,6 +40,35 @@ public class EconomyManager {
         return null;
     }
     
+    /**
+     * UUID から DB に登録されている正式なプレイヤー名を取得します。
+     * <p>
+     * DB の照合順序は utf8mb4_unicode_ci（大文字小文字を区別しない）なので、
+     * {@link #getPlayerUUIDByName(String)} は入力の大小を問わずヒットします。
+     * その入力文字列をそのまま残高操作へ渡すと、{@code ON DUPLICATE KEY UPDATE
+     * player_name = ?} で登録名が入力どおりに書き換わってしまうため、
+     * コマンドの引数ではなくこのメソッドが返す正式名を使うこと。
+     * </p>
+     *
+     * @param playerUUID 対象プレイヤーのUUID
+     * @return 登録されているプレイヤー名。見つからない場合は null
+     */
+    public String getPlayerNameByUUID(UUID playerUUID) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                     "SELECT player_name FROM fje_balances WHERE uuid = ?")) {
+            stmt.setString(1, playerUUID.toString());
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("player_name");
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Player name query error", e);
+        }
+        return null;
+    }
+
     // EconomyManager に追加
     public List<String> getAllPlayerNames() {
         List<String> names = new ArrayList<>();
