@@ -147,6 +147,15 @@ const parseAmount = (value) => {
     }
 };
 
+// 想定外のサーバーエラーを返すヘルパー
+// err.message をそのまま返すと、DBのテーブル名・カラム名・SQL構文エラーなどが
+// クライアントに漏れるため、詳細はサーバーログにのみ残して汎用メッセージを返す。
+// （ユーザーへ見せる目的で throw している 400 系のメッセージはこれまで通り err.message を使う）
+const sendServerError = (res, err) => {
+    console.error("[Server Error]", err);
+    return res.status(500).json({ error: "サーバー内部でエラーが発生しました。時間をおいて再度お試しください。" });
+};
+
 // ログインチェック用ミドルウェア
 const requireAuth = (req, res, next) => {
     if (!req.session.webUserId) {
@@ -172,7 +181,7 @@ const requireAdmin = async (req, res, next) => {
         }
         next();
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -343,7 +352,7 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
         res.json({ success: true, message: "認証用メールを送信しました。メール内のリンクをクリックしてください。" });
     } catch (err) {
         console.error("[Mail Error] ユーザー登録・メール送信プロセスでエラーが発生しました:", err);
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -405,7 +414,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
         req.session.webUserId = rows[0].id;
         res.json({ success: true, message: "ログインしました" });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -459,7 +468,7 @@ app.post('/api/auth/forgot-password', forgotPasswordLimiter, async (req, res) =>
         res.json({ success: true, message: "パスワード再設定用のメールを送信しました。メールをご確認ください。" });
     } catch (err) {
         console.error("[Reset Debug] パスワードリセット申請処理でエラー:", err);
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -584,7 +593,7 @@ app.get('/api/user/me', requireAuth, async (req, res) => {
             accounts: accounts
         });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -656,7 +665,7 @@ app.get('/api/economy/balance/:uuid', async (req, res) => {
         if (rows.length === 0) return res.status(404).json({ error: "Player not found" });
         res.json(rows[0]);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -669,7 +678,7 @@ app.get('/api/economy/ranking', async (req, res) => {
         const rows = await conn.query("SELECT player_name, balance FROM fje_balances WHERE uuid != ? ORDER BY balance DESC LIMIT 100", [GOV_UUID]);
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -702,7 +711,7 @@ app.get('/api/shops', async (req, res) => {
         const rows = await conn.query(query, params);
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -715,7 +724,7 @@ app.get('/api/shops/owner/:uuid', async (req, res) => {
         const rows = await conn.query("SELECT * FROM fje_shops WHERE owner_uuid = ?", [req.params.uuid]);
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -728,7 +737,7 @@ app.get('/api/transactions', async (req, res) => {
         const rows = await conn.query("SELECT * FROM fje_transactions ORDER BY timestamp DESC LIMIT 100");
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -744,7 +753,7 @@ app.get('/api/transactions/player/:uuid', async (req, res) => {
         );
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -862,7 +871,7 @@ app.get('/api/wallet/history', requireAuth, async (req, res) => {
             has_more: offset + rows.length < total
         });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -885,7 +894,7 @@ app.get('/api/analytics/shop/:uuid', async (req, res) => {
         `, [req.params.uuid]);
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -908,7 +917,7 @@ app.get('/api/admin/economy/summary', requireAuth, requireAdmin, async (req, res
             total_tax_collected: totalTaxRow[0].total_tax || 0
         });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -921,7 +930,7 @@ app.get('/api/admin/government/ledger', requireAuth, requireAdmin, async (req, r
         const rows = await conn.query("SELECT * FROM fje_government_ledger ORDER BY timestamp DESC LIMIT 100");
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -997,7 +1006,7 @@ app.get('/api/admin/arena/events', requireAuth, requireAdmin, async (req, res) =
         }
         res.json(events.map(e => ({ ...e, participants: byEvent[e.id] || [] })));
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -1057,7 +1066,7 @@ app.get('/api/arena/events', requireAuth, async (req, res) => {
             bet_pool: poolByEvent[e.id] || 0
         })));
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -1130,7 +1139,7 @@ app.get('/api/arena/my-bets', requireAuth, async (req, res) => {
         `, myUuids);
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -1164,7 +1173,7 @@ app.get('/api/admin/build/servers', requireAuth, requireAdmin, async (req, res) 
         `);
         res.json(rows.map(r => r.server_id));
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -1195,7 +1204,7 @@ app.post('/api/admin/build/queries', requireAuth, requireAdmin, buildQueryLimite
         );
         res.json({ success: true, query_id: Number(result.insertId) });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -1215,7 +1224,7 @@ app.get('/api/admin/build/queries', requireAuth, requireAdmin, async (req, res) 
         `);
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -1239,7 +1248,7 @@ app.get('/api/admin/build/queries/:id', requireAuth, requireAdmin, async (req, r
 
         res.json({ ...queries[0], ranking });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }

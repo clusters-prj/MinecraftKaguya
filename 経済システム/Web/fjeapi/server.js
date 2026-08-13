@@ -31,6 +31,15 @@ app.use((req, res, next) => {
 // 政府口座のUUID定数
 const GOV_UUID = '00000000-0000-0000-0000-000000000001';
 
+// 想定外のサーバーエラーを返すヘルパー
+// err.message をそのまま返すと、DBのテーブル名・カラム名・SQL構文エラーなどが
+// クライアントに漏れるため、詳細はサーバーログにのみ残して汎用メッセージを返す。
+// （ユーザーへ見せる目的で throw している 400 系のメッセージはこれまで通り err.message を使う）
+const sendServerError = (res, err) => {
+    console.error("[Server Error]", err);
+    return res.status(500).json({ error: "サーバー内部でエラーが発生しました。時間をおいて再度お試しください。" });
+};
+
 // 金額パース用ヘルパー
 // isNaN("1.5") は false なので、そのまま BigInt("1.5") を呼ぶと例外になり
 // 400 ではなく 500 が返ってしまう。整数文字列のみ受け付け、それ以外は null を返す。
@@ -134,7 +143,7 @@ app.get('/api/economy/balance/:uuid', async (req, res) => {
         if (rows.length === 0) return res.status(404).json({ error: "Player not found" });
         res.json(rows[0]);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -151,7 +160,7 @@ app.get('/api/economy/ranking', async (req, res) => {
         );
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -189,7 +198,7 @@ app.get('/api/shops', async (req, res) => {
         const rows = await conn.query(query, params);
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -203,7 +212,7 @@ app.get('/api/shops/owner/:uuid', async (req, res) => {
         const rows = await conn.query("SELECT * FROM fje_shops WHERE owner_uuid = ?", [req.params.uuid]);
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -221,7 +230,7 @@ app.get('/api/transactions', async (req, res) => {
         const rows = await conn.query("SELECT * FROM fje_transactions ORDER BY timestamp DESC LIMIT 100");
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -238,7 +247,7 @@ app.get('/api/transactions/player/:uuid', async (req, res) => {
         );
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -262,7 +271,7 @@ app.get('/api/analytics/shop/:uuid', async (req, res) => {
         `, [req.params.uuid]);
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -287,7 +296,7 @@ app.get('/api/admin/economy/summary', async (req, res) => {
             total_tax_collected: totalTaxRow[0].total_tax || 0
         });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -301,7 +310,7 @@ app.get('/api/admin/government/ledger', async (req, res) => {
         const rows = await conn.query("SELECT * FROM fje_government_ledger ORDER BY timestamp DESC LIMIT 100");
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -321,7 +330,7 @@ app.get('/api/v1/wallet/me', apiLimiter, requireApiKey, async (req, res) => {
         if (rows.length === 0) return res.status(404).json({ error: "マイクラデータが見つかりません" });
         res.json({ success: true, account: rows[0] });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -338,7 +347,7 @@ app.get('/api/v1/wallet/transactions', apiLimiter, requireApiKey, async (req, re
         );
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -362,7 +371,7 @@ app.get('/api/v1/wallet/analytics', apiLimiter, requireApiKey, async (req, res) 
         `, [req.minecraftUuid]);
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -459,7 +468,7 @@ app.post('/api/internal/keys/generate', requireManagementSecret, async (req, res
             note: "このキーは一度しか表示されません。安全に記録してください。"
         });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -473,7 +482,7 @@ app.get('/api/internal/keys', requireManagementSecret, async (req, res) => {
         const rows = await conn.query("SELECT id, minecraft_uuid, key_name, key_hint, created_at, last_used_at FROM fje_api_keys");
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
@@ -487,7 +496,7 @@ app.delete('/api/internal/keys/:id', requireManagementSecret, async (req, res) =
         await conn.query("DELETE FROM fje_api_keys WHERE id = ?", [req.params.id]);
         res.json({ success: true, message: "APIキーを削除しました" });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendServerError(res, err);
     } finally {
         if (conn) conn.release();
     }
