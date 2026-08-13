@@ -197,12 +197,11 @@ public class FJEconomy extends JavaPlugin {
             getLogger().info("✓ 設定ファイルを再読み込みしました");
 
             // Reconnect database if needed
-            if (configManager.isDatabaseConfigChanged()) {
-                if (databaseManager != null) {
-                    databaseManager.shutdown();
-                }
-                databaseManager = new DatabaseManager(this, configManager);
-                databaseManager.initialize();
+            // 各マネージャーはコンストラクタで databaseManager の参照を保持しているため、
+            // ここでインスタンスを作り直すと全マネージャーが閉じたプールを掴んだままになり、
+            // リロード後の全DB操作が失敗する。インスタンスは維持して中身だけ張り直す。
+            if (configManager.isDatabaseConfigChanged() && databaseManager != null) {
+                databaseManager.reconnect();
                 getLogger().info("✓ データベース接続を再確立しました");
             }
 

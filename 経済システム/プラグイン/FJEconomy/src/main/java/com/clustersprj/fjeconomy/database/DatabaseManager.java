@@ -59,6 +59,20 @@ public class DatabaseManager {
 
 
     /**
+     * 既存のコネクションプールを閉じ、現在の設定で張り直します。
+     * <p>
+     * 各マネージャーはコンストラクタで DatabaseManager の参照を保持しているため、
+     * リロード時に DatabaseManager 自体を作り直すと全マネージャーが閉じた
+     * プールを掴んだままになります。インスタンスは維持したまま、
+     * 内部の HikariDataSource だけを差し替えること。
+     * </p>
+     */
+    public void reconnect() throws Exception {
+        shutdown();
+        initialize();
+    }
+
+    /**
      * Test database connection
      */
     private void testConnection() throws SQLException {
