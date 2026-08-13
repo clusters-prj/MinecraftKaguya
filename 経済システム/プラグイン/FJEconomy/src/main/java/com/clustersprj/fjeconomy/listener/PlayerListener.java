@@ -63,6 +63,9 @@ public class PlayerListener implements Listener {
         loginBonusManager.checkAndGrantLoginBonus(
                 event.getPlayer().getUniqueId(), event.getPlayer().getName());
 
+        // 試合中にログアウトして持ち物の復元が保留されている場合はここで返却する
+        arenaManager.handlePlayerJoin(event.getPlayer());
+
         plugin.getLogger().info("プレイヤー " + event.getPlayer().getName() + " のアカウントを確認しました");
     }
 

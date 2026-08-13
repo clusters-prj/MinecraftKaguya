@@ -443,21 +443,43 @@ public class ArenaManager {
     }
 
     private void restorePlayer(UUID uuid) {
-        ParticipantState state = participantStates.remove(uuid);
+        ParticipantState state = participantStates.get(uuid);
         if (state == null) return;
 
         Player player = Bukkit.getPlayer(uuid);
         if (player == null) {
-            plugin.getLogger().warning("アリーナ退避したプレイヤー(" + uuid + ")がオフラインのため持ち物を復元できませんでした");
+            // ここで participantStates から消してしまうと退避中の持ち物が永久に失われる。
+            // 状態は保持したままにして、再ログイン時に handlePlayerJoin() で復元する。
+            plugin.getLogger().info("アリーナ退避したプレイヤー(" + uuid
+                    + ")がオフラインのため、持ち物の復元を次回ログイン時まで保留します");
             return;
         }
 
+        participantStates.remove(uuid);
         PlayerInventory inv = player.getInventory();
         inv.setContents(state.mainContents);
         inv.setArmorContents(state.armorContents);
         inv.setItemInOffHand(state.offHand);
         player.setGameMode(state.originalGameMode);
         player.sendMessage("§6[アリーナ] §f試合が終了しました。持ち物を返却しました。");
+    }
+
+    /**
+     * ログインしてきたプレイヤーに、復元が保留されているアリーナの持ち物があれば返却します。
+     * <p>
+     * 試合中にログアウトした参加者は、試合が解決された時点でオフラインなので
+     * その場では持ち物を戻せません。ログイン時にここで拾い直します。
+     * まだ試合が継続中（イベントがACTIVEのまま）の場合は、対戦を続行させるため復元しません。
+     * </p>
+     *
+     * @param player ログインしてきたプレイヤー
+     */
+    public void handlePlayerJoin(Player player) {
+        ParticipantState state = participantStates.get(player.getUniqueId());
+        if (state == null) return;
+        if (activeEventsCache.containsKey(state.eventId)) return; // 試合継続中なのでそのまま
+
+        restorePlayer(player.getUniqueId());
     }
 
     /**
