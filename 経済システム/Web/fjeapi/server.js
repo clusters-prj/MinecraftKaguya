@@ -438,16 +438,28 @@ app.post('/api/v1/wallet/send', apiLimiter, requireApiKey, async (req, res) => {
 // メインWebと切り離されているため、管理者が特定のマイクラUUIDに向けてキーを発行・削除するための口。
 // 悪用を防ぐため、.env の「API_MANAGEMENT_SECRET」を知っている人だけが叩ける仕組み。
 
+// シークレットの比較は crypto.timingSafeEqual で行う。
+// === による文字列比較は先頭から一致した文字数で処理時間が変わるため、
+// 応答時間を観測して1文字ずつシークレットを割り出される恐れがある。
+// timingSafeEqual は長さが異なると例外を投げるので、先にSHA-256で
+// 固定長へ潰してから比較する（長さの違い自体も漏らさない）。
+const secretMatches = (provided, expected) => {
+    if (typeof provided !== 'string' || typeof expected !== 'string') return false;
+    const providedHash = crypto.createHash('sha256').update(provided).digest();
+    const expectedHash = crypto.createHash('sha256').update(expected).digest();
+    return crypto.timingSafeEqual(providedHash, expectedHash);
+};
+
 const requireManagementSecret = (req, res, next) => {
     const secret = req.headers['x-management-secret'];
-    if (!process.env.API_MANAGEMENT_SECRET || secret !== process.env.API_MANAGEMENT_SECRET) {
+    if (!process.env.API_MANAGEMENT_SECRET || !secretMatches(secret, process.env.API_MANAGEMENT_SECRET)) {
         return res.status(403).json({ error: "アクセストークンが無効または設定されていません" });
     }
     next();
 };
 
 // キーの発行 (POST)
-app.post('/api/internal/keys/generate', requireManagementSecret, async (req, res) => {
+app.post('/api/internal/keys/generate', apiLimiter, requireManagementSecret, async (req, res) => {
     const { minecraft_uuid, key_name } = req.body;
     if (!minecraft_uuid || !key_name) return res.status(400).json({ error: "minecraft_uuid と key_name が必要です" });
 
@@ -475,7 +487,7 @@ app.post('/api/internal/keys/generate', requireManagementSecret, async (req, res
 });
 
 // キーの一覧確認 (GET)
-app.get('/api/internal/keys', requireManagementSecret, async (req, res) => {
+app.get('/api/internal/keys', apiLimiter, requireManagementSecret, async (req, res) => {
     let conn;
     try {
         conn = await pool.getConnection();
@@ -489,7 +501,7 @@ app.get('/api/internal/keys', requireManagementSecret, async (req, res) => {
 });
 
 // キーの削除 (DELETE)
-app.delete('/api/internal/keys/:id', requireManagementSecret, async (req, res) => {
+app.delete('/api/internal/keys/:id', apiLimiter, requireManagementSecret, async (req, res) => {
     let conn;
     try {
         conn = await pool.getConnection();
