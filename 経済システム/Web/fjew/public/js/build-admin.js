@@ -58,7 +58,7 @@ function renderRanking(query) {
             <div class="flex items-center gap-3">
                 <span class="text-sm font-black text-gray-400 w-6 text-right">${index + 1}</span>
                 <div class="flex flex-col">
-                    <span class="text-sm font-bold text-gray-800">${row.player_name}</span>
+                    <span class="text-sm font-bold text-gray-800">${window.fjew.escapeHtml(row.player_name)}</span>
                     <span class="text-[10px] text-gray-400">設置 ${window.fjew.formatYen(row.blocks_placed)} ・ 破壊 ${window.fjew.formatYen(row.blocks_broken)}</span>
                 </div>
             </div>
@@ -117,7 +117,7 @@ async function loadQueries() {
         card.className = 'bg-white rounded-2xl shadow-sm p-3 flex justify-between items-center cursor-pointer hover:bg-gray-50 transition';
         card.innerHTML = `
             <div class="flex flex-col gap-0.5">
-                <span class="text-xs font-bold text-gray-800">${query.server_id}</span>
+                <span class="text-xs font-bold text-gray-800">${window.fjew.escapeHtml(query.server_id)}</span>
                 <span class="text-[10px] text-gray-400">${formatDate(query.range_start)} 〜 ${formatDate(query.range_end)}</span>
             </div>
             <span class="text-xs font-bold ${meta.badge} px-2 py-0.5 rounded-full">${meta.label}</span>

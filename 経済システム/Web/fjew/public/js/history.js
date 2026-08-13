@@ -26,7 +26,7 @@ function directionMeta(direction) {
 function typeLabelOf(tx, withItem = false) {
     if (tx.type === 'transfer') return '個人送金';
     if (tx.type === 'build_reward') return '建築ボーナス';
-    return withItem ? `ショップ取引 (${tx.item_id})` : 'ショップ取引';
+    return withItem ? `ショップ取引 (${window.fjew.escapeHtml(tx.item_id)})` : 'ショップ取引';
 }
 
 function renderRow(tx) {
@@ -39,7 +39,7 @@ function renderRow(tx) {
     row.innerHTML = `
         <div class="flex flex-col gap-0.5">
             <span class="text-xs font-bold ${meta.badge} inline-block px-2 py-0.5 rounded-full w-fit">${meta.label}</span>
-            <span class="text-sm font-bold text-gray-800 mt-1">${tx.counterpart_name}</span>
+            <span class="text-sm font-bold text-gray-800 mt-1">${window.fjew.escapeHtml(tx.counterpart_name)}</span>
             <span class="text-[10px] text-gray-400">${typeLabel} ・ ${formatDate(tx.timestamp)}</span>
         </div>
         <div class="text-right">
@@ -56,10 +56,10 @@ function showDetail(tx) {
     content.innerHTML = `
         <div class="flex justify-between"><span class="text-gray-400">日時</span><span class="font-bold text-gray-700">${formatDate(tx.timestamp)}</span></div>
         <div class="flex justify-between"><span class="text-gray-400">種別</span><span class="font-bold text-gray-700">${typeLabelOf(tx)}</span></div>
-        <div class="flex justify-between"><span class="text-gray-400">相手</span><span class="font-bold text-gray-700">${tx.counterpart_name}</span></div>
-        <div class="flex justify-between"><span class="text-gray-400">サーバー</span><span class="font-bold text-gray-700">${tx.server_id}</span></div>
+        <div class="flex justify-between"><span class="text-gray-400">相手</span><span class="font-bold text-gray-700">${window.fjew.escapeHtml(tx.counterpart_name)}</span></div>
+        <div class="flex justify-between"><span class="text-gray-400">サーバー</span><span class="font-bold text-gray-700">${window.fjew.escapeHtml(tx.server_id)}</span></div>
         ${tx.type === 'shop' ? `
-        <div class="flex justify-between"><span class="text-gray-400">アイテム</span><span class="font-bold text-gray-700">${tx.item_id}</span></div>
+        <div class="flex justify-between"><span class="text-gray-400">アイテム</span><span class="font-bold text-gray-700">${window.fjew.escapeHtml(tx.item_id)}</span></div>
         <div class="flex justify-between"><span class="text-gray-400">税額</span><span class="font-bold text-gray-700">¥${window.fjew.formatYen(tx.tax_amount)}</span></div>
         ` : ''}
         <div class="flex justify-between border-t pt-3 mt-3"><span class="text-gray-500 font-bold">金額</span><span class="font-black text-lg ${meta.color}">${meta.sign}¥${window.fjew.formatYen(tx.amount)}</span></div>

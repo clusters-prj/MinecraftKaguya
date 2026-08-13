@@ -16,15 +16,15 @@ function statusMeta(status) {
 
 function renderEventCard(event) {
     const meta = statusMeta(event.status);
-    const namesText = event.participants.map(p => p.player_name).join(' vs ');
+    const namesText = event.participants.map(p => window.fjew.escapeHtml(p.player_name)).join(' vs ');
     const card = document.createElement('div');
     card.className = 'bg-white rounded-2xl shadow-sm p-4 space-y-2';
     card.innerHTML = `
         <div class="flex justify-between items-start">
             <div>
-                <span class="text-sm font-bold text-gray-800">${event.name}</span>
+                <span class="text-sm font-bold text-gray-800">${window.fjew.escapeHtml(event.name)}</span>
                 <div class="text-xs text-gray-400">${namesText}</div>
-                <div class="text-[10px] text-gray-400">${event.world} (${event.center_x}, ${event.center_y}, ${event.center_z}) 半径${event.radius}</div>
+                <div class="text-[10px] text-gray-400">${window.fjew.escapeHtml(event.world)} (${event.center_x}, ${event.center_y}, ${event.center_z}) 半径${event.radius}</div>
             </div>
             <span class="text-xs font-bold ${meta.badge} px-2 py-0.5 rounded-full">${meta.label}</span>
         </div>

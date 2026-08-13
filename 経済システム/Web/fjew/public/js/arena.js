@@ -12,11 +12,11 @@ function formatDate(ts) {
 function renderEventCard(event) {
     const card = document.createElement('div');
     card.className = 'bg-white rounded-2xl shadow-sm p-4 space-y-2';
-    const namesText = event.participants.map(p => p.player_name).join(' vs ');
+    const namesText = event.participants.map(p => window.fjew.escapeHtml(p.player_name)).join(' vs ');
     card.innerHTML = `
         <div class="flex justify-between items-start">
             <div>
-                <span class="text-sm font-bold text-gray-800">${event.name}</span>
+                <span class="text-sm font-bold text-gray-800">${window.fjew.escapeHtml(event.name)}</span>
                 <div class="text-xs text-gray-400">${namesText}</div>
             </div>
             <span class="text-xs font-bold bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full">受付中</span>
@@ -111,8 +111,8 @@ function renderBetRow(bet) {
     row.innerHTML = `
         <div class="flex flex-col gap-0.5">
             <span class="text-xs font-bold ${meta.badge} inline-block px-2 py-0.5 rounded-full w-fit">${meta.label}</span>
-            <span class="text-sm font-bold text-gray-800 mt-1">${bet.event_name}</span>
-            <span class="text-[10px] text-gray-400">予想: ${bet.predicted_player_name || '(不明)'} ・ ${formatDate(bet.created_at)}</span>
+            <span class="text-sm font-bold text-gray-800 mt-1">${window.fjew.escapeHtml(bet.event_name)}</span>
+            <span class="text-[10px] text-gray-400">予想: ${window.fjew.escapeHtml(bet.predicted_player_name || '(不明)')} ・ ${formatDate(bet.created_at)}</span>
         </div>
         <div class="text-right">
             <span class="text-base font-black ${meta.color}">

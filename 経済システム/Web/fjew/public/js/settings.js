@@ -14,11 +14,11 @@ function renderLinkStatus(user) {
         : 'inline-block text-xs font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-700';
 
     document.getElementById('javaDetail').innerHTML = java
-        ? `<p class="text-sm text-gray-700 font-bold">${java.player_name}</p><p class="text-xs text-gray-500 font-mono mt-1">UUID: ${java.uuid}</p><p class="text-xs text-gray-500 mt-1">残高: ¥${window.fjew.formatYen(java.balance)}</p>`
+        ? `<p class="text-sm text-gray-700 font-bold">${window.fjew.escapeHtml(java.player_name)}</p><p class="text-xs text-gray-500 font-mono mt-1">UUID: ${window.fjew.escapeHtml(java.uuid)}</p><p class="text-xs text-gray-500 mt-1">残高: ¥${window.fjew.formatYen(java.balance)}</p>`
         : '<p class="text-sm text-gray-500">Java版は未連携です。</p>';
 
     document.getElementById('bedrockDetail').innerHTML = bedrock
-        ? `<p class="text-sm text-gray-700 font-bold">${bedrock.player_name}</p><p class="text-xs text-gray-500 font-mono mt-1">UUID: ${bedrock.uuid}</p><p class="text-xs text-gray-500 mt-1">残高: ¥${window.fjew.formatYen(bedrock.balance)}</p>`
+        ? `<p class="text-sm text-gray-700 font-bold">${window.fjew.escapeHtml(bedrock.player_name)}</p><p class="text-xs text-gray-500 font-mono mt-1">UUID: ${window.fjew.escapeHtml(bedrock.uuid)}</p><p class="text-xs text-gray-500 mt-1">残高: ¥${window.fjew.formatYen(bedrock.balance)}</p>`
         : '<p class="text-sm text-gray-500">統合版は未連携です。</p>';
 
     const listEl = document.getElementById('linkedAccountList');
@@ -33,8 +33,8 @@ function renderLinkStatus(user) {
         row.className = 'flex justify-between items-center text-xs bg-gray-50 rounded-xl px-3 py-2';
         row.innerHTML = `
             <div>
-                <p class="font-bold text-gray-700">${acc.player_name} <span class="text-gray-400 font-normal">(${acc.type})</span></p>
-                <p class="text-gray-400 font-mono">${acc.uuid}</p>
+                <p class="font-bold text-gray-700">${window.fjew.escapeHtml(acc.player_name)} <span class="text-gray-400 font-normal">(${acc.type})</span></p>
+                <p class="text-gray-400 font-mono">${window.fjew.escapeHtml(acc.uuid)}</p>
             </div>
             <span class="text-gray-600">¥${window.fjew.formatYen(acc.balance)}</span>
         `;

@@ -32,6 +32,20 @@ window.fjew = {
         return Number(value || 0).toLocaleString();
     },
 
+    // innerHTML のテンプレートへ埋め込む値は必ずこれを通すこと。
+    // アリーナのイベント名など、管理画面から自由入力された文字列がそのまま
+    // 各ユーザーの画面で innerHTML として展開されると、
+    // <img src=x onerror=...> のようなタグが実行されてしまう（蓄積型XSS）。
+    escapeHtml(value) {
+        if (value === null || value === undefined) return '';
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    },
+
     // bfcache(戻る/進むでページがJSごと復元される挙動)から復帰した際に
     // 再取得処理(reloadFn)を呼び直すための共通ヘルパー。
     // 通常のDOMContentLoadedだけだとbfcache復元時に発火しないため、

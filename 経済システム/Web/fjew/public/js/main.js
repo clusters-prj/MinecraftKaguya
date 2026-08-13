@@ -31,6 +31,8 @@ function renderMain(user) {
         for (const acc of accounts) {
             const option = document.createElement('option');
             option.value = acc.uuid;
+            // textContent はブラウザ側でエスケープされるので escapeHtml は不要
+            // （通すと & や < が実体参照のまま表示されてしまう）
             option.textContent = `${acc.player_name} (${acc.type}) - ¥${window.fjew.formatYen(acc.balance)}`;
             sendFromEl.appendChild(option);
         }
@@ -41,7 +43,7 @@ function renderMain(user) {
                 const row = document.createElement('div');
                 row.className = 'flex justify-between items-center text-xs bg-gray-50 rounded-xl px-3 py-2';
                 row.innerHTML = `
-                    <span class="font-bold text-gray-700">${acc.player_name} <span class="text-gray-400 font-normal">(${acc.type})</span></span>
+                    <span class="font-bold text-gray-700">${window.fjew.escapeHtml(acc.player_name)} <span class="text-gray-400 font-normal">(${acc.type})</span></span>
                     <span class="text-gray-600">¥${window.fjew.formatYen(acc.balance)}</span>
                 `;
                 accountListEl.appendChild(row);
