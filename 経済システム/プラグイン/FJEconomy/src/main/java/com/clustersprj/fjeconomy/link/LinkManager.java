@@ -47,6 +47,16 @@ public class LinkManager {
             conn.setAutoCommit(false);
 
             try {
+                // 期限切れのコードを掃除する。
+                // Web側 (POST /api/auth/link) は消費時にしか削除しないため、
+                // 入力されなかったコードが残り続ける。code は6桁のPRIMARY KEYで
+                // 空間が90万通りしかなく、溜まると採番の衝突リトライが増えて
+                // 最終的にコード発行そのものが失敗するようになる。
+                try (PreparedStatement expired = conn.prepareStatement(
+                        "DELETE FROM link_codes WHERE expires_at <= NOW()")) {
+                    expired.executeUpdate();
+                }
+
                 // 同じプレイヤーの古いコードを一旦削除（複数コードが溜まらないように）
                 try (PreparedStatement del = conn.prepareStatement(
                         "DELETE FROM link_codes WHERE minecraft_uuid = ?")) {
