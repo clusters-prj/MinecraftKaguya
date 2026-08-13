@@ -301,15 +301,28 @@ public class EconomyManager {
                 }
 
                 // Add to shop owner
-                if (!giveMoney(conn, ownerUUID, ownerName, netProfit)) {
-                    conn.rollback();
-                    return false;
+                // 税率100%などで netProfit が 0 になる場合、giveMoney は amount <= 0 を
+                // 弾いて false を返すため、口座の同期だけ行って加算はスキップする。
+                if (netProfit > 0) {
+                    if (!giveMoney(conn, ownerUUID, ownerName, netProfit)) {
+                        conn.rollback();
+                        return false;
+                    }
+                } else {
+                    // トランザクション内なので、別コネクションを取る公開版ではなく
+                    // conn を引き回す内部版を使う
+                    syncPlayerAccount(conn, ownerUUID, ownerName);
                 }
 
                 // Add tax to government
-                if (!giveMoney(conn, governmentUUID, governmentName, taxAmount)) {
-                    conn.rollback();
-                    return false;
+                // 少額商品や tax_rate: 0 では taxAmount が 0 に丸められる。
+                // ここで giveMoney を呼ぶと false が返り、購入全体がロールバックされて
+                // 「買えないのにエラーも出ない」状態になっていたためスキップする。
+                if (taxAmount > 0) {
+                    if (!giveMoney(conn, governmentUUID, governmentName, taxAmount)) {
+                        conn.rollback();
+                        return false;
+                    }
                 }
 
                 // Record transaction
