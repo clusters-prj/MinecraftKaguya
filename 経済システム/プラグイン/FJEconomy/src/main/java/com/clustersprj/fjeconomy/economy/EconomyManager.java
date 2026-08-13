@@ -266,6 +266,28 @@ public class EconomyManager {
 
 
     /**
+     * 販売価格に対する税額を計算します。
+     * <p>
+     * 金額は必ず整数で扱うため、double ではなく BigDecimal と
+     * config の {@code economy.rounding_method} で整数に丸めます。
+     * 「販売価格 = 税額 + 店主受取額」が常に一致するよう、
+     * 税額を求めてから店主受取額を差分で出すこと。
+     * </p>
+     *
+     * @param totalPrice 販売価格の合計
+     * @return 税額
+     */
+    public long calculateTax(long totalPrice) {
+        double taxRate = configManager.getTaxRate() / 100.0;
+        RoundingMode rounding = RoundingMode.valueOf(configManager.getRoundingMethod());
+
+        return BigDecimal.valueOf(totalPrice)
+                .multiply(BigDecimal.valueOf(taxRate))
+                .setScale(0, rounding)
+                .longValue();
+    }
+
+    /**
      * Execute a shop purchase
      */
     public boolean processPurchase(UUID buyerUUID, String buyerName,
@@ -274,15 +296,7 @@ public class EconomyManager {
         if (quantity <= 0 || unitPrice < 0) return false;
 
         long totalPrice = unitPrice * quantity;
-        double taxRate = configManager.getTaxRate() / 100.0;
-        RoundingMode rounding = RoundingMode.valueOf(configManager.getRoundingMethod());
-
-        // Calculate tax
-        BigDecimal taxDecimal = BigDecimal.valueOf(totalPrice)
-                .multiply(BigDecimal.valueOf(taxRate))
-                .setScale(0, rounding);
-        long taxAmount = taxDecimal.longValue();
-
+        long taxAmount = calculateTax(totalPrice);
         long netProfit = totalPrice - taxAmount;
 
         // Government UUID

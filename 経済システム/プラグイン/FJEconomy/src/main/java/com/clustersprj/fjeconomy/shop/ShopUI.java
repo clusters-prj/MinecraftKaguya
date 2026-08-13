@@ -172,67 +172,75 @@ public class ShopUI implements Listener {
             return;
         }
 
-        // プレイヤーの残高を確認
-        long playerBalance = economyManager.getBalance(player.getUniqueId());
         long itemPrice = shop.getPrice();
-        
-        // 税金の計算 (config.ymlの economy.tax_rate を使用)
-        double taxRate = plugin.getConfigManager().getTaxRate() / 100.0;
-        long taxAmount = Math.round(itemPrice * taxRate);
-        long sellerProfit = itemPrice - taxAmount;
 
+        // 付与するアイテムは代金を動かす前に確定させる
+        // （購入成立後に不正なマテリアルだと判明すると返金処理が必要になるため）
+        Material itemMaterial = Material.matchMaterial(shop.getItemMaterial());
+        if (itemMaterial == null) {
+            player.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix()
+                    + "<red>このショップの商品設定が不正です。管理者に連絡してください。"));
+            plugin.getLogger().warning("Invalid material '" + shop.getItemMaterial() + "' for shop " + npcUuid);
+            return;
+        }
+
+        long playerBalance = economyManager.getBalance(player.getUniqueId());
         if (playerBalance < itemPrice) {
             player.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>お金が足りません！ (必要: " + economyManager.formatMoney(itemPrice) + ", 所持: " + economyManager.formatMoney(playerBalance) + ")"));
             return;
         }
 
-        // お金の引き落としと在庫の減少
-        if (economyManager.takeMoney(player.getUniqueId(), player.getName(), itemPrice)) {
-            if (shopManager.removeStock(npcUuid, serverId, 1)) {
-                // 【納税処理】政府資金(国庫)に税金を加算し、TAX_INとして記録する
-                // (addGovernmentFundsだとFUND_ADD扱いになり、/fjegovernment tax の集計に反映されないため注意)
-                plugin.getGovernmentManager().addTaxIncome(taxAmount, 
-                    "SHOP_PURCHASE - Item: " + shop.getItemMaterial() + ", Buyer: " + player.getName());
+        // 先に在庫を確保する。removeStock は「stock >= quantity」の条件つき UPDATE なので、
+        // 同時購入があっても在庫がマイナスになることはない。
+        if (!shopManager.removeStock(npcUuid, serverId, 1)) {
+            player.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>現在、在庫がありません。"));
+            return;
+        }
 
-                // 【売上送金】税抜き価格をショップオーナーに送金
-                String ownerName = Bukkit.getOfflinePlayer(shop.getOwnerUUID()).getName();
-                if (ownerName == null) ownerName = shop.getOwnerUUID().toString();
-                economyManager.giveMoney(shop.getOwnerUUID(), ownerName, sellerProfit);
+        String ownerName = Bukkit.getOfflinePlayer(shop.getOwnerUUID()).getName();
+        if (ownerName == null) ownerName = shop.getOwnerUUID().toString();
 
-                // 【取引記録】fje_transactions に購入履歴を記録
-                // (これが無いと購入は成立しても取引履歴が一切残らないため)
-                economyManager.recordTransaction(player.getUniqueId(), shop.getOwnerUUID(),
-                        shop.getItemMaterial(), 1, itemPrice, taxAmount, sellerProfit);
+        // 代金の移動・納税・取引記録・国庫台帳への記帳は processPurchase が
+        // 1つのトランザクションでまとめて行う（途中で失敗すれば全てロールバックされる）。
+        // 以前はここで takeMoney / addTaxIncome / giveMoney / recordTransaction を
+        // 個別のコネクションで実行しており、途中で失敗すると代金や売上が消える恐れがあった。
+        boolean purchased = economyManager.processPurchase(
+                player.getUniqueId(), player.getName(),
+                shop.getOwnerUUID(), ownerName,
+                shop.getItemMaterial(), 1, itemPrice);
 
-                // アイテムをプレイヤーに付与
-                Material itemMaterial = Material.matchMaterial(shop.getItemMaterial());
-                if (itemMaterial != null) {
-                    player.getInventory().addItem(new ItemStack(itemMaterial, 1));
-                    player.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + 
-                        "<green>" + economyManager.formatMoney(itemPrice) + " で " + itemMaterial.name() + " を購入しました！ " +
-                        "<gray>(内税" + plugin.getConfigManager().getTaxRate() + "%: " + economyManager.formatMoney(taxAmount) + " が政府に納められました)"));
-                } else {
-                    player.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>アイテムの取得に失敗しました。お金は返金されました。管理者に連絡してください。"));
-                    // アイテム付与失敗時はお金を返金
-                    economyManager.giveMoney(player.getUniqueId(), player.getName(), itemPrice);
-                    plugin.getLogger().warning("Failed to give item " + shop.getItemMaterial() + " to player " + player.getName() + " after purchase. Money refunded.");
-                }
-                
-                // UIを更新して最新の在庫数を表示
-                ShopManager.Shop freshShop = shopManager.getShop(npcUuid, serverId);
-                if (freshShop != null) {
-                    // 購入時は在庫が変動するため、キャッシュも最新情報で更新しておく
-                    shopCache.put(npcUuid, new CachedShop(freshShop));
-                    openShopGui(player, freshShop);
-                }
-            } else {
-                // 在庫更新失敗時はお金を返金
-                economyManager.giveMoney(player.getUniqueId(), player.getName(), itemPrice);
-                player.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>在庫の更新に失敗しました。お金は返金されました。管理者に連絡してください。"));
-                plugin.getLogger().warning("Failed to remove stock for shop " + npcUuid + " after money deduction. Money refunded to " + player.getName());
-            }
-        } else {
-            player.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>お金の引き落としに失敗しました。"));
+        if (!purchased) {
+            // 代金が動いていないので、確保した在庫を戻すだけでよい
+            shopManager.addStock(npcUuid, serverId, 1);
+            player.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() + "<red>購入処理に失敗しました。代金は引き落とされていません。"));
+            plugin.getLogger().warning("Purchase transaction failed for shop " + npcUuid + " (buyer: " + player.getName() + "). Stock restored.");
+            return;
+        }
+
+        // 表示用の税額。processPurchase と同じ計算を使う（config の rounding_method に従う）
+        long taxAmount = economyManager.calculateTax(itemPrice);
+
+        // アイテムをプレイヤーに付与（インベントリが満杯なら足元にドロップする）
+        ItemStack purchasedItem = new ItemStack(itemMaterial, 1);
+        Map<Integer, ItemStack> leftover = player.getInventory().addItem(purchasedItem);
+        for (ItemStack drop : leftover.values()) {
+            player.getWorld().dropItemNaturally(player.getLocation(), drop);
+        }
+        if (!leftover.isEmpty()) {
+            player.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix()
+                    + "<yellow>インベントリが満杯だったため、商品を足元にドロップしました。"));
+        }
+
+        player.sendMessage(MiniMessage.miniMessage().deserialize(plugin.getConfigManager().getMessagePrefix() +
+            "<green>" + economyManager.formatMoney(itemPrice) + " で " + itemMaterial.name() + " を購入しました！ " +
+            "<gray>(内税" + plugin.getConfigManager().getTaxRate() + "%: " + economyManager.formatMoney(taxAmount) + " が政府に納められました)"));
+
+        // UIを更新して最新の在庫数を表示
+        ShopManager.Shop freshShop = shopManager.getShop(npcUuid, serverId);
+        if (freshShop != null) {
+            // 購入時は在庫が変動するため、キャッシュも最新情報で更新しておく
+            shopCache.put(npcUuid, new CachedShop(freshShop));
+            openShopGui(player, freshShop);
         }
     }
 }
