@@ -16,6 +16,7 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 
+import java.math.BigInteger;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -544,7 +545,12 @@ public class ArenaManager {
                     if (winningPool > 0) {
                         if (isWinner) {
                             // パリミュチュエル配当: 全額プール × (自分の掛け金 / 的中者の掛け金合計)
-                            long payout = Math.floorDiv(totalPool * amount, winningPool);
+                            // totalPool * amount は long で計算するとオーバーフローし
+                            // 配当が負値になりうるため、BigInteger を経由して丸める。
+                            long payout = BigInteger.valueOf(totalPool)
+                                    .multiply(BigInteger.valueOf(amount))
+                                    .divide(BigInteger.valueOf(winningPool))
+                                    .longValueExact();
                             String bettorName = resolvePlayerName(conn, bettorUuid);
                             economyManager.giveMoney(conn, bettorUuid, bettorName, payout);
                             markBet(conn, betId, "WON", payout);
