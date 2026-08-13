@@ -98,7 +98,13 @@ public class GovernmentManager {
 
             try {
                 // 資金追加
-                economyManager.giveMoney(conn, governmentUUID, governmentName, amount);
+                // 戻り値を確認しないと、加算に失敗しても台帳だけ記録されて
+                // 「台帳上は入金済みなのに残高が増えていない」不整合が commit されてしまう
+                if (!economyManager.giveMoney(conn, governmentUUID, governmentName, amount)) {
+                    conn.rollback();
+                    plugin.getLogger().warning("政府資金の加算に失敗しました: " + amount + " - " + reason);
+                    return false;
+                }
 
                 // 台帳に記録
                 recordLedger(conn, "FUND_ADD", amount, reason);
@@ -188,7 +194,12 @@ public class GovernmentManager {
             conn.setAutoCommit(false);
 
             try {
-                economyManager.giveMoney(conn, governmentUUID, governmentName, amount);
+                // 加算に失敗した場合に税収だけ台帳へ残らないよう、戻り値を確認する
+                if (!economyManager.giveMoney(conn, governmentUUID, governmentName, amount)) {
+                    conn.rollback();
+                    plugin.getLogger().warning("税収の加算に失敗しました: " + amount + " - " + description);
+                    return false;
+                }
                 recordTax(conn, amount, description);
 
                 conn.commit();
