@@ -51,7 +51,7 @@ async function initDatabase() {
                 last_used_at TIMESTAMP NULL DEFAULT NULL
             )
         `);
-        print("[Init] fje_api_keys table checked/created.");
+        console.log("[Init] fje_api_keys table checked/created.");
     } catch (err) {
         console.error("Database initialization failed:", err);
     } finally {
