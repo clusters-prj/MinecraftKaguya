@@ -185,13 +185,41 @@ public class BuildRewardManager {
         return nextBoundary(from).minusHours(normalizedIntervalHours());
     }
 
+    /** 0時起点で1日を均等に割り切れる集計間隔（24の約数）。 */
+    private static final int[] VALID_INTERVAL_HOURS = {1, 2, 3, 4, 6, 8, 12, 24};
+
     /**
-     * 集計間隔を 1〜24 の範囲に丸めて返します。
+     * 集計間隔を 24 の約数に丸めて返します。
+     * <p>
+     * 区切りは 0時起点で {@code interval_hours} ずつ進めるため、24 の約数でないと
+     * 日をまたぐ最後の区切りだけ間隔が変わり、直前期間が前の期間と重なります。
+     * （例: 5時間なら区切りは 0/5/10/15/20時。20時の次は翌0時の4時間後になるが、
+     * previousBoundary は 5時間引くので 19時となり、15〜20時の期間と1時間重複して
+     * ポイントが二重付与される。）
+     * config.yml にも約数を指定するよう明記しているが、コード側でも保証する。
+     * </p>
      *
-     * @return 集計間隔（時間）
+     * @return 集計間隔（時間）。24 の約数のいずれか
      */
     private int normalizedIntervalHours() {
-        return Math.min(24, Math.max(1, configManager.getBuildRewardIntervalHours()));
+        int configured = Math.min(24, Math.max(1, configManager.getBuildRewardIntervalHours()));
+
+        for (int valid : VALID_INTERVAL_HOURS) {
+            if (valid == configured) {
+                return configured;
+            }
+        }
+
+        // 24を割り切れない値なら、それ以下で最大の約数まで切り下げる
+        int fallback = 1;
+        for (int valid : VALID_INTERVAL_HOURS) {
+            if (valid < configured) {
+                fallback = valid;
+            }
+        }
+        plugin.getLogger().warning("build_reward.interval_hours は24の約数(1/2/3/4/6/8/12/24)である必要があります: "
+                + configured + " -> " + fallback + " として扱います");
+        return fallback;
     }
 
     /**
