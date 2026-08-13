@@ -1,0 +1,247 @@
+/* ふじゅ〜ペイ 共通スタイル
+   ブランド: 紫 × 藍の夜空 / アクセント: 月明かりの金
+   Tailwind CDN の上に載せるデザイントークン + 共通コンポーネント */
+
+:root {
+    --fj-brand: #6d28d9;
+    --fj-brand-deep: #3730a3;
+    --fj-brand-light: #8b5cf6;
+    --fj-brand-soft: #ede9fe;
+    --fj-moon: #fbbf24;
+    --fj-ink: #1e1b34;
+    --fj-muted: #6b7280;
+    --fj-bg: #f5f4fb;
+    --fj-border: #e7e5f2;
+    --fj-radius: 1rem;
+    --fj-shadow: 0 1px 2px rgba(30, 27, 52, .04), 0 8px 24px -14px rgba(30, 27, 52, .28);
+    --fj-shadow-brand: 0 2px 6px rgba(55, 48, 163, .12), 0 22px 40px -22px rgba(109, 40, 217, .75);
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+}
+
+body {
+    background:
+        radial-gradient(760px 320px at 82% -140px, rgba(251, 191, 36, .14), transparent 68%),
+        radial-gradient(980px 460px at 22% -200px, rgba(109, 40, 217, .18), transparent 72%),
+        var(--fj-bg);
+    color: var(--fj-ink);
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI",
+        system-ui, -apple-system, "Segoe UI", sans-serif;
+    letter-spacing: .01em;
+}
+
+/* 旧クラス名の互換（HTML/JS に残っていても新ブランド色で描画される） */
+.paypay-gradient,
+.fj-gradient {
+    background: linear-gradient(135deg, var(--fj-brand) 0%, var(--fj-brand-deep) 100%);
+}
+
+/* ---- ヘッダー ---- */
+.fj-header {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: rgba(255, 255, 255, .8);
+    backdrop-filter: saturate(180%) blur(14px);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    border-bottom: 1px solid var(--fj-border);
+}
+
+.fj-header__inner {
+    max-width: 28rem;
+    margin: 0 auto;
+    padding: .7rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+}
+
+.fj-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    font-size: 1.125rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    color: var(--fj-brand);
+}
+
+.fj-logo__mark {
+    background: linear-gradient(135deg, var(--fj-brand-light) 0%, var(--fj-brand-deep) 100%);
+    color: #fff;
+    font-weight: 900;
+    font-size: .8rem;
+    padding: .15rem .45rem;
+    border-radius: .5rem;
+    box-shadow: 0 4px 12px -4px rgba(109, 40, 217, .85);
+}
+
+.fj-navbtn {
+    font-size: .8125rem;
+    font-weight: 600;
+    color: var(--fj-muted);
+    padding: .3rem .5rem;
+    border-radius: .6rem;
+    transition: background-color .15s ease, color .15s ease;
+}
+
+.fj-navbtn:hover {
+    color: var(--fj-brand);
+    background: rgba(109, 40, 217, .08);
+}
+
+.fj-back {
+    color: var(--fj-muted);
+    font-size: 1.15rem;
+    line-height: 1;
+    padding: .2rem .4rem;
+    border-radius: .6rem;
+    transition: background-color .15s ease, color .15s ease;
+}
+
+.fj-back:hover {
+    color: var(--fj-ink);
+    background: rgba(30, 27, 52, .06);
+}
+
+/* ---- 残高カード（夜空） ---- */
+.fj-balance {
+    position: relative;
+    overflow: hidden;
+    background:
+        radial-gradient(120px 120px at 88% -10%, rgba(251, 191, 36, .35), transparent 70%),
+        linear-gradient(135deg, var(--fj-brand) 0%, var(--fj-brand-deep) 100%);
+    box-shadow: var(--fj-shadow-brand);
+}
+
+/* 星のきらめき */
+.fj-balance::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+        radial-gradient(1.4px 1.4px at 18% 22%, rgba(255, 255, 255, .85), transparent),
+        radial-gradient(1.2px 1.2px at 62% 14%, rgba(255, 255, 255, .6), transparent),
+        radial-gradient(1.6px 1.6px at 34% 68%, rgba(255, 255, 255, .5), transparent),
+        radial-gradient(1.1px 1.1px at 78% 52%, rgba(255, 255, 255, .7), transparent),
+        radial-gradient(1.3px 1.3px at 8% 78%, rgba(255, 255, 255, .45), transparent);
+}
+
+.fj-balance>* {
+    position: relative;
+    z-index: 1;
+}
+
+/* 金の細いディバイダ */
+.fj-divider-gold {
+    height: 1px;
+    background: linear-gradient(90deg, rgba(251, 191, 36, .9), rgba(255, 255, 255, .18) 60%, transparent);
+}
+
+/* ---- カード・フォーム ---- */
+.bg-white.rounded-2xl,
+.bg-white.rounded-3xl {
+    border: 1px solid var(--fj-border);
+    box-shadow: var(--fj-shadow);
+}
+
+/* セクション見出しの縦バー */
+.fj-rule {
+    border-left: 4px solid var(--fj-brand);
+    padding-left: .5rem;
+}
+
+input,
+select,
+textarea {
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--fj-brand) !important;
+    box-shadow: 0 0 0 3px rgba(109, 40, 217, .16);
+}
+
+button {
+    transition: transform .12s ease, filter .15s ease, background-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+
+button:active:not(:disabled) {
+    transform: scale(.985);
+}
+
+button:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+}
+
+/* 主要アクション */
+.fj-btn-primary {
+    background: linear-gradient(135deg, var(--fj-brand-light) 0%, var(--fj-brand) 55%, var(--fj-brand-deep) 100%);
+    color: #fff;
+    font-weight: 700;
+    border-radius: .85rem;
+    box-shadow: 0 10px 22px -12px rgba(109, 40, 217, .95);
+}
+
+.fj-btn-primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+    box-shadow: 0 14px 26px -12px rgba(109, 40, 217, 1);
+}
+
+:focus-visible {
+    outline: 2px solid var(--fj-brand);
+    outline-offset: 2px;
+}
+
+/* ---- フッター ---- */
+.fj-footer {
+    margin-top: 2rem;
+    padding: 1.5rem 1rem 2rem;
+    border-top: 1px solid var(--fj-border);
+    text-align: center;
+    font-size: .75rem;
+    color: #9ca3af;
+    line-height: 1.9;
+}
+
+.fj-footer__links {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .35rem .75rem;
+    margin-bottom: .5rem;
+}
+
+.fj-footer a {
+    color: var(--fj-muted);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.fj-footer a:hover {
+    color: var(--fj-brand);
+    text-decoration: underline;
+}
+
+.fj-footer__sep {
+    color: #d1d5db;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        transition-duration: .01ms !important;
+        animation-duration: .01ms !important;
+    }
+}

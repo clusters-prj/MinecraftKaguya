@@ -8,7 +8,7 @@ function formatDate(ts) {
 
 function statusMeta(status) {
     switch (status) {
-        case 'ACTIVE': return { label: '受付中', badge: 'bg-red-50 text-red-600' };
+        case 'ACTIVE': return { label: '受付中', badge: 'bg-brand-50 text-brand-700' };
         case 'RESOLVED': return { label: '終了', badge: 'bg-green-50 text-green-600' };
         default: return { label: 'キャンセル', badge: 'bg-gray-100 text-gray-500' };
     }

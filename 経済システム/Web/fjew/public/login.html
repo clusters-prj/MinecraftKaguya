@@ -5,12 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ふじゅ〜ペイ | ログイン</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/js/theme.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col justify-between font-sans">
-    <header class="bg-white shadow-sm">
-        <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
-            <h1 class="text-xl font-bold text-red-600 tracking-wider flex items-center gap-1">
-                <span class="bg-red-600 text-white px-2 py-0.5 rounded text-sm font-black">ふじゅ〜</span> ペイ
+    <header class="fj-header">
+        <div class="fj-header__inner">
+            <h1 class="fj-logo">
+                <span class="fj-logo__mark">ふじゅ〜</span> ペイ
             </h1>
         </div>
     </header>
@@ -25,18 +27,18 @@
             <div class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-gray-500 mb-1">メールアドレス</label>
-                    <input type="email" id="loginEmail" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500" placeholder="example@clusters-prj.com">
+                    <input type="email" id="loginEmail" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-600" placeholder="example@clusters-prj.com">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-500 mb-1">パスワード</label>
-                    <input type="password" id="loginPassword" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500" placeholder="••••••••">
+                    <input type="password" id="loginPassword" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-600" placeholder="••••••••">
                     <p class="text-right mt-1">
-                        <a href="#" id="toForgotPassword" class="text-[11px] text-gray-400 hover:text-red-500 hover:underline">パスワードをお忘れですか？</a>
+                        <a href="#" id="toForgotPassword" class="text-[11px] text-gray-400 hover:text-brand-600 hover:underline">パスワードをお忘れですか？</a>
                     </p>
                 </div>
-                <button id="submitLogin" class="w-full bg-red-600 text-white font-bold py-3 rounded-xl shadow-sm hover:bg-red-700 transition">ログイン</button>
+                <button id="submitLogin" class="w-full fj-btn-primary py-3">ログイン</button>
                 <p class="text-center text-xs text-gray-500 mt-4">
-                    アカウントをお持ちでないですか？ <a href="#" id="toRegister" class="text-red-500 font-bold hover:underline">新規登録</a>
+                    アカウントをお持ちでないですか？ <a href="#" id="toRegister" class="text-brand-600 font-bold hover:underline">新規登録</a>
                 </p>
             </div>
         </div>
@@ -46,15 +48,15 @@
             <div class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-gray-500 mb-1">メールアドレス</label>
-                    <input type="email" id="registerEmail" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500" placeholder="example@clusters-prj.com">
+                    <input type="email" id="registerEmail" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-600" placeholder="example@clusters-prj.com">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-500 mb-1">パスワード</label>
-                    <input type="password" id="registerPassword" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500" placeholder="••••••••">
+                    <input type="password" id="registerPassword" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-600" placeholder="••••••••">
                 </div>
-                <button id="submitRegister" class="w-full bg-red-600 text-white font-bold py-3 rounded-xl shadow-sm hover:bg-red-700 transition">アカウント作成</button>
+                <button id="submitRegister" class="w-full fj-btn-primary py-3">アカウント作成</button>
                 <p class="text-center text-xs text-gray-500 mt-4">
-                    既にアカウントをお持ちですか？ <a href="#" id="toLogin" class="text-red-500 font-bold hover:underline">ログインはこちら</a>
+                    既にアカウントをお持ちですか？ <a href="#" id="toLogin" class="text-brand-600 font-bold hover:underline">ログインはこちら</a>
                 </p>
             </div>
         </div>
@@ -65,18 +67,18 @@
             <div class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-gray-500 mb-1">メールアドレス</label>
-                    <input type="email" id="forgotEmail" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500" placeholder="example@clusters-prj.com">
+                    <input type="email" id="forgotEmail" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-600" placeholder="example@clusters-prj.com">
                 </div>
-                <button id="submitForgotPassword" class="w-full bg-red-600 text-white font-bold py-3 rounded-xl shadow-sm hover:bg-red-700 transition">再設定メールを送信</button>
+                <button id="submitForgotPassword" class="w-full fj-btn-primary py-3">再設定メールを送信</button>
                 <p class="text-center text-xs text-gray-500 mt-4">
-                    <a href="#" id="toLoginFromForgot" class="text-red-500 font-bold hover:underline">ログイン画面に戻る</a>
+                    <a href="#" id="toLoginFromForgot" class="text-brand-600 font-bold hover:underline">ログイン画面に戻る</a>
                 </p>
             </div>
         </div>
 
         <div id="forgotPendingSection" class="hidden bg-white rounded-2xl shadow-md p-6 mt-4 text-center">
-            <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="w-16 h-16 bg-brand-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 19v-8.93a2 2 0 01.89-1.664l8-5.333a2 2 0 012.22 0l8 5.333A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-2.25-1.5a2 2 0 00-2.22 0l-2.25 1.5"></path>
                 </svg>
             </div>
@@ -88,8 +90,8 @@
         </div>
 
         <div id="verifyPendingSection" class="hidden bg-white rounded-2xl shadow-md p-6 mt-4 text-center">
-            <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="w-16 h-16 bg-brand-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 19v-8.93a2 2 0 01.89-1.664l8-5.333a2 2 0 012.22 0l8 5.333A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-2.25-1.5a2 2 0 00-2.22 0l-2.25 1.5"></path>
                 </svg>
             </div>
@@ -101,7 +103,12 @@
         </div>
     </main>
 
-    <footer class="text-center py-4 text-xs text-gray-400">
+    <footer class="fj-footer">
+        <div class="fj-footer__links">
+            <a href="https://web-kaguya.clusters-prj.com" target="_blank" rel="noopener">かぐや鯖 公式サイト</a>
+            <span class="fj-footer__sep">|</span>
+            <a href="https://web-kaguya.clusters-prj.com" target="_blank" rel="noopener">web-kaguya.clusters-prj.com</a>
+        </div>
         &copy; 2026 FJ Economy / clusters-prj.com
     </footer>
 

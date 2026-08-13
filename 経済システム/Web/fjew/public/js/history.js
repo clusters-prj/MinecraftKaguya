@@ -115,10 +115,10 @@ document.querySelectorAll('.filterTab').forEach(btn => {
     btn.addEventListener('click', () => {
         if (btn.dataset.type === currentType) return;
         document.querySelectorAll('.filterTab').forEach(b => {
-            b.classList.remove('bg-red-600', 'text-white');
+            b.classList.remove('bg-brand-600', 'text-white');
             b.classList.add('text-gray-500');
         });
-        btn.classList.add('bg-red-600', 'text-white');
+        btn.classList.add('bg-brand-600', 'text-white');
         btn.classList.remove('text-gray-500');
         currentType = btn.dataset.type;
         loadHistory(true);

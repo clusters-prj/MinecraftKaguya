@@ -5,16 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ふじゅ〜ペイ | 設定</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/js/theme.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col justify-between font-sans">
-    <header class="bg-white shadow-sm">
-        <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center gap-2">
-            <h1 class="text-xl font-bold text-red-600 tracking-wider flex items-center gap-1">
-                <span class="bg-red-600 text-white px-2 py-0.5 rounded text-sm font-black">ふじゅ〜</span> ペイ
+    <header class="fj-header">
+        <div class="fj-header__inner">
+            <h1 class="fj-logo">
+                <span class="fj-logo__mark">ふじゅ〜</span> ペイ
             </h1>
             <div class="flex gap-2">
-                <button id="toMainBtn" class="text-sm text-gray-500 hover:text-gray-700 font-medium">メインへ</button>
-                <button id="logoutBtn" class="text-sm text-gray-500 hover:text-red-600 font-medium">ログアウト</button>
+                <button id="toMainBtn" class="fj-navbtn">メインへ</button>
+                <button id="logoutBtn" class="fj-navbtn">ログアウト</button>
             </div>
         </div>
     </header>
@@ -43,7 +45,7 @@
         <div class="bg-white rounded-2xl shadow-md p-6">
             <div class="flex justify-between items-center mb-3">
                 <h3 class="text-sm font-bold text-gray-800">現在の連携アカウント管理</h3>
-                <button id="reloadStatusBtn" class="text-xs text-gray-500 hover:text-gray-700">更新</button>
+                <button id="reloadStatusBtn" class="fj-navbtn">更新</button>
             </div>
             <div id="linkedAccountList" class="space-y-2"></div>
         </div>
@@ -51,16 +53,21 @@
         <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-800 text-xs flex flex-col gap-3">
             <div>
                 <p class="font-bold mb-1">マイクラアカウントを連携する</p>
-                <p>ゲーム内で <code class="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold text-red-600">/fje link</code> を実行し、表示された6桁のコードを入力してください。</p>
+                <p>ゲーム内で <code class="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold text-brand-700">/fje link</code> を実行し、表示された6桁のコードを入力してください。</p>
             </div>
             <div class="flex gap-2">
-                <input type="text" id="linkCode" class="border border-amber-300 rounded-xl px-4 py-2 text-sm text-gray-800 font-mono tracking-widest text-center w-32 focus:outline-none focus:border-red-500" placeholder="000000" maxlength="6">
-                <button id="submitLink" class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2 rounded-xl transition">連携する</button>
+                <input type="text" id="linkCode" class="border border-amber-300 rounded-xl px-4 py-2 text-sm text-gray-800 font-mono tracking-widest text-center w-32 focus:outline-none focus:border-brand-600" placeholder="000000" maxlength="6">
+                <button id="submitLink" class="fj-btn-primary px-4 py-2">連携する</button>
             </div>
         </div>
     </main>
 
-    <footer class="text-center py-4 text-xs text-gray-400">
+    <footer class="fj-footer">
+        <div class="fj-footer__links">
+            <a href="https://web-kaguya.clusters-prj.com" target="_blank" rel="noopener">かぐや鯖 公式サイト</a>
+            <span class="fj-footer__sep">|</span>
+            <a href="https://web-kaguya.clusters-prj.com" target="_blank" rel="noopener">web-kaguya.clusters-prj.com</a>
+        </div>
         &copy; 2026 FJ Economy / clusters-prj.com
     </footer>
 

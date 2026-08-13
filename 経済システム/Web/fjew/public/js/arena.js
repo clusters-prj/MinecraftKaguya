@@ -19,7 +19,7 @@ function renderEventCard(event) {
                 <span class="text-sm font-bold text-gray-800">${event.name}</span>
                 <div class="text-xs text-gray-400">${namesText}</div>
             </div>
-            <span class="text-xs font-bold bg-red-50 text-red-600 px-2 py-0.5 rounded-full">受付中</span>
+            <span class="text-xs font-bold bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full">受付中</span>
         </div>
         <div class="flex justify-between text-xs text-gray-500">
             <span>優勝賞金: ¥${window.fjew.formatYen(event.prize_amount)}</span>
@@ -48,9 +48,9 @@ function openBetModal(event) {
         btn.addEventListener('click', () => {
             selectedPredictedUuid = p.uuid;
             container.querySelectorAll('.participantBtn').forEach(b => {
-                b.classList.remove('bg-red-50', 'border-red-400', 'text-red-600');
+                b.classList.remove('bg-brand-50', 'border-brand-400', 'text-brand-700');
             });
-            btn.classList.add('bg-red-50', 'border-red-400', 'text-red-600');
+            btn.classList.add('bg-brand-50', 'border-brand-400', 'text-brand-700');
         });
         container.appendChild(btn);
     }
@@ -100,7 +100,7 @@ function betStatusMeta(status) {
         case 'WON': return { label: '的中', color: 'text-green-600', badge: 'bg-green-50 text-green-600' };
         case 'LOST': return { label: '不的中', color: 'text-gray-400', badge: 'bg-gray-100 text-gray-500' };
         case 'REFUNDED': return { label: '払い戻し', color: 'text-blue-600', badge: 'bg-blue-50 text-blue-600' };
-        default: return { label: '受付中', color: 'text-red-600', badge: 'bg-red-50 text-red-600' };
+        default: return { label: '受付中', color: 'text-brand-700', badge: 'bg-brand-50 text-brand-700' };
     }
 }
 
