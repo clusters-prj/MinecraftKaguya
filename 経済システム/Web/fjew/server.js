@@ -1165,10 +1165,15 @@ app.get('/api/admin/build/servers', requireAuth, requireAdmin, async (req, res) 
     let conn;
     try {
         conn = await pool.getConnection();
+        // fje_transactions の server_id には、実際のマイクラサーバー（mc1/mc2/mc3）以外に
+        // 'WEB'（Web送金）・'ARENA'（アリーナ精算）・'API_BOT'（外部API送金）という
+        // 擬似的な値も入る。これらを候補に出すと、対応するプラグインが存在しないため
+        // 集計リクエストが誰にも拾われず「待機中」のまま残ってしまうので除外する。
         const rows = await conn.query(`
             SELECT DISTINCT server_id FROM fje_build_rewards
             UNION
-            SELECT DISTINCT server_id FROM fje_transactions WHERE server_id NOT IN ('WEB')
+            SELECT DISTINCT server_id FROM fje_transactions
+             WHERE server_id NOT IN ('WEB', 'ARENA', 'API_BOT')
             ORDER BY server_id
         `);
         res.json(rows.map(r => r.server_id));

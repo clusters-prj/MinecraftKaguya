@@ -90,28 +90,59 @@ public class BuildRewardManager {
      * </p>
      */
     public void start() {
-        if (!configManager.isBuildRewardEnabled()) {
-            plugin.getLogger().info("建築量ポイントは無効に設定されています (config.yml)");
-            return;
-        }
-
         this.coreProtect = resolveCoreProtect();
+
         if (coreProtect == null) {
-            plugin.getLogger().warning("CoreProtect が利用できないため、建築量ポイントを無効化しました");
-            return;
+            plugin.getLogger().warning("CoreProtect が利用できないため、建築量の集計を行えません"
+                    + "（サーバーに CoreProtect が導入されているか確認してください）");
+        } else if (configManager.isBuildRewardEnabled()) {
+            scheduleNextAggregation();
+
+            // 再起動でスケジュールを跨いだ期間を取りこぼさないよう、直前の期間を起動時に集計しておく。
+            // 付与済みの期間は fje_build_rewards のユニークキーで弾かれるため二重付与にはならない。
+            LocalDateTime lastBoundary = previousBoundary(LocalDateTime.now());
+            plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> runAggregation(lastBoundary));
+
+            plugin.getLogger().info("建築量ポイントの定期付与を開始しました（"
+                    + configManager.getBuildRewardIntervalHours() + "時間ごと）");
+        } else {
+            plugin.getLogger().info("建築量ポイントの定期付与は無効です (build_reward.enabled: false)。"
+                    + "Web管理画面からの集計リクエストは引き続き処理します");
         }
 
-        scheduleNextAggregation();
+        // Web集計リクエストのポーリングは、定期付与の有効/無効や CoreProtect の
+        // 有無に関わらず常に開始する。
+        // ここで start() ごと早期 return してしまうと、Web から登録された
+        // リクエストを誰も拾わなくなり、管理画面には理由が表示されないまま
+        // 「待機中」のまま永久に残ってしまう（処理できない場合も、その旨を
+        // ERROR として書き戻して管理者に伝える必要がある）。
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, this::resetStaleRunningQueries);
 
         long pollTicks = Math.max(1, configManager.getBuildRewardQueryPollSeconds()) * 20L;
         plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, this::pollQueries, pollTicks, pollTicks);
+    }
 
-        // 再起動でスケジュールを跨いだ期間を取りこぼさないよう、直前の期間を起動時に集計しておく。
-        // 付与済みの期間は fje_build_rewards のユニークキーで弾かれるため二重付与にはならない。
-        LocalDateTime lastBoundary = previousBoundary(LocalDateTime.now());
-        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> runAggregation(lastBoundary));
-
-        plugin.getLogger().info("建築量ポイントを開始しました（" + configManager.getBuildRewardIntervalHours() + "時間ごと）");
+    /**
+     * 自サーバー宛で RUNNING のまま残っている集計リクエストを PENDING に戻します。
+     * <p>
+     * 集計中にサーバーが停止・クラッシュすると status が RUNNING のまま残り、
+     * 誰も拾わないため管理画面では「集計中」の表示が永久に続きます。
+     * 起動時に払い出し直すことで、次のポーリングで処理をやり直せるようにします。
+     * </p>
+     */
+    private void resetStaleRunningQueries() {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                     "UPDATE fje_build_queries SET status = 'PENDING' "
+                     + "WHERE status = 'RUNNING' AND server_id = ?")) {
+            stmt.setString(1, configManager.getServerId());
+            int reset = stmt.executeUpdate();
+            if (reset > 0) {
+                plugin.getLogger().info("中断されていた建築集計リクエスト " + reset + " 件を再実行対象に戻しました");
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "中断された建築集計リクエストの復旧に失敗しました", e);
+        }
     }
 
     /**
@@ -456,6 +487,12 @@ public class BuildRewardManager {
      */
     private void executeQuery(PendingQuery query) {
         try {
+            if (coreProtect == null) {
+                finishQuery(query.id(), "ERROR",
+                        "CoreProtect が利用できないため集計できません（サーバーへの導入状況を確認してください）");
+                return;
+            }
+
             if (!query.rangeEnd().isAfter(query.rangeStart())) {
                 finishQuery(query.id(), "ERROR", "開始日時より後の終了日時を指定してください");
                 return;
