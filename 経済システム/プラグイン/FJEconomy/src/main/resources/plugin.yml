@@ -8,7 +8,12 @@ api-version: '26.1.2'
 main: com.clustersprj.fjeconomy.FJEconomy
 
 # CoreProtect: 建築量ポイントの集計に使用（未導入でも起動はする）
-softdepend: [CoreProtect]
+# CoreProtect より後に読み込まれるようにする。
+# フォーク版は plugin.yml の name が異なる（customProtect 等）ため、
+# 実際に使われている名前も併記しないと読み込み順が保証されない。
+# 名前が一致しない場合でも BuildRewardManager が後から API を取得し直すので
+# 致命的にはならないが、起動直後の定期集計を取りこぼさないためここに追加する。
+softdepend: [CoreProtect, customProtect]
 
 # Suppress Nag about System.out/err usage in dependencies
 suppress-nag:

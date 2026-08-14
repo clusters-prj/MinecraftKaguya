@@ -76,6 +76,9 @@ public class BuildRewardManager {
 
     private CoreProtectAPI coreProtect;
 
+    /** APIバージョンが古い旨の警告を、ポーリングのたびに出さないためのフラグ。 */
+    private boolean apiVersionWarned;
+
     public BuildRewardManager(FJEconomy plugin) {
         this.plugin = plugin;
         this.dbManager = plugin.getDatabaseManager();
@@ -86,16 +89,23 @@ public class BuildRewardManager {
     /**
      * 定期集計とWeb集計リクエストのポーリングを開始します。
      * <p>
-     * CoreProtect が導入されていない場合は何もせず、警告ログのみ出力します。
+     * Web集計リクエストのポーリングは、定期付与の有効/無効や CoreProtect の有無に
+     * 関わらず必ず開始します。処理できない場合でもリクエストを ERROR として
+     * 書き戻し、管理画面に理由を表示する必要があるためです。
+     * </p>
+     * <p>
+     * CoreProtect がこの時点で読み込まれていなくても構いません。
+     * 実際に集計する時点で {@link #coreProtect()} が取得し直します。
      * </p>
      */
     public void start() {
-        this.coreProtect = resolveCoreProtect();
+        // CoreProtect は FJEconomy より後に有効化されることがあるため、
+        // ここで見つからなくても諦めず、実際に集計する時点で解決し直す。
+        if (coreProtect() == null) {
+            plugin.getLogger().info("CoreProtect がまだ読み込まれていません。集計時に再度取得を試みます");
+        }
 
-        if (coreProtect == null) {
-            plugin.getLogger().warning("CoreProtect が利用できないため、建築量の集計を行えません"
-                    + "（サーバーに CoreProtect が導入されているか確認してください）");
-        } else if (configManager.isBuildRewardEnabled()) {
+        if (configManager.isBuildRewardEnabled()) {
             scheduleNextAggregation();
 
             // 再起動でスケジュールを跨いだ期間を取りこぼさないよう、直前の期間を起動時に集計しておく。
@@ -151,20 +161,50 @@ public class BuildRewardManager {
      * @return 利用可能な {@link CoreProtectAPI}。導入されていない・APIが古い場合は null
      */
     private CoreProtectAPI resolveCoreProtect() {
-        Plugin target = Bukkit.getPluginManager().getPlugin("CoreProtect");
-        if (!(target instanceof CoreProtect)) {
-            return null;
-        }
+        // プラグイン名で引かないこと。
+        // CoreProtect のフォーク（customProtect など）は plugin.yml の name が異なるため
+        // getPlugin("CoreProtect") では取得できないが、中身は同じで
+        // net.coreprotect.CoreProtect を継承しているので instanceof なら拾える。
+        for (Plugin candidate : Bukkit.getPluginManager().getPlugins()) {
+            if (!(candidate instanceof CoreProtect coreProtectPlugin) || !candidate.isEnabled()) {
+                continue;
+            }
 
-        CoreProtectAPI api = ((CoreProtect) target).getAPI();
-        if (api == null || !api.isEnabled()) {
-            return null;
+            CoreProtectAPI api = coreProtectPlugin.getAPI();
+            if (api == null || !api.isEnabled()) {
+                continue;
+            }
+            if (api.APIVersion() < 9) {
+                if (!apiVersionWarned) {
+                    apiVersionWarned = true;
+                    plugin.getLogger().warning("CoreProtect(" + candidate.getName()
+                            + ") の API バージョンが古すぎます: " + api.APIVersion());
+                }
+                continue;
+            }
+
+            plugin.getLogger().info("建築ログの取得元として " + candidate.getName()
+                    + " を使用します (CoreProtect API v" + api.APIVersion() + ")");
+            return api;
         }
-        if (api.APIVersion() < 9) {
-            plugin.getLogger().warning("CoreProtect の API バージョンが古すぎます: " + api.APIVersion());
-            return null;
+        return null;
+    }
+
+    /**
+     * CoreProtect API を取得します。まだ見つかっていない場合はその場で解決を試みます。
+     * <p>
+     * CoreProtect（およびそのフォーク）は FJEconomy より後に有効化されることがあり、
+     * onEnable の時点だけで判定すると「導入済みなのに使えない」状態になります。
+     * 一度取得できたらキャッシュし、それまでは呼び出しのたびに探し直します。
+     * </p>
+     *
+     * @return 利用可能な API。まだ利用できない場合は null
+     */
+    private CoreProtectAPI coreProtect() {
+        if (coreProtect == null) {
+            coreProtect = resolveCoreProtect();
         }
-        return api;
+        return coreProtect;
     }
 
     // ==========================================
@@ -487,7 +527,7 @@ public class BuildRewardManager {
      */
     private void executeQuery(PendingQuery query) {
         try {
-            if (coreProtect == null) {
+            if (coreProtect() == null) {
                 finishQuery(query.id(), "ERROR",
                         "CoreProtect が利用できないため集計できません（サーバーへの導入状況を確認してください）");
                 return;
@@ -571,6 +611,12 @@ public class BuildRewardManager {
             throw new IllegalStateException("CoreProtect のルックアップはメインスレッドから実行できません");
         }
 
+        CoreProtectAPI api = coreProtect();
+        if (api == null) {
+            throw new IllegalStateException(
+                    "CoreProtect が利用できないため集計できません（サーバーへの導入状況を確認してください）");
+        }
+
         Map<String, TargetPlayer> players = loadTargetPlayers();
         if (players.isEmpty()) {
             return new CollectResult(new LinkedHashMap<>(), false);
@@ -597,14 +643,14 @@ public class BuildRewardManager {
         // 「おおよその建築量」として扱う（1ページを大きめに取ってズレを小さくしている）。
         synchronized (lookupLock) {
             while (true) {
-                List<String[]> rows = coreProtect.performPartialLookup(
+                List<String[]> rows = api.performPartialLookup(
                         secondsBack, playerNames, null, null, excludedBlocks, actions, 0, null, offset, LOOKUP_BATCH);
                 if (rows == null || rows.isEmpty()) {
                     break;
                 }
 
                 for (String[] row : rows) {
-                    CoreProtectAPI.ParseResult result = coreProtect.parseResult(row);
+                    CoreProtectAPI.ParseResult result = api.parseResult(row);
                     if (result.isRolledBack()) {
                         continue; // ロールバック済みの変更は建築量に数えない
                     }
