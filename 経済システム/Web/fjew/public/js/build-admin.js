@@ -96,7 +96,7 @@ async function loadServers() {
 
     const selectEl = document.getElementById('fServer');
     selectEl.innerHTML = '';
-    const servers = data.length > 0 ? data : ['mc1', 'mc2', 'mc3'];
+    const servers = data.length > 0 ? data : ['Town','Live','Beta'];
     for (const serverId of servers) {
         const option = document.createElement('option');
         option.value = serverId;
