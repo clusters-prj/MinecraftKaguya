@@ -102,6 +102,45 @@ configManager.getString("database.url", "localhost");
 configManager.getInt("economy.starting_balance", 1000);
 ```
 
+### ConfigMigrator.java / YamlLines.java (設定のマイグレーション)
+
+`loadConfig()` は読み込み前に `ConfigMigrator#migrate()` を呼び、
+既存サーバーの `config.yml` を最新のスキーマへ追従させる。
+
+- `config.yml` の先頭に `config-version` を持たせ、コード側の
+  `ConfigMigrator.CURRENT_VERSION` と比較して差分を適用する
+- JAR 同梱の `config.yml` と突き合わせ、**不足しているキーを説明コメントごと補う**
+- 既に値があるキーには一切触れない（管理者が変更した値・手書きのコメントは保持）
+- 内容が変わったときだけ、`config.yml.v<旧バージョン>.<日時>.bak` へ退避してから書き出す
+- ファイルのバージョンがコードより新しい場合は警告を出して何もしない（ダウングレード保護）
+
+`YamlLines` は snakeyaml で `dump()` するとコメントが全て失われるため用意した、
+行単位の簡易YAMLエディタ。`setScalar` / `rename` / `remove` / `insertInto` を提供する。
+
+**設定項目を変更するときの手順**:
+
+| 変更内容 | 必要な作業 |
+|---|---|
+| キーの追加 | `src/main/resources/config.yml` に足すだけ。既存ファイルへは自動補完される |
+| キーの改名・削除、値の意味の変更 | `CURRENT_VERSION` を +1 し、`steps()` に `Step` を追加。同梱 config.yml の `config-version` も更新 |
+
+```java
+// ConfigMigrator#steps() への追記例
+new Step(2, "economy.tax_rate を economy.shop_tax_rate に改名", doc -> {
+    doc.rename("economy.tax_rate", "shop_tax_rate");
+}),
+new Step(3, "廃止した web_api セクションを削除", doc -> {
+    doc.remove("web_api");
+}),
+```
+
+**注意点**:
+- ルート直下に新しく増えたセクションはファイル末尾に追記される（同梱 config.yml と並び順は一致しない）
+- `remove()` はキー直上の連続コメントも巻き込む。ファイル先頭のキーを消すと
+  ファイル全体の見出しコメントも消える
+- `YamlLines` は完全なYAMLパーサではない。2スペース字下げのマッピングとスカラー値を対象とし、
+  値の解釈は従来どおり snakeyaml が行う
+
 ### DatabaseManager.java (データベース管理)
 
 MariaDB への接続とコネクションプーリング。

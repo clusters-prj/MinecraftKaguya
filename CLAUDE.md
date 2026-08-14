@@ -63,6 +63,7 @@ MariaDB（`10.2.1.27` / DB 名 `fjeconomy`）を複数の Minecraft サーバー
 
 - `arena/ArenaManager`: Web 管理画面で登録されたアリーナイベントを 5 秒ごと（100 ticks）にポーリングしてキャッシュし、`PlayerMoveEvent` / `EntityDamageByEntityEvent` を高頻度パスとして扱う（毎回 DB を叩かない）。ゾーン判定は Y を無視し、未登録プレイヤーは押し出す（`fj.arena.bypass` で回避可）。参加者の GameMode とインベントリは `ParticipantState` に退避し、イベント終了時に復元する。
 - `link/LinkManager`: `/fj link` で 6 桁のワンタイムコードを `link_codes` に発行し、Web 側 (`POST /api/auth/link`) が消費して `account_links` に UUID を紐づける。この 2 テーブルが Minecraft と Web の唯一の接点。
+- `config/ConfigMigrator`: `loadConfig()` の前段で走る config.yml のマイグレーション。`config-version` を見て `steps()` を順に適用し、JAR 同梱の config.yml から不足キーを説明コメントごと補い、変更があれば `.bak` を残して書き出す。**設定項目を追加するだけなら `src/main/resources/config.yml` を編集すれば既存サーバーへ自動反映される**。キーの改名・削除をしたときだけ `CURRENT_VERSION` を +1 して `steps()` に手順を足すこと。書き換えはコメントを保つため `config/YamlLines` の行単位編集で行う（snakeyaml の `dump()` は使わない）。
 - `shop/ShopManager` + `shop/ShopUI`: インベントリ GUI ベースのショップ。`ShopUI` は独立した Listener として登録される。
 
 ### 依存の shade と relocation

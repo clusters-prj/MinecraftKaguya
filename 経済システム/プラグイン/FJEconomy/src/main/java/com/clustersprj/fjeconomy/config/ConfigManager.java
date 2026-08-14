@@ -55,6 +55,10 @@ public class ConfigManager {
             createDefaultConfig();
         }
 
+        // スキーマ変更への追従（新しい設定項目の補完・キーの改名など）を
+        // 読み込みの前に済ませておく
+        new ConfigMigrator(plugin, configPath).migrate();
+
         // 比較用に前回の設定を保存
         this.previousConfig = new HashMap<>(config != null ? config : new HashMap<>());
 
@@ -233,6 +237,17 @@ public class ConfigManager {
         }
 
         return current instanceof String ? (String) current : "";
+    }
+
+    /**
+     * 設定ファイルのスキーマバージョンを取得します。
+     * {@link ConfigMigrator} が自動で書き込むため、通常は
+     * {@link ConfigMigrator#CURRENT_VERSION} と一致します。
+     *
+     * @return スキーマバージョン（マイグレーション導入前のファイルでは 0）
+     */
+    public int getConfigVersion() {
+        return getInt("config-version", 0);
     }
 
     // ==========================================
