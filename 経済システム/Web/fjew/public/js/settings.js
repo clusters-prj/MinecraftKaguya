@@ -42,6 +42,41 @@ function renderLinkStatus(user) {
     }
 }
 
+async function loadApiKeys(uuid, container) {
+    container.innerHTML = '<p class="text-xs text-gray-400">読み込み中...</p>';
+    try {
+        const { res, data } = await window.fjew.fetchJson(`/api/corporate-accounts/${uuid}/api-keys`);
+        if (!res.ok) throw new Error(data.error || 'APIキー一覧の取得に失敗しました');
+
+        if (data.length === 0) {
+            container.innerHTML = '<p class="text-xs text-gray-400">発行済みのAPIキーはありません。</p>';
+            return;
+        }
+
+        container.innerHTML = '';
+        for (const key of data) {
+            const row = document.createElement('div');
+            row.className = 'flex justify-between items-center text-xs bg-white rounded-lg px-2 py-1.5 border border-gray-100';
+            row.innerHTML = `
+                <span class="font-mono text-gray-500">${window.fjew.escapeHtml(key.key_name)} ****${window.fjew.escapeHtml(key.key_hint)}</span>
+                <button class="text-red-500 hover:text-red-700 font-bold revokeKeyBtn">失効</button>
+            `;
+            row.querySelector('.revokeKeyBtn').addEventListener('click', async () => {
+                if (!confirm('このAPIキーを失効しますか？')) return;
+                const { res: delRes, data: delData } = await window.fjew.fetchJson(`/api/corporate-accounts/${uuid}/api-keys/${key.id}`, { method: 'DELETE' });
+                if (!delRes.ok) {
+                    alert(delData.error || '失効に失敗しました');
+                    return;
+                }
+                loadApiKeys(uuid, container);
+            });
+            container.appendChild(row);
+        }
+    } catch (err) {
+        container.innerHTML = `<p class="text-xs text-red-500">${window.fjew.escapeHtml(err.message)}</p>`;
+    }
+}
+
 function renderCorpAccounts(user) {
     const corpAccounts = user.corporate_accounts || [];
     const listEl = document.getElementById('corpAccountList');
@@ -54,15 +89,41 @@ function renderCorpAccounts(user) {
 
     for (const acc of corpAccounts) {
         const row = document.createElement('div');
-        row.className = 'flex justify-between items-center text-xs bg-gray-50 rounded-xl px-3 py-2';
+        row.className = 'bg-gray-50 rounded-xl px-3 py-2 space-y-2';
         row.innerHTML = `
-            <div>
-                <p class="font-bold text-gray-700">${window.fjew.escapeHtml(acc.player_name)}</p>
-                <p class="text-gray-400 font-mono">${window.fjew.escapeHtml(acc.uuid)}</p>
+            <div class="flex justify-between items-center text-xs">
+                <div>
+                    <p class="font-bold text-gray-700">${window.fjew.escapeHtml(acc.player_name)}</p>
+                    <p class="text-gray-400 font-mono">${window.fjew.escapeHtml(acc.uuid)}</p>
+                </div>
+                <span class="text-gray-600">¥${window.fjew.formatYen(acc.balance)}</span>
             </div>
-            <span class="text-gray-600">¥${window.fjew.formatYen(acc.balance)}</span>
+            <div class="border-t border-gray-200 pt-2">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-[10px] font-bold text-gray-400">APIキー</span>
+                    <button class="text-[10px] fj-navbtn issueKeyBtn">新規発行</button>
+                </div>
+                <div class="apiKeyList space-y-1"></div>
+            </div>
         `;
+
+        const apiKeyListEl = row.querySelector('.apiKeyList');
+        row.querySelector('.issueKeyBtn').addEventListener('click', async () => {
+            const { res, data } = await window.fjew.fetchJson(`/api/corporate-accounts/${acc.uuid}/api-keys`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key_name: 'Web発行' })
+            });
+            if (!res.ok) {
+                alert(data.error || 'APIキーの発行に失敗しました');
+                return;
+            }
+            prompt('新しいAPIキーです。この画面を閉じると二度と表示されません。コピーして安全に保管してください。', data.api_key);
+            loadApiKeys(acc.uuid, apiKeyListEl);
+        });
+
         listEl.appendChild(row);
+        loadApiKeys(acc.uuid, apiKeyListEl);
     }
 }
 

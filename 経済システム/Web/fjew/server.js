@@ -255,6 +255,19 @@ async function initDatabase() {
                 FOREIGN KEY (owner_web_user_id) REFERENCES web_users(id) ON DELETE CASCADE
             )
         `);
+        // fjeapi (Web/fjeapi/server.js) と共有するAPIキー管理テーブル。
+        // fjeapi側で既に作成されている想定だが、起動順序に依存しないようここでも定義しておく。
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS fje_api_keys (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                minecraft_uuid VARCHAR(36) NOT NULL,
+                key_name VARCHAR(100) NOT NULL,
+                key_hash VARCHAR(64) NOT NULL UNIQUE,
+                key_hint VARCHAR(8) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_used_at TIMESTAMP NULL DEFAULT NULL
+            )
+        `);
 
         console.log("Database tables initialized successfully.");
     } catch (err) {
@@ -671,6 +684,86 @@ app.post('/api/corporate-accounts', requireAuth, async (req, res) => {
         res.json({ success: true, account: { uuid, player_name: name, balance: 0, type: 'Corporate' } });
     } catch (err) {
         if (conn) await conn.rollback();
+        res.status(400).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 指定UUIDが、このWebユーザー自身の法人口座であるかを確認する
+const assertOwnsCorporateAccount = async (conn, uuid, webUserId) => {
+    const rows = await conn.query(
+        "SELECT 1 FROM corporate_accounts WHERE minecraft_uuid = ? AND owner_web_user_id = ?",
+        [uuid, webUserId]
+    );
+    if (rows.length === 0) throw new Error("指定された法人口座はあなたの所有ではありません");
+};
+
+// 法人口座用のAPIキー発行
+// fjeapi (Web/fjeapi/server.js) が使う fje_api_keys テーブルへ直接発行する。
+// 実在プレイヤーの口座は誤発行・乗っ取りのリスクがあるため対象外とし、
+// 自分が作成した法人口座に限定する。
+app.post('/api/corporate-accounts/:uuid/api-keys', requireAuth, async (req, res) => {
+    const keyName = (req.body.key_name || 'Web発行').trim().slice(0, 100);
+
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        await assertOwnsCorporateAccount(conn, req.params.uuid, req.session.webUserId);
+
+        const rawKey = 'fjp_' + crypto.randomBytes(24).toString('hex');
+        const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
+        const keyHint = rawKey.slice(-4);
+
+        await conn.query(
+            "INSERT INTO fje_api_keys (minecraft_uuid, key_name, key_hash, key_hint) VALUES (?, ?, ?, ?)",
+            [req.params.uuid, keyName, keyHash, keyHint]
+        );
+
+        res.json({
+            success: true,
+            api_key: rawKey,
+            note: "このキーは一度しか表示されません。安全に記録してください。"
+        });
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 法人口座に発行済みのAPIキー一覧（生キーやハッシュは含まない）
+app.get('/api/corporate-accounts/:uuid/api-keys', requireAuth, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        await assertOwnsCorporateAccount(conn, req.params.uuid, req.session.webUserId);
+
+        const rows = await conn.query(
+            "SELECT id, key_name, key_hint, created_at, last_used_at FROM fje_api_keys WHERE minecraft_uuid = ? ORDER BY created_at DESC",
+            [req.params.uuid]
+        );
+        res.json(rows);
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 法人口座のAPIキーを失効
+app.delete('/api/corporate-accounts/:uuid/api-keys/:keyId', requireAuth, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        await assertOwnsCorporateAccount(conn, req.params.uuid, req.session.webUserId);
+
+        await conn.query(
+            "DELETE FROM fje_api_keys WHERE id = ? AND minecraft_uuid = ?",
+            [req.params.keyId, req.params.uuid]
+        );
+        res.json({ success: true, message: "APIキーを失効しました" });
+    } catch (err) {
         res.status(400).json({ error: err.message });
     } finally {
         if (conn) conn.release();
