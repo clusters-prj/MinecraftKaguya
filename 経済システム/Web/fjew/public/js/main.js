@@ -9,7 +9,8 @@ function renderMain(user) {
         emailEl.innerText = user.email;
     }
 
-    const accounts = user.accounts || [];
+    const linkedAccounts = user.accounts || [];
+    const accounts = [...linkedAccounts, ...(user.corporate_accounts || [])];
     cachedAccounts = accounts;
     const accountListSection = document.getElementById('accountListSection');
     const accountListEl = document.getElementById('accountList');
@@ -18,15 +19,21 @@ function renderMain(user) {
     accountListEl.innerHTML = '';
     sendFromEl.innerHTML = '';
 
-    if (accounts.length > 0) {
-        const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
-        const primary = accounts[0];
-
-        document.getElementById('userBalance').innerText = window.fjew.formatYen(totalBalance);
-        document.getElementById('mcPlayerName').innerText = primary.player_name + (accounts.length > 1 ? ` 他${accounts.length - 1}件` : '');
+    if (linkedAccounts.length > 0) {
+        document.getElementById('mcPlayerName').innerText = linkedAccounts[0].player_name + (linkedAccounts.length > 1 ? ` 他${linkedAccounts.length - 1}件` : '');
         document.getElementById('mcStatus').innerText = '連携済み';
         document.getElementById('mcStatus').className = 'bg-green-500 text-white text-xs px-2.5 py-1 rounded-full font-bold backdrop-blur-sm';
         document.getElementById('unlinkedAlert').classList.add('hidden');
+    } else {
+        document.getElementById('mcPlayerName').innerText = '未連携のプレイヤー';
+        document.getElementById('mcStatus').innerText = '未連携';
+        document.getElementById('mcStatus').className = 'bg-amber-500 text-white text-xs px-2.5 py-1 rounded-full font-bold backdrop-blur-sm';
+        document.getElementById('unlinkedAlert').classList.remove('hidden');
+    }
+
+    if (accounts.length > 0) {
+        const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
+        document.getElementById('userBalance').innerText = window.fjew.formatYen(totalBalance);
 
         for (const acc of accounts) {
             const option = document.createElement('option');
@@ -53,10 +60,6 @@ function renderMain(user) {
         }
     } else {
         document.getElementById('userBalance').innerText = '0';
-        document.getElementById('mcPlayerName').innerText = '未連携のプレイヤー';
-        document.getElementById('mcStatus').innerText = '未連携';
-        document.getElementById('mcStatus').className = 'bg-amber-500 text-white text-xs px-2.5 py-1 rounded-full font-bold backdrop-blur-sm';
-        document.getElementById('unlinkedAlert').classList.remove('hidden');
         accountListSection.classList.add('hidden');
 
         const option = document.createElement('option');

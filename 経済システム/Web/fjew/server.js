@@ -156,6 +156,16 @@ const sendServerError = (res, err) => {
     return res.status(500).json({ error: "サーバー内部でエラーが発生しました。時間をおいて再度お試しください。" });
 };
 
+// このWebユーザーが操作できる全口座のUUID一覧（連携済みマイクラアカウント＋自作の法人口座）を返す
+const getOwnedUuids = async (conn, webUserId) => {
+    const rows = await conn.query(`
+        SELECT minecraft_uuid FROM account_links WHERE web_user_id = ?
+        UNION
+        SELECT minecraft_uuid FROM corporate_accounts WHERE owner_web_user_id = ?
+    `, [webUserId, webUserId]);
+    return rows.map(r => r.minecraft_uuid);
+};
+
 // ログインチェック用ミドルウェア
 const requireAuth = (req, res, next) => {
     if (!req.session.webUserId) {
@@ -232,6 +242,17 @@ async function initDatabase() {
                 email VARCHAR(255) PRIMARY KEY,
                 token VARCHAR(255) NOT NULL,
                 expires_at TIMESTAMP NOT NULL
+            )
+        `);
+        // 法人口座（実在のマイクラプレイヤーに紐づかない、Web上でのみ作成・管理する仮想口座）
+        // 残高は他の口座と同じく fje_balances に持たせ、owner_web_user_id で作成者を管理する
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS corporate_accounts (
+                minecraft_uuid VARCHAR(36) PRIMARY KEY,
+                owner_web_user_id INT NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (owner_web_user_id) REFERENCES web_users(id) ON DELETE CASCADE
             )
         `);
 
@@ -587,13 +608,70 @@ app.get('/api/user/me', requireAuth, async (req, res) => {
             };
         });
 
+        const corpRows = await conn.query(`
+            SELECT b.uuid, b.player_name, b.balance
+            FROM corporate_accounts c
+            JOIN fje_balances b ON c.minecraft_uuid = b.uuid
+            WHERE c.owner_web_user_id = ?
+        `, [req.session.webUserId]);
+
+        const corporateAccounts = corpRows.map(row => ({
+            uuid: row.uuid,
+            player_name: row.player_name,
+            balance: row.balance,
+            type: 'Corporate'
+        }));
+
         res.json({
             email: userRows[0].email,
             discord_id: userRows[0].discord_id,
-            accounts: accounts
+            accounts: accounts,
+            corporate_accounts: corporateAccounts
         });
     } catch (err) {
         sendServerError(res, err);
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 法人口座の作成
+// 実在のマイクラプレイヤーに紐づかない、Web上でのみ作成・管理する仮想口座。
+// UUIDを新規発行して fje_balances に登録し、作成者(Webユーザー)を corporate_accounts に記録する。
+app.post('/api/corporate-accounts', requireAuth, async (req, res) => {
+    const name = (req.body.name || '').trim();
+    if (!name || name.length > 100) {
+        return res.status(400).json({ error: "口座名を100文字以内で入力してください" });
+    }
+
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        const countRows = await conn.query(
+            "SELECT COUNT(*) AS cnt FROM corporate_accounts WHERE owner_web_user_id = ?",
+            [req.session.webUserId]
+        );
+        if (Number(countRows[0].cnt) >= 5) {
+            throw new Error("法人口座は1アカウントにつき5個まで作成できます");
+        }
+
+        const uuid = crypto.randomUUID();
+        await conn.query(
+            "INSERT INTO fje_balances (uuid, player_name, balance) VALUES (?, ?, 0)",
+            [uuid, name]
+        );
+        await conn.query(
+            "INSERT INTO corporate_accounts (minecraft_uuid, owner_web_user_id, name) VALUES (?, ?, ?)",
+            [uuid, req.session.webUserId, name]
+        );
+
+        await conn.commit();
+        res.json({ success: true, account: { uuid, player_name: name, balance: 0, type: 'Corporate' } });
+    } catch (err) {
+        if (conn) await conn.rollback();
+        res.status(400).json({ error: err.message });
     } finally {
         if (conn) conn.release();
     }
@@ -613,15 +691,14 @@ app.post('/api/wallet/send', requireAuth, async (req, res) => {
         conn = await pool.getConnection();
         await conn.beginTransaction();
 
-        const links = await conn.query("SELECT minecraft_uuid FROM account_links WHERE web_user_id = ?", [req.session.webUserId]);
-        if (links.length === 0) throw new Error("マイクラアカウントが連携されていません");
+        const ownedUuids = await getOwnedUuids(conn, req.session.webUserId);
+        if (ownedUuids.length === 0) throw new Error("マイクラアカウントが連携されていません");
 
         let fromUuid = from_uuid;
         if (!fromUuid) {
-            fromUuid = links[0].minecraft_uuid;
-        } else {
-            const hasLink = links.some(l => l.minecraft_uuid === fromUuid);
-            if (!hasLink) throw new Error("指定された送金元アカウントはあなたに連携されていません");
+            fromUuid = ownedUuids[0];
+        } else if (!ownedUuids.includes(fromUuid)) {
+            throw new Error("指定された送金元アカウントはあなたに連携されていません");
         }
 
         const fromRows = await conn.query("SELECT balance FROM fje_balances WHERE uuid = ?", [fromUuid]);
@@ -767,14 +844,10 @@ app.get('/api/wallet/history', requireAuth, async (req, res) => {
     try {
         conn = await pool.getConnection();
 
-        const links = await conn.query(
-            "SELECT minecraft_uuid FROM account_links WHERE web_user_id = ?",
-            [req.session.webUserId]
-        );
-        if (links.length === 0) {
+        const myUuids = await getOwnedUuids(conn, req.session.webUserId);
+        if (myUuids.length === 0) {
             return res.json({ transactions: [], total: 0, page: 1, limit: 20, has_more: false });
         }
-        const myUuids = links.map(l => l.minecraft_uuid);
 
         const type = req.query.type || 'all'; // all | sent | received
         const page = Math.max(parseInt(req.query.page, 10) || 1, 1);

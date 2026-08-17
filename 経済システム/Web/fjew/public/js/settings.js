@@ -42,11 +42,36 @@ function renderLinkStatus(user) {
     }
 }
 
+function renderCorpAccounts(user) {
+    const corpAccounts = user.corporate_accounts || [];
+    const listEl = document.getElementById('corpAccountList');
+    listEl.innerHTML = '';
+
+    if (corpAccounts.length === 0) {
+        listEl.innerHTML = '<p class="text-sm text-gray-500">法人口座はまだありません。</p>';
+        return;
+    }
+
+    for (const acc of corpAccounts) {
+        const row = document.createElement('div');
+        row.className = 'flex justify-between items-center text-xs bg-gray-50 rounded-xl px-3 py-2';
+        row.innerHTML = `
+            <div>
+                <p class="font-bold text-gray-700">${window.fjew.escapeHtml(acc.player_name)}</p>
+                <p class="text-gray-400 font-mono">${window.fjew.escapeHtml(acc.uuid)}</p>
+            </div>
+            <span class="text-gray-600">¥${window.fjew.formatYen(acc.balance)}</span>
+        `;
+        listEl.appendChild(row);
+    }
+}
+
 async function loadSettings() {
     try {
         const user = await window.fjew.requireAuth();
         if (!user) return;
         renderLinkStatus(user);
+        renderCorpAccounts(user);
     } catch (err) {
         console.error('設定情報取得エラー:', err);
         alert('連携状態の取得に失敗しました: ' + err.message);
@@ -78,6 +103,29 @@ document.getElementById('submitLink').addEventListener('click', async () => {
         await loadSettings();
     } else {
         alert('連携失敗: ' + data.error);
+    }
+});
+
+document.getElementById('createCorpAccountBtn').addEventListener('click', async () => {
+    const nameEl = document.getElementById('corpAccountName');
+    const name = nameEl.value.trim();
+    if (!name) {
+        alert('口座名を入力してください');
+        return;
+    }
+
+    const { data } = await window.fjew.fetchJson('/api/corporate-accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+    });
+
+    if (data.success) {
+        alert(`法人口座「${name}」を作成しました`);
+        nameEl.value = '';
+        await loadSettings();
+    } else {
+        alert('作成失敗: ' + data.error);
     }
 });
 
