@@ -82,6 +82,46 @@ Web管理画面（`/build-admin`）が登録し、対象サーバーのプラグ
 | blocks_placed | INT | NOT NULL | 0 | 設置ブロック数 |
 | blocks_broken | INT | NOT NULL | 0 | 破壊ブロック数 |
 | score | INT | NOT NULL | 0 | スコア |
+### ⑧ marketplace_listings（マーケットプレイス出品）
+ふじゅでワールドデータ・スキン・メディア等のデジタルデータを売買する擬似NFTマーケットプレイスの出品情報。Web側（`Web/fjew/server.js`）が`CREATE TABLE IF NOT EXISTS`で作成・所有するテーブルで、Java側の`DatabaseManager`は関与しない（`corporate_accounts`と同様）。
+| 列名 | 型 | 制約 | デフォルト | 備考 |
+|---|---|---|---|---|
+| id | INT | **Primary Key** | AUTO_INC | 出品ID |
+| seller_uuid | VARCHAR(36) | NOT NULL | - | 出品者(fje_balances.uuid)。プレイヤー本人 or 法人口座 |
+| seller_web_user_id | INT | NOT NULL, FK→web_users(id) | - | 出品操作を行ったWebユーザー |
+| item_type | ENUM | NOT NULL | - | world_data / skin / media |
+| title | VARCHAR(100) | NOT NULL | - | タイトル |
+| description | TEXT | - | NULL | 説明文 |
+| price | INT | NOT NULL | - | 販売価格（ふじゅ・整数） |
+| edition_type | ENUM | NOT NULL | - | unique(1点物) / limited(限定数) / unlimited(無制限) |
+| max_editions | INT | - | NULL | limitedのときのみ使用 |
+| minted_count | INT | NOT NULL | 0 | これまでに発行(購入)された数 |
+| file_path | VARCHAR(255) | NOT NULL | - | 実データのファイル名（`uploads/marketplace/`配下、非公開） |
+| file_original_name | VARCHAR(255) | NOT NULL | - | アップロード時の元ファイル名（表示用） |
+| file_size | INT | NOT NULL | - | ファイルサイズ(byte) |
+| file_mime | VARCHAR(100) | NOT NULL | - | MIMEタイプ |
+| preview_image_path | VARCHAR(255) | - | NULL | プレビュー画像の公開URL（`public/uploads/marketplace-previews/`配下） |
+| status | ENUM | NOT NULL | active | active / paused / removed |
+| created_at | TIMESTAMP | NOT NULL | CURRENT... | 出品日時 |
+### ⑨ marketplace_nfts（擬似NFT本体）
+⑧ の出品に対して購入のたびに1行mintされる、所有権トークン本体。
+| 列名 | 型 | 制約 | デフォルト | 備考 |
+|---|---|---|---|---|
+| id | INT | **Primary Key** | AUTO_INC | NFT ID |
+| listing_id | INT | NOT NULL, FK→marketplace_listings(id) | - | どの出品のエディションか |
+| serial_number | INT | NOT NULL, UNIQUE(listing_id, serial_number) | - | その出品内での通し番号 |
+| owner_uuid | VARCHAR(36) | NOT NULL | - | 現在の所有者(fje_balances.uuid) |
+| minted_at | TIMESTAMP | NOT NULL | CURRENT... | 発行日時 |
+### ⑩ marketplace_transfers（譲渡履歴）
+⑨ の所有権移動履歴。購入時のmintも1レコードとして記録する（`from_uuid`がNULL=新規mint）。
+| 列名 | 型 | 制約 | デフォルト | 備考 |
+|---|---|---|---|---|
+| id | INT | **Primary Key** | AUTO_INC | 履歴ID |
+| nft_id | INT | NOT NULL, FK→marketplace_nfts(id) | - | 対象NFT |
+| from_uuid | VARCHAR(36) | - | NULL | 譲渡元。新規mint時はNULL |
+| to_uuid | VARCHAR(36) | NOT NULL | - | 譲渡先 |
+| price | INT | NOT NULL | 0 | 取引価格（無償譲渡は0） |
+| transferred_at | TIMESTAMP | NOT NULL | CURRENT... | 譲渡日時 |
 ## 3. インフラ構成図
  1. **DB Server (10.2.1.27):** データの永続化。
  2. **MC Servers:**

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ふじゅ〜ペイ | 出品する</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/js/theme.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col justify-between font-sans">
+    <header class="fj-header">
+        <div class="fj-header__inner">
+            <div class="flex items-center gap-2">
+                <button id="backBtn" class="fj-back" aria-label="戻る">←</button>
+                <h1 class="fj-logo">出品する</h1>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-md w-full mx-auto px-4 py-6 flex-grow space-y-4">
+        <form id="sellForm" class="bg-white rounded-2xl shadow-md p-6 space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">出品元アカウント</label>
+                <select id="sellerAccount" name="seller_uuid" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-600 bg-white" required></select>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">種別</label>
+                <select id="itemType" name="item_type" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-600 bg-white" required>
+                    <option value="world_data">ワールド/建築データ（.zip / .schematic / .schem / .litematic、200MBまで）</option>
+                    <option value="skin">スキン（.png、2MBまで）</option>
+                    <option value="media">画像・動画（png/jpg/gif/webp/mp4/webm、100MBまで）</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">タイトル</label>
+                <input type="text" id="title" name="title" maxlength="100" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-600" required>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">説明</label>
+                <textarea id="description" name="description" maxlength="2000" rows="3" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-600"></textarea>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">価格（ふじゅ）</label>
+                <input type="number" id="price" name="price" min="1" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-600" required>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">発行形式</label>
+                <select id="editionType" name="edition_type" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-600 bg-white">
+                    <option value="unique">1点物（最初に購入した1人だけ）</option>
+                    <option value="limited">限定数</option>
+                    <option value="unlimited">無制限</option>
+                </select>
+            </div>
+            <div id="maxEditionsField" class="hidden">
+                <label class="block text-xs font-bold text-gray-500 mb-1">限定数</label>
+                <input type="number" id="maxEditions" name="max_editions" min="1" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-600">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">アップロードするファイル</label>
+                <input type="file" id="fileInput" name="file" class="w-full text-sm" required>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">プレビュー画像（任意・png/jpg/webp、5MBまで）</label>
+                <input type="file" id="previewInput" name="preview_image" accept=".png,.jpg,.jpeg,.webp" class="w-full text-sm">
+            </div>
+            <button type="submit" id="submitBtn" class="w-full fj-btn-primary py-3">出品する</button>
+        </form>
+
+        <div class="bg-white rounded-2xl shadow-md p-6">
+            <h3 class="text-sm font-bold text-gray-800 mb-3 fj-rule">自分の出品</h3>
+            <div id="myListings" class="space-y-2"></div>
+        </div>
+    </main>
+
+    <footer class="fj-footer">
+        <div class="fj-footer__links">
+            <a href="https://web-kaguya.clusters-prj.com" target="_blank" rel="noopener">MCツクヨミコミュニティサイト</a>
+            <span class="fj-footer__sep">|</span>
+            <a href="https://discord.gg/UXpPWxyq2" target="_blank" rel="noopener">Discord</a>
+        </div>
+        &copy; 2026 FJ Economy / clusters-prj.com<br>
+        これはファンによる非公式サイトであり、公式による許可・賛同を得たものではありません。<br>
+        また、表示される通貨は仮想のものであり、現実での取引に使用できるものではありません。
+    </footer>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/marketplace-sell.js"></script>
+</body>
+</html>

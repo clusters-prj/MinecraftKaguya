@@ -14,6 +14,7 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const rateLimit = require('express-rate-limit');
 const helmet = require("helmet");
+const multer = require('multer');
 const pool = require('./db'); // この中で process.env が正常に使える
 
 // BigIntをJSONで出力できるようにシリアライズ方法を定義
@@ -198,6 +199,113 @@ const requireAdmin = async (req, res, next) => {
 };
 
 // ==========================================
+// 3.5. マーケットプレイス: アップロード設定
+// ==========================================
+// 実データ本体は public/ の外に保存し、所有権チェック付きの /api/marketplace/nfts/:id/download
+// 経由でのみ配信する（未購入者が直接URLを叩いても取得できないようにするため）。
+// プレビュー画像だけは public/uploads/marketplace-previews/ に置き、静的配信で誰でも見られるようにする。
+const MARKETPLACE_UPLOAD_DIR = path.join(__dirname, 'uploads', 'marketplace');
+const MARKETPLACE_PREVIEW_DIR = path.join(__dirname, 'public', 'uploads', 'marketplace-previews');
+fs.mkdirSync(MARKETPLACE_UPLOAD_DIR, { recursive: true });
+fs.mkdirSync(MARKETPLACE_PREVIEW_DIR, { recursive: true });
+
+const MARKETPLACE_ITEM_TYPES = ['world_data', 'skin', 'media'];
+const MARKETPLACE_EDITION_TYPES = ['unique', 'limited', 'unlimited'];
+
+// アイテム種別ごとの拡張子/MIME許可リストとサイズ上限。
+// world_data は schematic/zip 等の不透明なデータファイルなのでMIMEはクライアント申告を信用せず素通しし、拡張子のみで縛る。
+const MARKETPLACE_TYPE_RULES = {
+    world_data: {
+        extensions: ['.zip', '.schematic', '.schem', '.litematic'],
+        isValidMime: () => true,
+        maxSize: 200 * 1024 * 1024
+    },
+    skin: {
+        extensions: ['.png'],
+        isValidMime: (mime) => mime === 'image/png',
+        maxSize: 2 * 1024 * 1024
+    },
+    media: {
+        extensions: ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.mp4', '.webm'],
+        isValidMime: (mime) => mime.startsWith('image/') || mime.startsWith('video/'),
+        maxSize: 100 * 1024 * 1024
+    }
+};
+const MARKETPLACE_PREVIEW_RULE = {
+    extensions: ['.png', '.jpg', '.jpeg', '.webp'],
+    isValidMime: (mime) => mime.startsWith('image/'),
+    maxSize: 5 * 1024 * 1024
+};
+// SVGはスクリプトを埋め込めるため「画像」扱いから明示的に除外し、実行可能/スクリプト系拡張子も一律拒否する
+const MARKETPLACE_FORBIDDEN_EXTENSIONS = ['.svg', '.exe', '.sh', '.bat', '.cmd', '.js', '.mjs', '.cjs', '.html', '.htm', '.php', '.jar', '.msi', '.com', '.scr'];
+
+const marketplaceStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, file.fieldname === 'preview_image' ? MARKETPLACE_PREVIEW_DIR : MARKETPLACE_UPLOAD_DIR);
+    },
+    // クライアントのファイル名はディスク上のパスとして絶対に使わない（パストラバーサル対策）。
+    // 表示用の元ファイル名はDBの file_original_name に別途保存する。
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname).toLowerCase();
+        cb(null, `${crypto.randomUUID()}${ext}`);
+    }
+});
+
+const marketplaceUpload = multer({
+    storage: marketplaceStorage,
+    limits: { fileSize: 200 * 1024 * 1024 }, // 種別ごとの詳細な上限はハンドラ側で再チェックする
+    fileFilter: (req, file, cb) => {
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (MARKETPLACE_FORBIDDEN_EXTENSIONS.includes(ext)) {
+            return cb(new Error("許可されていないファイル形式です"));
+        }
+        if (file.fieldname === 'preview_image') {
+            if (!MARKETPLACE_PREVIEW_RULE.extensions.includes(ext) || !MARKETPLACE_PREVIEW_RULE.isValidMime(file.mimetype)) {
+                return cb(new Error("プレビュー画像はpng/jpg/jpeg/webpのみアップロードできます"));
+            }
+            return cb(null, true);
+        }
+        if (file.fieldname === 'file') {
+            // item_type はフォーム上で file フィールドより前に送信される前提（multerはstreamを順に処理するため）
+            const rule = MARKETPLACE_TYPE_RULES[req.body.item_type];
+            if (!rule) {
+                return cb(new Error("item_typeが正しくありません"));
+            }
+            if (!rule.extensions.includes(ext) || !rule.isValidMime(file.mimetype)) {
+                return cb(new Error("このアイテム種別では許可されていないファイル形式です"));
+            }
+            return cb(null, true);
+        }
+        cb(new Error("不明なアップロードフィールドです"));
+    }
+});
+
+// multerのエラー（fileFilter拒否・サイズ超過）をExpressの標準エラーハンドラに漏らさず、
+// 400として返すためのPromiseラッパー。既に保存された分のファイルがあれば掃除する。
+const runMarketplaceUpload = (req, res) => new Promise((resolve, reject) => {
+    marketplaceUpload.fields([{ name: 'file', maxCount: 1 }, { name: 'preview_image', maxCount: 1 }])(req, res, (err) => {
+        if (err) {
+            if (req.files) {
+                for (const key of Object.keys(req.files)) {
+                    for (const f of req.files[key]) fs.unlink(f.path, () => {});
+                }
+            }
+            reject(err);
+        } else {
+            resolve();
+        }
+    });
+});
+
+// リクエストに紐づくアップロード済みファイルを削除する（バリデーション失敗・DB書き込み失敗時の後始末用）
+const cleanupMarketplaceFiles = (req) => {
+    if (!req.files) return;
+    for (const key of Object.keys(req.files)) {
+        for (const f of req.files[key]) fs.unlink(f.path, () => {});
+    }
+};
+
+// ==========================================
 // 4. データベース初期化
 // ==========================================
 async function initDatabase() {
@@ -266,6 +374,55 @@ async function initDatabase() {
                 key_hint VARCHAR(8) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_used_at TIMESTAMP NULL DEFAULT NULL
+            )
+        `);
+
+        // マーケットプレイス: 出品（1つのlistingが複数編=copiesを持つ）
+        // seller_uuid/owner_uuid は fje_balances(uuid) を指すが、法人口座と同様にFKは張らない（Java所有テーブルのため）
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS marketplace_listings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                seller_uuid VARCHAR(36) NOT NULL,
+                seller_web_user_id INT NOT NULL,
+                item_type ENUM('world_data','skin','media') NOT NULL,
+                title VARCHAR(100) NOT NULL,
+                description TEXT,
+                price INT NOT NULL,
+                edition_type ENUM('unique','limited','unlimited') NOT NULL,
+                max_editions INT DEFAULT NULL,
+                minted_count INT NOT NULL DEFAULT 0,
+                file_path VARCHAR(255) NOT NULL,
+                file_original_name VARCHAR(255) NOT NULL,
+                file_size INT NOT NULL,
+                file_mime VARCHAR(100) NOT NULL,
+                preview_image_path VARCHAR(255) DEFAULT NULL,
+                status ENUM('active','paused','removed') NOT NULL DEFAULT 'active',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (seller_web_user_id) REFERENCES web_users(id) ON DELETE CASCADE
+            )
+        `);
+        // マーケットプレイス: 擬似NFT本体（購入のたびに1行mintされる）
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS marketplace_nfts (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                listing_id INT NOT NULL,
+                serial_number INT NOT NULL,
+                owner_uuid VARCHAR(36) NOT NULL,
+                minted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_listing_serial (listing_id, serial_number),
+                FOREIGN KEY (listing_id) REFERENCES marketplace_listings(id)
+            )
+        `);
+        // マーケットプレイス: 譲渡履歴（from_uuidがNULL=新規mint時の購入記録）
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS marketplace_transfers (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nft_id INT NOT NULL,
+                from_uuid VARCHAR(36) DEFAULT NULL,
+                to_uuid VARCHAR(36) NOT NULL,
+                price INT NOT NULL DEFAULT 0,
+                transferred_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (nft_id) REFERENCES marketplace_nfts(id)
             )
         `);
 
@@ -345,6 +502,18 @@ app.get('/arena-admin', (req, res) => {
 });
 app.get('/build-admin', (req, res) => {
     sendHtmlWithGTM(path.join(__dirname, 'public', 'build-admin.html'), res);
+});
+app.get('/marketplace', (req, res) => {
+    sendHtmlWithGTM(path.join(__dirname, 'public', 'marketplace.html'), res);
+});
+app.get('/marketplace-item', (req, res) => {
+    sendHtmlWithGTM(path.join(__dirname, 'public', 'marketplace-item.html'), res);
+});
+app.get('/marketplace-sell', (req, res) => {
+    sendHtmlWithGTM(path.join(__dirname, 'public', 'marketplace-sell.html'), res);
+});
+app.get('/my-collection', (req, res) => {
+    sendHtmlWithGTM(path.join(__dirname, 'public', 'my-collection.html'), res);
 });
 
 // ==========================================
@@ -1418,6 +1587,367 @@ app.get('/api/admin/build/queries/:id', requireAuth, requireAdmin, async (req, r
         `, [req.params.id]);
 
         res.json({ ...queries[0], ranking });
+    } catch (err) {
+        sendServerError(res, err);
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// ==========================================
+// 11.5. APIルート: マーケットプレイス（ふじゅでデジタルデータを売買する擬似NFT）
+// ==========================================
+
+// 一覧（公開・誰でも閲覧可）
+app.get('/api/marketplace/listings', async (req, res) => {
+    let conn;
+    try {
+        const { item_type } = req.query;
+        conn = await pool.getConnection();
+
+        let query = `
+            SELECT l.id, l.item_type, l.title, l.description, l.price, l.edition_type, l.max_editions, l.minted_count,
+                   l.preview_image_path, l.created_at, b.player_name AS seller_name
+            FROM marketplace_listings l
+            LEFT JOIN fje_balances b ON l.seller_uuid = b.uuid
+            WHERE l.status = 'active'
+        `;
+        const params = [];
+        if (item_type) {
+            if (!MARKETPLACE_ITEM_TYPES.includes(item_type)) {
+                return res.status(400).json({ error: "item_typeが正しくありません" });
+            }
+            query += " AND l.item_type = ?";
+            params.push(item_type);
+        }
+        query += " ORDER BY l.created_at DESC LIMIT 100";
+
+        const rows = await conn.query(query, params);
+        res.json(rows.map(r => ({
+            ...r,
+            remaining: r.edition_type === 'unlimited' ? null : (r.max_editions ?? 1) - r.minted_count
+        })));
+    } catch (err) {
+        sendServerError(res, err);
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 自分の出品一覧（管理用）
+app.get('/api/marketplace/my-listings', requireAuth, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query(`
+            SELECT id, seller_uuid, item_type, title, price, edition_type, max_editions, minted_count, status, created_at
+            FROM marketplace_listings
+            WHERE seller_web_user_id = ?
+            ORDER BY created_at DESC
+        `, [req.session.webUserId]);
+        res.json(rows);
+    } catch (err) {
+        sendServerError(res, err);
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 自分が所有する擬似NFT一覧（連携中の全マイクラアカウント＋法人口座を横断）
+app.get('/api/marketplace/my-collection', requireAuth, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const ownedUuids = await getOwnedUuids(conn, req.session.webUserId);
+        if (ownedUuids.length === 0) return res.json([]);
+
+        const placeholders = ownedUuids.map(() => '?').join(',');
+        const rows = await conn.query(`
+            SELECT n.id AS nft_id, n.serial_number, n.minted_at, n.owner_uuid,
+                   l.id AS listing_id, l.title, l.item_type, l.preview_image_path, l.max_editions, l.edition_type
+            FROM marketplace_nfts n
+            JOIN marketplace_listings l ON n.listing_id = l.id
+            WHERE n.owner_uuid IN (${placeholders})
+            ORDER BY n.minted_at DESC
+        `, ownedUuids);
+        res.json(rows);
+    } catch (err) {
+        sendServerError(res, err);
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 詳細（公開・既存エディション/所有者一覧つき）
+app.get('/api/marketplace/listings/:id', async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query(`
+            SELECT l.id, l.item_type, l.title, l.description, l.price, l.edition_type, l.max_editions, l.minted_count,
+                   l.preview_image_path, l.created_at, l.status, l.seller_uuid, b.player_name AS seller_name
+            FROM marketplace_listings l
+            LEFT JOIN fje_balances b ON l.seller_uuid = b.uuid
+            WHERE l.id = ?
+        `, [req.params.id]);
+        if (rows.length === 0) return res.status(404).json({ error: "出品が見つかりません" });
+
+        const listing = rows[0];
+        const editions = await conn.query(`
+            SELECT n.id, n.serial_number, n.owner_uuid, n.minted_at, b.player_name AS owner_name
+            FROM marketplace_nfts n
+            LEFT JOIN fje_balances b ON n.owner_uuid = b.uuid
+            WHERE n.listing_id = ?
+            ORDER BY n.serial_number ASC
+        `, [req.params.id]);
+
+        res.json({
+            ...listing,
+            remaining: listing.edition_type === 'unlimited' ? null : (listing.max_editions ?? 1) - listing.minted_count,
+            editions
+        });
+    } catch (err) {
+        sendServerError(res, err);
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 出品作成（ファイルアップロード込み）
+app.post('/api/marketplace/listings', requireAuth, async (req, res) => {
+    try {
+        await runMarketplaceUpload(req, res);
+    } catch (err) {
+        return res.status(400).json({ error: err.message || "ファイルのアップロードに失敗しました" });
+    }
+
+    const { seller_uuid, item_type, edition_type } = req.body;
+    const title = (req.body.title || '').trim();
+    const description = (req.body.description || '').trim().slice(0, 2000);
+
+    if (!MARKETPLACE_ITEM_TYPES.includes(item_type)) {
+        cleanupMarketplaceFiles(req);
+        return res.status(400).json({ error: "item_typeが正しくありません" });
+    }
+    if (!title || title.length > 100) {
+        cleanupMarketplaceFiles(req);
+        return res.status(400).json({ error: "タイトルを100文字以内で入力してください" });
+    }
+    if (!MARKETPLACE_EDITION_TYPES.includes(edition_type)) {
+        cleanupMarketplaceFiles(req);
+        return res.status(400).json({ error: "edition_typeが正しくありません" });
+    }
+
+    const priceAmount = parseAmount(req.body.price);
+    if (priceAmount === null || priceAmount <= 0n || priceAmount > 2147483647n) {
+        cleanupMarketplaceFiles(req);
+        return res.status(400).json({ error: "価格を正しく入力してください" });
+    }
+
+    let maxEditions = null;
+    if (edition_type === 'unique') {
+        maxEditions = 1;
+    } else if (edition_type === 'limited') {
+        const parsed = parseInt(req.body.max_editions, 10);
+        if (!Number.isInteger(parsed) || parsed < 1) {
+            cleanupMarketplaceFiles(req);
+            return res.status(400).json({ error: "限定数は1以上の整数で指定してください" });
+        }
+        maxEditions = parsed;
+    }
+
+    const fileEntry = req.files && req.files.file && req.files.file[0];
+    if (!fileEntry) {
+        cleanupMarketplaceFiles(req);
+        return res.status(400).json({ error: "ファイルをアップロードしてください" });
+    }
+    const rule = MARKETPLACE_TYPE_RULES[item_type];
+    if (fileEntry.size > rule.maxSize) {
+        cleanupMarketplaceFiles(req);
+        return res.status(400).json({ error: "ファイルサイズが上限を超えています" });
+    }
+    const previewEntry = req.files && req.files.preview_image && req.files.preview_image[0];
+    if (previewEntry && previewEntry.size > MARKETPLACE_PREVIEW_RULE.maxSize) {
+        cleanupMarketplaceFiles(req);
+        return res.status(400).json({ error: "プレビュー画像のサイズが上限を超えています" });
+    }
+
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        const ownedUuids = await getOwnedUuids(conn, req.session.webUserId);
+        if (!ownedUuids.includes(seller_uuid)) {
+            throw new Error("指定された出品元アカウントはあなたに連携されていません");
+        }
+
+        const countRows = await conn.query(
+            "SELECT COUNT(*) AS cnt FROM marketplace_listings WHERE seller_web_user_id = ? AND status = 'active'",
+            [req.session.webUserId]
+        );
+        if (Number(countRows[0].cnt) >= 20) {
+            throw new Error("アクティブな出品は1アカウントにつき20件までです");
+        }
+
+        const previewImagePath = previewEntry ? `/uploads/marketplace-previews/${previewEntry.filename}` : null;
+
+        const insertResult = await conn.query(
+            `INSERT INTO marketplace_listings
+                (seller_uuid, seller_web_user_id, item_type, title, description, price, edition_type, max_editions,
+                 file_path, file_original_name, file_size, file_mime, preview_image_path)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [seller_uuid, req.session.webUserId, item_type, title, description, priceAmount, edition_type, maxEditions,
+             fileEntry.filename, fileEntry.originalname, fileEntry.size, fileEntry.mimetype, previewImagePath]
+        );
+
+        await conn.commit();
+        res.json({ success: true, listing_id: Number(insertResult.insertId) });
+    } catch (err) {
+        if (conn) await conn.rollback();
+        cleanupMarketplaceFiles(req);
+        res.status(400).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 出品のステータス変更（出品者本人のみ。ファイルは削除しない＝既存所有者のダウンロードを保持）
+app.patch('/api/marketplace/listings/:id/status', requireAuth, async (req, res) => {
+    const { status } = req.body;
+    if (!['active', 'paused', 'removed'].includes(status)) {
+        return res.status(400).json({ error: "statusが正しくありません" });
+    }
+
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query("SELECT seller_web_user_id FROM marketplace_listings WHERE id = ?", [req.params.id]);
+        if (rows.length === 0) return res.status(404).json({ error: "出品が見つかりません" });
+        if (rows[0].seller_web_user_id !== req.session.webUserId) {
+            return res.status(403).json({ error: "この出品を編集する権限がありません" });
+        }
+
+        await conn.query("UPDATE marketplace_listings SET status = ? WHERE id = ?", [status, req.params.id]);
+        res.json({ success: true });
+    } catch (err) {
+        sendServerError(res, err);
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 購入（在庫確保・残高移動・NFT発行・履歴記録を単一トランザクションで行う）
+app.post('/api/marketplace/listings/:id/purchase', requireAuth, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        const ownedUuids = await getOwnedUuids(conn, req.session.webUserId);
+        if (ownedUuids.length === 0) throw new Error("マイクラアカウントが連携されていません");
+
+        let buyerUuid = req.body.buyer_uuid;
+        if (!buyerUuid) {
+            buyerUuid = ownedUuids[0];
+        } else if (!ownedUuids.includes(buyerUuid)) {
+            throw new Error("指定された購入元アカウントはあなたに連携されていません");
+        }
+
+        // FOR UPDATE で行ロックし、同時購入時に限定数を超えて発行されるのを防ぐ
+        const listingRows = await conn.query(
+            "SELECT * FROM marketplace_listings WHERE id = ? AND status = 'active' FOR UPDATE",
+            [req.params.id]
+        );
+        if (listingRows.length === 0) throw new Error("出品が見つからないか、購入できない状態です");
+        const listing = listingRows[0];
+
+        if (listing.seller_uuid === buyerUuid) throw new Error("自分自身の出品は購入できません");
+
+        if (listing.edition_type === 'unique' && listing.minted_count >= 1) {
+            throw new Error("この出品は既に購入済みです");
+        }
+        if (listing.edition_type === 'limited' && listing.minted_count >= listing.max_editions) {
+            throw new Error("この出品は完売しています");
+        }
+
+        const price = BigInt(listing.price);
+
+        const buyerRows = await conn.query("SELECT balance FROM fje_balances WHERE uuid = ?", [buyerUuid]);
+        if (buyerRows.length === 0) throw new Error("あなたのマイクラデータが見つかりません");
+        if (BigInt(buyerRows[0].balance) < price) throw new Error("残高が不足しています");
+
+        await conn.query("UPDATE fje_balances SET balance = balance - ? WHERE uuid = ?", [price, buyerUuid]);
+        await conn.query("UPDATE fje_balances SET balance = balance + ? WHERE uuid = ?", [price, listing.seller_uuid]);
+
+        // 行ロックに加え、compare-and-set でも在庫超過を防ぐ二重ガード
+        const updateResult = await conn.query(
+            "UPDATE marketplace_listings SET minted_count = minted_count + 1 WHERE id = ? AND minted_count = ?",
+            [listing.id, listing.minted_count]
+        );
+        if (updateResult.affectedRows === 0) throw new Error("在庫の確保に失敗しました。もう一度お試しください。");
+
+        const newSerial = listing.minted_count + 1;
+        const nftResult = await conn.query(
+            "INSERT INTO marketplace_nfts (listing_id, serial_number, owner_uuid) VALUES (?, ?, ?)",
+            [listing.id, newSerial, buyerUuid]
+        );
+        const nftId = nftResult.insertId;
+
+        await conn.query(
+            "INSERT INTO marketplace_transfers (nft_id, from_uuid, to_uuid, price) VALUES (?, NULL, ?, ?)",
+            [nftId, buyerUuid, price]
+        );
+
+        await conn.query(
+            "INSERT INTO fje_transactions (buyer_uuid, owner_uuid, price_total, server_id, item_id, net_profit, timestamp) VALUES (?, ?, ?, 'WEB', ?, ?, NOW())",
+            [buyerUuid, listing.seller_uuid, price, `MKT_${listing.id}`, price]
+        );
+
+        await conn.commit();
+        res.json({
+            success: true,
+            message: `「${listing.title}」を購入しました`,
+            nft_id: Number(nftId),
+            serial_number: newSerial
+        });
+    } catch (err) {
+        if (conn) await conn.rollback();
+        res.status(400).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 所有NFTのダウンロード/閲覧（所有者本人のみ。未購入者は直接URLを叩いても取得できない）
+app.get('/api/marketplace/nfts/:nftId/download', requireAuth, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const ownedUuids = await getOwnedUuids(conn, req.session.webUserId);
+        if (ownedUuids.length === 0) return res.status(403).json({ error: "アクセス権がありません" });
+
+        const rows = await conn.query(`
+            SELECT n.owner_uuid, l.item_type, l.file_path, l.file_original_name, l.file_mime
+            FROM marketplace_nfts n
+            JOIN marketplace_listings l ON n.listing_id = l.id
+            WHERE n.id = ?
+        `, [req.params.nftId]);
+        if (rows.length === 0) return res.status(404).json({ error: "見つかりません" });
+
+        const nft = rows[0];
+        if (!ownedUuids.includes(nft.owner_uuid)) {
+            return res.status(403).json({ error: "このアイテムを所有していません" });
+        }
+
+        // file_path はサーバー生成のファイル名のみを保存しているが、防御的にbasenameで再度縛る
+        const filePath = path.join(MARKETPLACE_UPLOAD_DIR, path.basename(nft.file_path));
+        const disposition = nft.item_type === 'world_data' ? 'attachment' : 'inline';
+        res.setHeader('Content-Type', nft.file_mime || 'application/octet-stream');
+        res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(nft.file_original_name)}"`);
+        res.sendFile(filePath, (err) => {
+            if (err && !res.headersSent) sendServerError(res, err);
+        });
     } catch (err) {
         sendServerError(res, err);
     } finally {

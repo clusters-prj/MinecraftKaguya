@@ -143,6 +143,10 @@ document.getElementById('historyBtn').addEventListener('click', () => {
     window.location.href = '/history';
 });
 
+document.getElementById('marketplaceBtn').addEventListener('click', () => {
+    window.location.href = '/marketplace';
+});
+
 document.getElementById('arenaBtn').addEventListener('click', () => {
     window.location.href = '/arena';
 });

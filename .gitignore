@@ -14,6 +14,12 @@ npm-debug.log*
 .env.local
 .env.*.local
 
+# マーケットプレイス: ユーザーがアップロードした実データ本体・プレビュー画像（非公開・容量が大きいためgit管理しない）
+経済システム/Web/fjew/uploads/marketplace/*
+!経済システム/Web/fjew/uploads/marketplace/.gitkeep
+経済システム/Web/fjew/public/uploads/marketplace-previews/*
+!経済システム/Web/fjew/public/uploads/marketplace-previews/.gitkeep
+
 # エディタ / OS
 .claude/settings.local.json
 .DS_Store

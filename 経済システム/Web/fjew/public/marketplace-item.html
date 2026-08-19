@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ふじゅ〜ペイ | アイテム詳細</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/js/theme.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col justify-between font-sans">
+    <header class="fj-header">
+        <div class="fj-header__inner">
+            <div class="flex items-center gap-2">
+                <button id="backBtn" class="fj-back" aria-label="戻る">←</button>
+                <h1 class="fj-logo">アイテム詳細</h1>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-md w-full mx-auto px-4 py-6 flex-grow space-y-4">
+        <div id="loadingIndicator" class="text-center text-xs text-gray-400 py-4">読み込み中...</div>
+
+        <div id="itemContent" class="hidden space-y-4">
+            <div class="bg-white rounded-2xl shadow-md overflow-hidden">
+                <div id="previewArea" class="aspect-video bg-gray-100 flex items-center justify-center"></div>
+                <div class="p-5 space-y-3">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <span id="itemTypeBadge" class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-700"></span>
+                            <h2 id="itemTitle" class="text-lg font-bold text-gray-800 mt-1"></h2>
+                        </div>
+                        <span id="itemPrice" class="text-xl font-black text-brand-700 whitespace-nowrap"></span>
+                    </div>
+                    <p id="itemDescription" class="text-sm text-gray-600 whitespace-pre-wrap"></p>
+                    <div class="flex justify-between text-xs text-gray-400 border-t border-gray-100 pt-3">
+                        <span>出品者: <span id="itemSeller" class="font-bold text-gray-600"></span></span>
+                        <span id="itemStock" class="font-bold"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-md p-6 space-y-3">
+                <label class="block text-xs font-bold text-gray-500 mb-1">購入元アカウント</label>
+                <select id="buyerAccount" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-600 bg-white"></select>
+                <button id="purchaseBtn" class="w-full fj-btn-primary py-3">購入する</button>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-md p-6">
+                <h3 class="text-sm font-bold text-gray-800 mb-3 fj-rule">発行済みエディション</h3>
+                <div id="editionList" class="space-y-2"></div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="fj-footer">
+        <div class="fj-footer__links">
+            <a href="https://web-kaguya.clusters-prj.com" target="_blank" rel="noopener">MCツクヨミコミュニティサイト</a>
+            <span class="fj-footer__sep">|</span>
+            <a href="https://discord.gg/UXpPWxyq2" target="_blank" rel="noopener">Discord</a>
+        </div>
+        &copy; 2026 FJ Economy / clusters-prj.com<br>
+        これはファンによる非公式サイトであり、公式による許可・賛同を得たものではありません。<br>
+        また、表示される通貨は仮想のものであり、現実での取引に使用できるものではありません。
+    </footer>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/marketplace-item.js"></script>
+</body>
+</html>
