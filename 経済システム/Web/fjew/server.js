@@ -814,7 +814,7 @@ app.get('/api/user/me', requireAuth, async (req, res) => {
         });
 
         const corpRows = await conn.query(`
-            SELECT b.uuid, b.player_name, b.balance
+            SELECT b.uuid, c.name, b.player_name AS pay_name, b.balance
             FROM corporate_accounts c
             JOIN fje_balances b ON c.minecraft_uuid = b.uuid
             WHERE c.owner_web_user_id = ?
@@ -822,7 +822,8 @@ app.get('/api/user/me', requireAuth, async (req, res) => {
 
         const corporateAccounts = corpRows.map(row => ({
             uuid: row.uuid,
-            player_name: row.player_name,
+            player_name: row.name,
+            pay_name: row.pay_name,
             balance: row.balance,
             type: 'Corporate'
         }));
@@ -862,10 +863,28 @@ app.post('/api/corporate-accounts', requireAuth, async (req, res) => {
             throw new Error("法人口座は1アカウントにつき5個まで作成できます");
         }
 
+        // 表示名（corporate_accounts.name）は実在プレイヤー名や他の法人口座名と重複してよいが、
+        // fje_balances.player_name はアカウント名送金（/api/wallet/send, /fj pay 等）の解決キーとして
+        // 使われるため、実在のマイクラプレイヤー名では絶対に使われない記号（あ0, あ1, ...）を頭に付けて
+        // 常に一意な値にする。これにより名前がかぶっても解決先が不定になったり実在プレイヤーへの
+        // なりすましが起きたりしない。
+        let internalName;
+        for (let i = 0; ; i++) {
+            const candidate = `あ${i}${name}`;
+            const existing = await conn.query(
+                "SELECT 1 FROM fje_balances WHERE player_name = ? FOR UPDATE",
+                [candidate]
+            );
+            if (existing.length === 0) {
+                internalName = candidate;
+                break;
+            }
+        }
+
         const uuid = crypto.randomUUID();
         await conn.query(
             "INSERT INTO fje_balances (uuid, player_name, balance) VALUES (?, ?, 0)",
-            [uuid, name]
+            [uuid, internalName]
         );
         await conn.query(
             "INSERT INTO corporate_accounts (minecraft_uuid, owner_web_user_id, name) VALUES (?, ?, ?)",
@@ -873,7 +892,7 @@ app.post('/api/corporate-accounts', requireAuth, async (req, res) => {
         );
 
         await conn.commit();
-        res.json({ success: true, account: { uuid, player_name: name, balance: 0, type: 'Corporate' } });
+        res.json({ success: true, account: { uuid, player_name: name, pay_name: internalName, balance: 0, type: 'Corporate' } });
     } catch (err) {
         if (conn) await conn.rollback();
         res.status(400).json({ error: err.message });
@@ -956,6 +975,40 @@ app.delete('/api/corporate-accounts/:uuid/api-keys/:keyId', requireAuth, async (
         );
         res.json({ success: true, message: "APIキーを失効しました" });
     } catch (err) {
+        res.status(400).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 法人口座の削除
+// 残高が残っていると資産が消滅してしまうため、残高0の場合のみ削除を許可する。
+// 発行済みAPIキーとcorporate_accounts/fje_balancesの行を削除する（取引履歴のfje_transactionsはFKなしのため残す）。
+app.delete('/api/corporate-accounts/:uuid', requireAuth, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        await assertOwnsCorporateAccount(conn, req.params.uuid, req.session.webUserId);
+
+        const balRows = await conn.query(
+            "SELECT balance FROM fje_balances WHERE uuid = ? FOR UPDATE",
+            [req.params.uuid]
+        );
+        if (balRows.length === 0) throw new Error("法人口座が見つかりません");
+        if (BigInt(balRows[0].balance) !== 0n) {
+            throw new Error("残高が残っている法人口座は削除できません。先に残高を0にしてください");
+        }
+
+        await conn.query("DELETE FROM fje_api_keys WHERE minecraft_uuid = ?", [req.params.uuid]);
+        await conn.query("DELETE FROM corporate_accounts WHERE minecraft_uuid = ?", [req.params.uuid]);
+        await conn.query("DELETE FROM fje_balances WHERE uuid = ?", [req.params.uuid]);
+
+        await conn.commit();
+        res.json({ success: true, message: "法人口座を削除しました" });
+    } catch (err) {
+        if (conn) await conn.rollback();
         res.status(400).json({ error: err.message });
     } finally {
         if (conn) conn.release();

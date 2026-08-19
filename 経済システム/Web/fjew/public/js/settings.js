@@ -95,8 +95,12 @@ function renderCorpAccounts(user) {
                 <div>
                     <p class="font-bold text-gray-700">${window.fjew.escapeHtml(acc.player_name)}</p>
                     <p class="text-gray-400 font-mono">${window.fjew.escapeHtml(acc.uuid)}</p>
+                    <p class="text-gray-400 mt-0.5">送金時の宛先名: <span class="font-mono text-gray-500">${window.fjew.escapeHtml(acc.pay_name)}</span></p>
                 </div>
-                <span class="text-gray-600">¥${window.fjew.formatYen(acc.balance)}</span>
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-600">¥${window.fjew.formatYen(acc.balance)}</span>
+                    <button class="text-[10px] text-red-500 hover:text-red-700 font-bold deleteCorpBtn">削除</button>
+                </div>
             </div>
             <div class="border-t border-gray-200 pt-2">
                 <div class="flex justify-between items-center mb-1">
@@ -120,6 +124,16 @@ function renderCorpAccounts(user) {
             }
             prompt('新しいAPIキーです。この画面を閉じると二度と表示されません。コピーして安全に保管してください。', data.api_key);
             loadApiKeys(acc.uuid, apiKeyListEl);
+        });
+
+        row.querySelector('.deleteCorpBtn').addEventListener('click', async () => {
+            if (!confirm(`法人口座「${acc.player_name}」を削除しますか？残高が残っている場合は削除できません。`)) return;
+            const { res, data } = await window.fjew.fetchJson(`/api/corporate-accounts/${acc.uuid}`, { method: 'DELETE' });
+            if (!res.ok) {
+                alert(data.error || '削除に失敗しました');
+                return;
+            }
+            await loadSettings();
         });
 
         listEl.appendChild(row);
@@ -182,7 +196,7 @@ document.getElementById('createCorpAccountBtn').addEventListener('click', async 
     });
 
     if (data.success) {
-        alert(`法人口座「${name}」を作成しました`);
+        alert(`法人口座「${name}」を作成しました\n送金時の宛先名: ${data.account.pay_name}`);
         nameEl.value = '';
         await loadSettings();
     } else {
