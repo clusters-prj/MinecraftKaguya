@@ -983,7 +983,9 @@ app.delete('/api/corporate-accounts/:uuid/api-keys/:keyId', requireAuth, async (
 
 // 法人口座の削除
 // 残高が残っていると資産が消滅してしまうため、残高0の場合のみ削除を許可する。
-// 発行済みAPIキーとcorporate_accounts/fje_balancesの行を削除する（取引履歴のfje_transactionsはFKなしのため残す）。
+// fje_balances の行は fje_transactions.buyer_uuid/owner_uuid 等からFK参照されているため削除できない
+// （一度でも取引があると外部キー制約違反になる）。そのため corporate_accounts（所有権）と
+// fje_api_keys のみ削除し、fje_balances 自体は残高0のまま残す（Webの一覧・作成枠からは消える）。
 app.delete('/api/corporate-accounts/:uuid', requireAuth, async (req, res) => {
     let conn;
     try {
@@ -1003,7 +1005,6 @@ app.delete('/api/corporate-accounts/:uuid', requireAuth, async (req, res) => {
 
         await conn.query("DELETE FROM fje_api_keys WHERE minecraft_uuid = ?", [req.params.uuid]);
         await conn.query("DELETE FROM corporate_accounts WHERE minecraft_uuid = ?", [req.params.uuid]);
-        await conn.query("DELETE FROM fje_balances WHERE uuid = ?", [req.params.uuid]);
 
         await conn.commit();
         res.json({ success: true, message: "法人口座を削除しました" });
