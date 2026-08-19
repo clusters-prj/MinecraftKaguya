@@ -179,7 +179,7 @@ const getOwnedUuids = async (conn, webUserId) => {
     const rows = await conn.query(`
         SELECT minecraft_uuid FROM account_links WHERE web_user_id = ?
         UNION
-        SELECT minecraft_uuid FROM corporate_accounts WHERE owner_web_user_id = ?
+        SELECT minecraft_uuid FROM corporate_accounts WHERE owner_web_user_id = ? AND deleted_at IS NULL
     `, [webUserId, webUserId]);
     return rows.map(r => r.minecraft_uuid);
 };
@@ -371,15 +371,24 @@ async function initDatabase() {
         `);
         // 法人口座（実在のマイクラプレイヤーに紐づかない、Web上でのみ作成・管理する仮想口座）
         // 残高は他の口座と同じく fje_balances に持たせ、owner_web_user_id で作成者を管理する
+        // fje_balances は fje_transactions からFK参照されているため、取引履歴のある法人口座は
+        // 物理削除できない。そのため deleted_at による論理削除にし、削除済みでも fje_balances の
+        // 行自体は残す（deleted_at が入っている口座は所有者確認・一覧・送金先解決から除外する）。
         await conn.query(`
             CREATE TABLE IF NOT EXISTS corporate_accounts (
                 minecraft_uuid VARCHAR(36) PRIMARY KEY,
                 owner_web_user_id INT NOT NULL,
                 name VARCHAR(100) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                deleted_at TIMESTAMP NULL DEFAULT NULL,
                 FOREIGN KEY (owner_web_user_id) REFERENCES web_users(id) ON DELETE CASCADE
             )
         `);
+        try {
+            await conn.query("ALTER TABLE corporate_accounts ADD COLUMN deleted_at TIMESTAMP NULL DEFAULT NULL");
+        } catch (err) {
+            if (err.code !== 'ER_DUP_FIELDNAME') throw err;
+        }
         // fjeapi (Web/fjeapi/server.js) と共有するAPIキー管理テーブル。
         // fjeapi側で既に作成されている想定だが、起動順序に依存しないようここでも定義しておく。
         await conn.query(`
@@ -817,7 +826,7 @@ app.get('/api/user/me', requireAuth, async (req, res) => {
             SELECT b.uuid, c.name, b.player_name AS pay_name, b.balance
             FROM corporate_accounts c
             JOIN fje_balances b ON c.minecraft_uuid = b.uuid
-            WHERE c.owner_web_user_id = ?
+            WHERE c.owner_web_user_id = ? AND c.deleted_at IS NULL
         `, [req.session.webUserId]);
 
         const corporateAccounts = corpRows.map(row => ({
@@ -856,7 +865,7 @@ app.post('/api/corporate-accounts', requireAuth, async (req, res) => {
         await conn.beginTransaction();
 
         const countRows = await conn.query(
-            "SELECT COUNT(*) AS cnt FROM corporate_accounts WHERE owner_web_user_id = ?",
+            "SELECT COUNT(*) AS cnt FROM corporate_accounts WHERE owner_web_user_id = ? AND deleted_at IS NULL",
             [req.session.webUserId]
         );
         if (Number(countRows[0].cnt) >= 5) {
@@ -901,10 +910,10 @@ app.post('/api/corporate-accounts', requireAuth, async (req, res) => {
     }
 });
 
-// 指定UUIDが、このWebユーザー自身の法人口座であるかを確認する
+// 指定UUIDが、このWebユーザー自身の（削除されていない）法人口座であるかを確認する
 const assertOwnsCorporateAccount = async (conn, uuid, webUserId) => {
     const rows = await conn.query(
-        "SELECT 1 FROM corporate_accounts WHERE minecraft_uuid = ? AND owner_web_user_id = ?",
+        "SELECT 1 FROM corporate_accounts WHERE minecraft_uuid = ? AND owner_web_user_id = ? AND deleted_at IS NULL",
         [uuid, webUserId]
     );
     if (rows.length === 0) throw new Error("指定された法人口座はあなたの所有ではありません");
@@ -983,9 +992,10 @@ app.delete('/api/corporate-accounts/:uuid/api-keys/:keyId', requireAuth, async (
 
 // 法人口座の削除
 // 残高が残っていると資産が消滅してしまうため、残高0の場合のみ削除を許可する。
-// fje_balances の行は fje_transactions.buyer_uuid/owner_uuid 等からFK参照されているため削除できない
-// （一度でも取引があると外部キー制約違反になる）。そのため corporate_accounts（所有権）と
-// fje_api_keys のみ削除し、fje_balances 自体は残高0のまま残す（Webの一覧・作成枠からは消える）。
+// fje_balances の行は fje_transactions.buyer_uuid/owner_uuid 等からFK参照されているため物理削除できない
+// （一度でも取引があると外部キー制約違反になる）ので、corporate_accounts.deleted_at を立てる論理削除にする。
+// deleted_at が入った行は所有者確認・一覧・作成枠カウント（assertOwnsCorporateAccount 等）と
+// /api/wallet/send の送金先解決から除外されるため、削除後にこの口座へ誰かが送金することはできない。
 app.delete('/api/corporate-accounts/:uuid', requireAuth, async (req, res) => {
     let conn;
     try {
@@ -1004,7 +1014,10 @@ app.delete('/api/corporate-accounts/:uuid', requireAuth, async (req, res) => {
         }
 
         await conn.query("DELETE FROM fje_api_keys WHERE minecraft_uuid = ?", [req.params.uuid]);
-        await conn.query("DELETE FROM corporate_accounts WHERE minecraft_uuid = ?", [req.params.uuid]);
+        await conn.query(
+            "UPDATE corporate_accounts SET deleted_at = NOW() WHERE minecraft_uuid = ?",
+            [req.params.uuid]
+        );
 
         await conn.commit();
         res.json({ success: true, message: "法人口座を削除しました" });
@@ -1046,7 +1059,14 @@ app.post('/api/wallet/send', requireAuth, async (req, res) => {
         const fromBalance = BigInt(fromRows[0].balance);
         if (fromBalance < parsedAmount) throw new Error("残高が不足しています");
 
-        const toRows = await conn.query("SELECT uuid FROM fje_balances WHERE player_name = ? OR uuid = ?", [to_player, to_player]);
+        // 削除済み（deleted_at 有り）の法人口座は所有者が誰もいない状態になるため、
+        // 名前・UUIDのどちらで指定されても送金先として解決させない。
+        const toRows = await conn.query(`
+            SELECT b.uuid
+            FROM fje_balances b
+            LEFT JOIN corporate_accounts c ON c.minecraft_uuid = b.uuid
+            WHERE (b.player_name = ? OR b.uuid = ?) AND (c.minecraft_uuid IS NULL OR c.deleted_at IS NULL)
+        `, [to_player, to_player]);
         if (toRows.length === 0) throw new Error("送金先のプレイヤーが見つかりませんでした");
         
         const toUuid = toRows[0].uuid;
