@@ -96,6 +96,8 @@ const resetPasswordLimiter = createLimiter(30 * 60 * 1000, 5);
 const linkLimiter = createLimiter(10 * 60 * 1000, 10);
 const verifyLimiter = createLimiter(10 * 60 * 1000, 20);
 const buildQueryLimiter = createLimiter(10 * 60 * 1000, 20);
+// 証明書コードは6桁(100万通り)なので、総当たりを非現実的な速度に抑える程度のレート制限
+const certVerifyLimiter = createLimiter(10 * 60 * 1000, 30);
 
 // CORS設定
 const allowedOrigin = APP_BASE_URL ? new URL(APP_BASE_URL).origin : null;
@@ -155,6 +157,21 @@ const parseAmount = (value) => {
 const sendServerError = (res, err) => {
     console.error("[Server Error]", err);
     return res.status(500).json({ error: "サーバー内部でエラーが発生しました。時間をおいて再度お試しください。" });
+};
+
+// 購入証明書: 日本時間のYYYY-MM-DDを返す（サーバーのタイムゾーン設定に依存しないようIntlで明示指定）
+const certDateString = (date = new Date()) =>
+    new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+
+// 購入証明書: NFT ID＋日付からその日限定の6桁コードを算出する。
+// DBに保存せず、SESSION_SECRETを鍵にしたHMACで毎回再計算するだけなので、
+// 日付が変わればスクリーンショットに写ったコードは自動的に無効になる。
+const certificateCode = (nftId, dateStr) => {
+    const hmac = crypto.createHmac('sha256', process.env.SESSION_SECRET)
+        .update(`marketplace-cert:${nftId}:${dateStr}`)
+        .digest('hex');
+    const num = parseInt(hmac.slice(0, 8), 16) % 1000000;
+    return String(num).padStart(6, '0');
 };
 
 // このWebユーザーが操作できる全口座のUUID一覧（連携済みマイクラアカウント＋自作の法人口座）を返す
@@ -514,6 +531,12 @@ app.get('/marketplace-sell', (req, res) => {
 });
 app.get('/my-collection', (req, res) => {
     sendHtmlWithGTM(path.join(__dirname, 'public', 'my-collection.html'), res);
+});
+app.get('/marketplace-certificate', (req, res) => {
+    sendHtmlWithGTM(path.join(__dirname, 'public', 'marketplace-certificate.html'), res);
+});
+app.get('/marketplace-verify', (req, res) => {
+    sendHtmlWithGTM(path.join(__dirname, 'public', 'marketplace-verify.html'), res);
 });
 
 // ==========================================
@@ -1947,6 +1970,93 @@ app.get('/api/marketplace/nfts/:nftId/download', requireAuth, async (req, res) =
         res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(nft.file_original_name)}"`);
         res.sendFile(filePath, (err) => {
             if (err && !res.headersSent) sendServerError(res, err);
+        });
+    } catch (err) {
+        sendServerError(res, err);
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 購入証明書（所有者本人のみ。その日限定の6桁コード付き）
+app.get('/api/marketplace/nfts/:nftId/certificate', requireAuth, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const ownedUuids = await getOwnedUuids(conn, req.session.webUserId);
+        if (ownedUuids.length === 0) return res.status(403).json({ error: "アクセス権がありません" });
+
+        const rows = await conn.query(`
+            SELECT n.id, n.serial_number, n.owner_uuid, n.minted_at,
+                   l.title, l.item_type, l.edition_type, l.max_editions,
+                   b.player_name AS owner_name
+            FROM marketplace_nfts n
+            JOIN marketplace_listings l ON n.listing_id = l.id
+            LEFT JOIN fje_balances b ON n.owner_uuid = b.uuid
+            WHERE n.id = ?
+        `, [req.params.nftId]);
+        if (rows.length === 0) return res.status(404).json({ error: "見つかりません" });
+
+        const nft = rows[0];
+        if (!ownedUuids.includes(nft.owner_uuid)) {
+            return res.status(403).json({ error: "このアイテムを所有していません" });
+        }
+
+        const dateStr = certDateString();
+        res.json({
+            nft_id: nft.id,
+            title: nft.title,
+            item_type: nft.item_type,
+            serial_number: nft.serial_number,
+            edition_type: nft.edition_type,
+            max_editions: nft.max_editions,
+            owner_name: nft.owner_name,
+            minted_at: nft.minted_at,
+            date: dateStr,
+            code: certificateCode(nft.id, dateStr)
+        });
+    } catch (err) {
+        sendServerError(res, err);
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 証明書コードの検証（公開・誰でも利用可。スクショを見せられた側が真贋・鮮度を確認するためのエンドポイント）
+app.get('/api/marketplace/certificate/verify', certVerifyLimiter, async (req, res) => {
+    const nftId = parseInt(req.query.nft_id, 10);
+    const code = String(req.query.code || '').trim();
+    if (!Number.isInteger(nftId) || !/^\d{6}$/.test(code)) {
+        return res.status(400).json({ error: "NFT IDと6桁のコードを指定してください" });
+    }
+
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query(`
+            SELECT n.id, n.serial_number, n.minted_at,
+                   l.title, l.item_type, l.edition_type, l.max_editions,
+                   b.player_name AS owner_name
+            FROM marketplace_nfts n
+            JOIN marketplace_listings l ON n.listing_id = l.id
+            LEFT JOIN fje_balances b ON n.owner_uuid = b.uuid
+            WHERE n.id = ?
+        `, [nftId]);
+        if (rows.length === 0) return res.json({ valid: false, reason: "該当するアイテムが見つかりません" });
+
+        const nft = rows[0];
+        const dateStr = certDateString();
+        const valid = code === certificateCode(nft.id, dateStr);
+
+        res.json({
+            valid,
+            checked_date: dateStr,
+            title: nft.title,
+            item_type: nft.item_type,
+            serial_number: nft.serial_number,
+            edition_type: nft.edition_type,
+            max_editions: nft.max_editions,
+            owner_name: nft.owner_name
         });
     } catch (err) {
         sendServerError(res, err);

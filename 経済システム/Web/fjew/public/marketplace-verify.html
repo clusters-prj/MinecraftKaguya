@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ふじゅ〜ペイ | 証明書を確認する</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/js/theme.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col justify-between font-sans">
+    <header class="fj-header">
+        <div class="fj-header__inner">
+            <div class="flex items-center gap-2">
+                <button id="backBtn" class="fj-back" aria-label="戻る">←</button>
+                <h1 class="fj-logo">証明書を確認する</h1>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-md w-full mx-auto px-4 py-6 flex-grow space-y-4">
+        <div class="bg-white rounded-2xl shadow-md p-6 text-xs text-gray-500">
+            見せられたスクリーンショットに書かれている「NFT ID」と「確認コード」を入力すると、それが本日時点で本物の証明書か確認できます。日付が変わるとコードは無効になるので、古いスクリーンショットの使い回しは弾かれます。
+        </div>
+
+        <form id="verifyForm" class="bg-white rounded-2xl shadow-md p-6 space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">NFT ID</label>
+                <input type="text" id="nftIdInput" inputmode="numeric" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-600" required>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">確認コード（6桁）</label>
+                <input type="text" id="codeInput" inputmode="numeric" maxlength="6" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm font-mono tracking-widest text-center focus:outline-none focus:border-brand-600" required>
+            </div>
+            <button type="submit" class="w-full fj-btn-primary py-3">確認する</button>
+        </form>
+
+        <div id="resultArea"></div>
+    </main>
+
+    <footer class="fj-footer">
+        <div class="fj-footer__links">
+            <a href="https://web-kaguya.clusters-prj.com" target="_blank" rel="noopener">MCツクヨミコミュニティサイト</a>
+            <span class="fj-footer__sep">|</span>
+            <a href="https://discord.gg/UXpPWxyq2" target="_blank" rel="noopener">Discord</a>
+        </div>
+        &copy; 2026 FJ Economy / clusters-prj.com<br>
+        これはファンによる非公式サイトであり、公式による許可・賛同を得たものではありません。<br>
+        また、表示される通貨は仮想のものであり、現実での取引に使用できるものではありません。
+    </footer>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/marketplace-verify.js"></script>
+</body>
+</html>

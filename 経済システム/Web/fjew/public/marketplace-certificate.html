@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ふじゅ〜ペイ | 購入証明書</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/js/theme.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col justify-between font-sans">
+    <header class="fj-header">
+        <div class="fj-header__inner">
+            <div class="flex items-center gap-2">
+                <button id="backBtn" class="fj-back" aria-label="戻る">←</button>
+                <h1 class="fj-logo">購入証明書</h1>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-md w-full mx-auto px-4 py-6 flex-grow space-y-4">
+        <div id="loadingIndicator" class="text-center text-xs text-gray-400 py-4">読み込み中...</div>
+
+        <div id="certContent" class="hidden">
+            <div class="fj-balance text-white rounded-3xl p-6 space-y-4">
+                <div class="z-10 relative">
+                    <span id="certItemType" class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/20"></span>
+                    <h2 id="certTitle" class="text-lg font-bold mt-2"></h2>
+                    <p id="certSerial" class="text-xs opacity-80 mt-1"></p>
+                    <p id="certOwner" class="text-xs opacity-80"></p>
+                </div>
+                <div class="z-10 relative bg-white/10 rounded-2xl p-4 text-center">
+                    <p class="text-[10px] opacity-70">本日 (<span id="certDate"></span>) の確認コード</p>
+                    <p id="certCode" class="text-4xl font-black tracking-[0.2em] mt-1"></p>
+                    <p class="text-[10px] opacity-70 mt-2">このコードは日本時間で日付が変わると無効になります。<br>古いスクリーンショットは/marketplace-verifyで無効と判定されます。</p>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-md p-6 mt-4 text-xs text-gray-500 space-y-2">
+                <p class="font-bold text-gray-700">この証明書の確認方法</p>
+                <p><a href="/marketplace-verify" class="text-brand-700 font-bold underline">証明書を確認するページ</a>で、NFT ID「<span id="certNftId" class="font-mono font-bold"></span>」と上のコードを入力すると、本物かどうか誰でも確認できます。</p>
+            </div>
+        </div>
+    </main>
+
+    <footer class="fj-footer">
+        <div class="fj-footer__links">
+            <a href="https://web-kaguya.clusters-prj.com" target="_blank" rel="noopener">MCツクヨミコミュニティサイト</a>
+            <span class="fj-footer__sep">|</span>
+            <a href="https://discord.gg/UXpPWxyq2" target="_blank" rel="noopener">Discord</a>
+        </div>
+        &copy; 2026 FJ Economy / clusters-prj.com<br>
+        これはファンによる非公式サイトであり、公式による許可・賛同を得たものではありません。<br>
+        また、表示される通貨は仮想のものであり、現実での取引に使用できるものではありません。
+    </footer>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/marketplace-certificate.js"></script>
+</body>
+</html>
