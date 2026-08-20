@@ -31,6 +31,40 @@ const PORT = 3200;
 // 政府口座のUUID定数
 const GOV_UUID = '00000000-0000-0000-0000-000000000001';
 
+// マーケットプレイスの税率設定。
+// FJEconomy(Java側)の economy.tax_rate / economy.rounding_method (config.yml) と同じ計算式を
+// Web側でも再現するためのもの。Web側はJava側のconfig.ymlを読めないので、
+// 管理者がゲーム内の税率を変更した場合は .env の MARKETPLACE_TAX_RATE / MARKETPLACE_TAX_ROUNDING も
+// 手動で合わせる必要がある（自動同期はしていない）。
+// 税率は「基準点(1 = 0.01%)」の整数(BigInt)で保持し、浮動小数点誤差を避ける。
+const parseTaxRateBasisPoints = (value) => {
+    const text = String(value ?? '10.0').trim();
+    const matched = text.match(/^(\d+)(?:\.(\d{1,2}))?$/);
+    if (!matched) {
+        throw new Error(`MARKETPLACE_TAX_RATE の形式が不正です: "${text}"（例: "10" や "10.0"）`);
+    }
+    const fracPart = (matched[2] || '').padEnd(2, '0');
+    return BigInt(matched[1]) * 100n + BigInt(fracPart);
+};
+const MARKETPLACE_TAX_RATE_BP = parseTaxRateBasisPoints(process.env.MARKETPLACE_TAX_RATE);
+
+const MARKETPLACE_TAX_ROUNDING = (process.env.MARKETPLACE_TAX_ROUNDING || 'HALF_UP').trim().toUpperCase();
+if (!['HALF_UP', 'DOWN'].includes(MARKETPLACE_TAX_ROUNDING)) {
+    throw new Error(`MARKETPLACE_TAX_ROUNDING は HALF_UP か DOWN のみ対応しています（指定値: "${MARKETPLACE_TAX_ROUNDING}"）`);
+}
+
+// price * MARKETPLACE_TAX_RATE_BP / 10000 を丸めて税額(BigInt)を返す。
+// HALF_UP: JavaのRoundingMode.HALF_UPと同じ「0.5以上切り上げ」。DOWN: 切り捨て。
+const calculateMarketplaceTax = (price) => {
+    if (MARKETPLACE_TAX_RATE_BP === 0n) return 0n;
+    const numerator = price * MARKETPLACE_TAX_RATE_BP;
+    const denominator = 10000n;
+    const quotient = numerator / denominator;
+    if (MARKETPLACE_TAX_ROUNDING === 'DOWN') return quotient;
+    const remainder = numerator % denominator;
+    return (remainder * 2n >= denominator) ? quotient + 1n : quotient;
+};
+
 // シークレットがないとき通知だけ
 if (!process.env.SESSION_SECRET) {
     throw new Error("SESSION_SECRET is not set.");
@@ -1969,13 +2003,25 @@ app.post('/api/marketplace/listings/:id/purchase', requireAuth, async (req, res)
         }
 
         const price = BigInt(listing.price);
+        // ショップ購入(EconomyManager#calculateTax)と同じ税率・丸め方式で税額を算出する。
+        // 出品者が受け取るのは price から税を引いた分だけで、税は国庫(GOV_UUID)へ入る。
+        const taxAmount = calculateMarketplaceTax(price);
+        const sellerAmount = price - taxAmount;
 
-        const buyerRows = await conn.query("SELECT balance FROM fje_balances WHERE uuid = ?", [buyerUuid]);
+        const buyerRows = await conn.query("SELECT balance, player_name FROM fje_balances WHERE uuid = ?", [buyerUuid]);
         if (buyerRows.length === 0) throw new Error("あなたのマイクラデータが見つかりません");
         if (BigInt(buyerRows[0].balance) < price) throw new Error("残高が不足しています");
+        const buyerName = buyerRows[0].player_name;
 
         await conn.query("UPDATE fje_balances SET balance = balance - ? WHERE uuid = ?", [price, buyerUuid]);
-        await conn.query("UPDATE fje_balances SET balance = balance + ? WHERE uuid = ?", [price, listing.seller_uuid]);
+        await conn.query("UPDATE fje_balances SET balance = balance + ? WHERE uuid = ?", [sellerAmount, listing.seller_uuid]);
+        if (taxAmount > 0n) {
+            await conn.query("UPDATE fje_balances SET balance = balance + ? WHERE uuid = ?", [taxAmount, GOV_UUID]);
+            await conn.query(
+                "INSERT INTO fje_government_ledger (timestamp, type, amount, description) VALUES (NOW(), 'TAX_IN', ?, ?)",
+                [taxAmount, `${listing.title} (MKT_${listing.id}) from ${buyerName}`]
+            );
+        }
 
         // 行ロックに加え、compare-and-set でも在庫超過を防ぐ二重ガード
         const updateResult = await conn.query(
@@ -1997,16 +2043,18 @@ app.post('/api/marketplace/listings/:id/purchase', requireAuth, async (req, res)
         );
 
         await conn.query(
-            "INSERT INTO fje_transactions (buyer_uuid, owner_uuid, price_total, server_id, item_id, net_profit, timestamp) VALUES (?, ?, ?, 'WEB', ?, ?, NOW())",
-            [buyerUuid, listing.seller_uuid, price, `MKT_${listing.id}`, price]
+            "INSERT INTO fje_transactions (buyer_uuid, owner_uuid, price_total, server_id, item_id, tax_amount, net_profit, timestamp) VALUES (?, ?, ?, 'WEB', ?, ?, ?, NOW())",
+            [buyerUuid, listing.seller_uuid, price, `MKT_${listing.id}`, taxAmount, sellerAmount]
         );
 
         await conn.commit();
         res.json({
             success: true,
-            message: `「${listing.title}」を購入しました`,
+            message: `「${listing.title}」を購入しました（税額 ¥${taxAmount}）`,
             nft_id: Number(nftId),
-            serial_number: newSerial
+            serial_number: newSerial,
+            tax_amount: taxAmount.toString(),
+            seller_amount: sellerAmount.toString()
         });
     } catch (err) {
         if (conn) await conn.rollback();
