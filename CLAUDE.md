@@ -37,6 +37,8 @@ node server.js
 
 `PORT` は 3200 固定。`SESSION_SECRET` / `APP_BASE_URL` / `SMTP_HOST` は未設定だと起動時に落ちる。DB 接続情報などは `.env`（gitignore 済み）から `dotenv` で読む。
 
+外部連携用 REST API（`経済システム/Web/fjeapi`、法人口座がオーナー自身で発行できる API キー向け）は別プロセス・別ポート（3000 固定）で動く。起動は同様に `npm install` → `node server.js`。`fje_api_keys` テーブル（`minecraft_uuid` / `key_hash` / `key_hint` を保持）を自前で `CREATE TABLE IF NOT EXISTS` して初期化する。エラーレスポンスは `sendServerError()` で汎用メッセージに丸め、DB のテーブル名・SQL エラーをクライアントに漏らさない設計。金額は `BigInt` でパースし（`parseAmount()`）、`double`/`isNaN` によるオーバーフローや不正文字列を避ける。`.env` は fjew とは別に用意し、`API_MANAGEMENT_SECRET` を追加で要求する。
+
 ## CI / デプロイの仕組み
 
 - `build.yml`: main への push で全 pom のバージョンに `-b<run_number>` を付与してビルドし、JAR を Reposilite（`reposilite.clusters-prj.com`）へアップロード。`-SNAPSHOT` の有無で `snapshots` / `releases` を自動振り分けし、`<artifactId>-<baseVersion>-latest.jar` も同時に上書きする。**サーバーはこの `-latest.jar` を取りにくるので、pom のバージョン表記を変えるとデプロイ先パスが変わる。**
