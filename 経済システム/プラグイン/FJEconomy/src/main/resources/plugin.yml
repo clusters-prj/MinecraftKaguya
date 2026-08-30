@@ -41,7 +41,7 @@ commands:
 
   skin:
     description: Marketplace skin management commands
-    usage: /skin [list|use <番号>]
+    usage: /skin [list|use <番号>|reset]
 
 permissions:
   fj.use:

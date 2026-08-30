@@ -2,6 +2,7 @@ package com.clustersprj.fjeconomy.skin;
 
 import com.clustersprj.fjeconomy.FJEconomy;
 import com.clustersprj.fjeconomy.database.DatabaseManager;
+import com.destroystokyo.paper.profile.ProfileProperty;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -9,8 +10,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
 /**
@@ -26,9 +29,28 @@ public class SkinManager {
     private final FJEconomy plugin;
     private final DatabaseManager dbManager;
 
+    /**
+     * ログイン時にMojang側から解決された「本来のスキン」のtexturesプロパティを、
+     * マーケットプレイスのスキンで上書きする前にセッション中だけ覚えておくキャッシュ。
+     * {@code /skin reset} で元のスキンへ戻す際に使う（プレイヤー退出時に破棄する）。
+     */
+    private final Map<UUID, ProfileProperty> originalTextureCache = new ConcurrentHashMap<>();
+
     public SkinManager(FJEconomy plugin) {
         this.plugin = plugin;
         this.dbManager = plugin.getDatabaseManager();
+    }
+
+    public void cacheOriginalTexture(UUID uuid, ProfileProperty property) {
+        originalTextureCache.put(uuid, property);
+    }
+
+    public Optional<ProfileProperty> getOriginalTexture(UUID uuid) {
+        return Optional.ofNullable(originalTextureCache.get(uuid));
+    }
+
+    public void forgetOriginalTexture(UUID uuid) {
+        originalTextureCache.remove(uuid);
     }
 
     /** Java版クライアントへ適用する署名済みテクスチャ */
@@ -154,6 +176,23 @@ public class SkinManager {
             return true;
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "使用中スキンの設定に失敗しました (uuid=" + uuid + ", nftId=" + nftId + ")", e);
+            return false;
+        }
+    }
+
+    /**
+     * 指定キャラクターの「使用中」スキンを解除する（元のスキンに戻すための前段。
+     * 実際のプロフィール復元は {@link SkinListener}/コマンド側が担う）。
+     */
+    public boolean clearActiveSkin(UUID uuid) {
+        String sql = "DELETE FROM fje_active_skins WHERE minecraft_uuid = ?";
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, uuid.toString());
+            stmt.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "使用中スキンの解除に失敗しました (uuid=" + uuid + ")", e);
             return false;
         }
     }

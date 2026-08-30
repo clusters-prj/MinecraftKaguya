@@ -2304,6 +2304,47 @@ app.post('/api/marketplace/nfts/:nftId/use', requireAuth, async (req, res) => {
     }
 });
 
+// スキンNFTの「使用中」設定を解除し、元のスキンに戻す。
+// 「使用する」で有効化した本人キャラクターだけでなく、同じWebアカウントの別キャラクターで
+// /skin use していた場合もまとめて解除する（このNFTを使っているのをすべて止める、という意味）。
+app.post('/api/marketplace/nfts/:nftId/unuse', requireAuth, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        const ownedUuids = await getOwnedUuids(conn, req.session.webUserId);
+        if (ownedUuids.length === 0) throw new Error("マイクラアカウントが連携されていません");
+
+        const rows = await conn.query(
+            `SELECT n.id, n.owner_uuid, l.item_type
+             FROM marketplace_nfts n
+             JOIN marketplace_listings l ON n.listing_id = l.id
+             WHERE n.id = ?`,
+            [req.params.nftId]
+        );
+        if (rows.length === 0) throw new Error("スキンが見つかりません");
+        const nft = rows[0];
+
+        if (nft.item_type !== 'skin') throw new Error("このアイテムはスキンではありません");
+        if (!ownedUuids.includes(nft.owner_uuid)) throw new Error("このスキンを所有していません");
+
+        const placeholders = ownedUuids.map(() => '?').join(',');
+        await conn.query(
+            `DELETE FROM fje_active_skins WHERE nft_id = ? AND minecraft_uuid IN (${placeholders})`,
+            [nft.id, ...ownedUuids]
+        );
+
+        await conn.commit();
+        res.json({ success: true });
+    } catch (err) {
+        if (conn) await conn.rollback();
+        res.status(400).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
 // 所有NFTのダウンロード/閲覧（所有者本人のみ。未購入者は直接URLを叩いても取得できない）
 app.get('/api/marketplace/nfts/:nftId/download', requireAuth, async (req, res) => {
     let conn;

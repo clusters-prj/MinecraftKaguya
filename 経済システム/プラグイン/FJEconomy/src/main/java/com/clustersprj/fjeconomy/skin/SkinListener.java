@@ -6,6 +6,7 @@ import com.destroystokyo.paper.profile.ProfileProperty;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 
 /**
  * ログイン確定前にマーケットプレイスで「使用中」のスキンをJavaプロフィールへ焼き込むリスナー。
@@ -15,6 +16,11 @@ import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
  * Floodgate経由のBedrockプレイヤーも {@link AsyncPlayerPreLoginEvent#getUniqueId()} が
  * 決定論的なUUIDを透過的に返すため、Java/Bedrockで分岐する必要はない
  * （{@code LinkManager} が player.getUniqueId() を一律に扱っているのと同じ前提）。
+ * </p>
+ * <p>
+ * 上書きする前のMojang側の本来のtexturesプロパティを {@link SkinManager} へ毎回キャッシュしておく。
+ * {@code /skin reset} で元のスキンへ戻す際にこれを使う（キャッシュはセッション限りで、
+ * 退出時に破棄する）。
  * </p>
  */
 public class SkinListener implements Listener {
@@ -27,9 +33,19 @@ public class SkinListener implements Listener {
 
     @EventHandler
     public void onAsyncPreLogin(AsyncPlayerPreLoginEvent event) {
-        skinManager.getActiveSkinTexture(event.getUniqueId()).ifPresent(texture -> {
-            PlayerProfile profile = event.getPlayerProfile();
-            profile.setProperty(new ProfileProperty("textures", texture.textureValue(), texture.textureSignature()));
-        });
+        PlayerProfile profile = event.getPlayerProfile();
+
+        profile.getProperties().stream()
+                .filter(property -> "textures".equals(property.getName()))
+                .findFirst()
+                .ifPresent(property -> skinManager.cacheOriginalTexture(event.getUniqueId(), property));
+
+        skinManager.getActiveSkinTexture(event.getUniqueId()).ifPresent(texture ->
+                profile.setProperty(new ProfileProperty("textures", texture.textureValue(), texture.textureSignature())));
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        skinManager.forgetOriginalTexture(event.getPlayer().getUniqueId());
     }
 }

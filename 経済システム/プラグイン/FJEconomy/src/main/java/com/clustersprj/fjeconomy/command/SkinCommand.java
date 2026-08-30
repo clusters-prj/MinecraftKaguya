@@ -50,9 +50,11 @@ public class SkinCommand implements CommandExecutor, TabCompleter {
                 return handleList(player);
             case "use":
                 return handleUse(player, args);
+            case "reset":
+                return handleReset(player);
             default:
                 player.sendMessage(MiniMessage.miniMessage().deserialize(
-                        plugin.getConfigManager().getMessagePrefix() + "<red>使用方法: /skin [list|use <番号>]"));
+                        plugin.getConfigManager().getMessagePrefix() + "<red>使用方法: /skin [list|use <番号>|reset]"));
                 return true;
         }
     }
@@ -67,7 +69,7 @@ public class SkinCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(MiniMessage.miniMessage().deserialize(
                     plugin.getConfigManager().getMessagePrefix() + "<gray>現在マーケットプレイスのスキンは使用していません"));
         }
-        player.sendMessage(MiniMessage.miniMessage().deserialize("<gray>一覧: /skin list, 変更: /skin use <番号>"));
+        player.sendMessage(MiniMessage.miniMessage().deserialize("<gray>一覧: /skin list, 変更: /skin use <番号>, 元に戻す: /skin reset"));
         return true;
     }
 
@@ -134,6 +136,28 @@ public class SkinCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
+     * /skin reset - マーケットプレイスのスキンの使用をやめ、元々のスキン（Mojang側で解決された
+     * 本来のスキン、またはBedrockプレイヤーの実機スキン）に戻す。
+     * ログイン時に {@link com.clustersprj.fjeconomy.skin.SkinListener} がキャッシュしておいた
+     * 上書き前のtexturesプロパティを復元する。キャッシュが無い場合（プラグイン導入後に一度も
+     * 再ログインしていない等）はプロパティ自体を削除し、次回ログイン時にMojang側の値へ戻す。
+     */
+    private boolean handleReset(Player player) {
+        skinManager.clearActiveSkin(player.getUniqueId());
+
+        PlayerProfile profile = player.getPlayerProfile();
+        profile.removeProperty("textures");
+        skinManager.getOriginalTexture(player.getUniqueId()).ifPresent(profile::setProperty);
+        player.setPlayerProfile(profile);
+        refreshSkinForOthers(player);
+
+        player.sendMessage(MiniMessage.miniMessage().deserialize(
+                plugin.getConfigManager().getMessagePrefix() +
+                "<green>元のスキンに戻しました。<gray>（自分の一人称視点に反映されない場合は再接続してください）"));
+        return true;
+    }
+
+    /**
      * 他プレイヤーから見た外見をベストエフォートで即時更新する。
      * vanillaクライアントには「自分自身を強制的に再スポーンさせる」公式APIが無いため、
      * 変更した本人の一人称視点は再接続まで反映されない場合がある（既知の制約）。
@@ -150,7 +174,7 @@ public class SkinCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> completions = new ArrayList<>();
         if (args.length == 1) {
-            org.bukkit.util.StringUtil.copyPartialMatches(args[0], List.of("list", "use"), completions);
+            org.bukkit.util.StringUtil.copyPartialMatches(args[0], List.of("list", "use", "reset"), completions);
         }
         return completions;
     }
