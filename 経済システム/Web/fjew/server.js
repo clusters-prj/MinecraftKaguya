@@ -1947,16 +1947,21 @@ app.get('/api/marketplace/my-collection', requireAuth, async (req, res) => {
         if (ownedUuids.length === 0) return res.json([]);
 
         const placeholders = ownedUuids.map(() => '?').join(',');
+        // is_active_skin は「購入したキャラクターが使用中か」ではなく「同じWebアカウントに
+        // リンクされたどれかのキャラクターが現在このスキンを使用中か」で判定する
+        // (Java用・Bedrock用など別キャラクターで使っていても「使用中」バッジを出すため)。
         const rows = await conn.query(`
             SELECT n.id AS nft_id, n.serial_number, n.minted_at, n.owner_uuid,
                    l.id AS listing_id, l.title, l.item_type, l.preview_image_path, l.max_editions, l.edition_type,
-                   (a.nft_id IS NOT NULL) AS is_active_skin
+                   EXISTS (
+                       SELECT 1 FROM fje_active_skins a
+                       WHERE a.nft_id = n.id AND a.minecraft_uuid IN (${placeholders})
+                   ) AS is_active_skin
             FROM marketplace_nfts n
             JOIN marketplace_listings l ON n.listing_id = l.id
-            LEFT JOIN fje_active_skins a ON a.minecraft_uuid = n.owner_uuid AND a.nft_id = n.id
             WHERE n.owner_uuid IN (${placeholders})
             ORDER BY n.minted_at DESC
-        `, ownedUuids);
+        `, [...ownedUuids, ...ownedUuids]);
         res.json(rows);
     } catch (err) {
         sendServerError(res, err);

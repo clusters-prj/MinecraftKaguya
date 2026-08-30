@@ -68,10 +68,16 @@ public class SkinDbClient {
     }
 
     private Optional<SkinPayload> fetchFromDatabase(UUID uuid) {
+        // NFTの実所有者(owner_uuid)と、これから表示しようとしているキャラクターのUUIDが
+        // 「同じWebアカウント(account_links.web_user_id)にリンクされているか」を再検証する。
+        // 購入時と使用時で異なるMinecraftアカウント（Java用・Bedrock用など）でも、
+        // 同じWebアカウントにリンクされていれば所有者とみなす(SkinManagerと同じ方針)。
         String sql = "SELECT l.skin_png_data, l.skin_model " +
                 "FROM fje_active_skins a " +
-                "JOIN marketplace_nfts n ON n.id = a.nft_id AND n.owner_uuid = a.minecraft_uuid " +
+                "JOIN marketplace_nfts n ON n.id = a.nft_id " +
                 "JOIN marketplace_listings l ON l.id = n.listing_id AND l.item_type = 'skin' " +
+                "JOIN account_links owner_link ON owner_link.minecraft_uuid = n.owner_uuid " +
+                "JOIN account_links my_link ON my_link.web_user_id = owner_link.web_user_id AND my_link.minecraft_uuid = a.minecraft_uuid " +
                 "WHERE a.minecraft_uuid = ? AND l.skin_png_data IS NOT NULL";
         try (Connection conn = dataSource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
