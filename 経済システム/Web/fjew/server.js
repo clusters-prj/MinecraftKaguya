@@ -607,6 +607,47 @@ async function initDatabase() {
     }
 }
 
+// スキンPNGの検証・署名機能を追加する前に出品された item_type='skin' は、
+// skin_texture_value 等が NULL のまま残っている。そのままだと「購入はできるが
+// マーケットプレイス上でもMinecraft上でも使用できない（サイレントに何も起きない）」
+// という壊れた状態になるため、起動時に一度だけ既存ファイルを読み直して検証・署名し直す。
+// 64x64でない、あるいはmineskin.orgに到達できない等で失敗した出品は 'paused' にして
+// 新規購入だけを止める（既存の所有者のダウンロード自体は止めない）。
+async function backfillLegacySkinListings() {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query(
+            "SELECT id, file_path, title FROM marketplace_listings " +
+            "WHERE item_type = 'skin' AND skin_texture_value IS NULL AND status != 'removed'"
+        );
+        if (rows.length === 0) return;
+
+        console.log(`未署名の既存スキン出品が${rows.length}件あります。再検証を行います...`);
+        for (const row of rows) {
+            try {
+                const pngBuffer = fs.readFileSync(path.join(MARKETPLACE_UPLOAD_DIR, path.basename(row.file_path)));
+                validateSkinPngDimensions(pngBuffer);
+                const signature = await signSkinTexture(pngBuffer);
+                await conn.query(
+                    `UPDATE marketplace_listings
+                     SET skin_model = ?, skin_png_data = ?, skin_texture_value = ?, skin_texture_signature = ?, skin_signed_at = NOW()
+                     WHERE id = ?`,
+                    [signature.model, pngBuffer, signature.textureValue, signature.textureSignature, row.id]
+                );
+                console.log(`  ✓ 出品#${row.id}「${row.title}」を署名しました`);
+            } catch (err) {
+                await conn.query("UPDATE marketplace_listings SET status = 'paused' WHERE id = ? AND status = 'active'", [row.id]);
+                console.error(`  ✗ 出品#${row.id}「${row.title}」の再検証に失敗したため一時停止しました: ${err.message}`);
+            }
+        }
+    } catch (err) {
+        console.error("既存スキン出品の再検証中にエラーが発生しました:", err);
+    } finally {
+        if (conn) conn.release();
+    }
+}
+
 // ==========================================
 // 5. ページ配信ルート (フロントエンド)
 // ==========================================
@@ -2130,6 +2171,12 @@ app.post('/api/marketplace/listings/:id/purchase', requireAuth, async (req, res)
 
         if (listing.seller_uuid === buyerUuid) throw new Error("自分自身の出品は購入できません");
 
+        // 署名処理の追加より前に出品された、あるいは再検証(backfillLegacySkinListings)に
+        // 失敗して署名データが無いスキンは、購入してもMinecraft上で使用できないため購入自体を止める。
+        if (listing.item_type === 'skin' && !listing.skin_texture_value) {
+            throw new Error("このスキンは現在検証中のため購入できません。しばらくしてから再度お試しください");
+        }
+
         if (listing.edition_type === 'unique' && listing.minted_count >= 1) {
             throw new Error("この出品は既に購入済みです");
         }
@@ -2212,7 +2259,7 @@ app.post('/api/marketplace/nfts/:nftId/use', requireAuth, async (req, res) => {
         if (ownedUuids.length === 0) throw new Error("マイクラアカウントが連携されていません");
 
         const rows = await conn.query(
-            `SELECT n.id, n.owner_uuid, l.item_type
+            `SELECT n.id, n.owner_uuid, l.item_type, l.skin_texture_value
              FROM marketplace_nfts n
              JOIN marketplace_listings l ON n.listing_id = l.id
              WHERE n.id = ?`,
@@ -2223,6 +2270,10 @@ app.post('/api/marketplace/nfts/:nftId/use', requireAuth, async (req, res) => {
 
         if (nft.item_type !== 'skin') throw new Error("このアイテムはスキンではありません");
         if (!ownedUuids.includes(nft.owner_uuid)) throw new Error("このスキンを所有していません");
+        // スキン検証・署名機能の追加より前に購入されたスキンは署名データを持っていない場合がある
+        // (backfillLegacySkinListings が対象出品の再検証に失敗した場合も含む)。
+        // 未署名のまま「使用中」にしてもMinecraft上では何も起きないため、ここで明示的に弾く。
+        if (!nft.skin_texture_value) throw new Error("このスキンはまだ使用できません（出品者による再アップロードが必要です）");
 
         // 法人口座(corporate_accounts)はプレイヤーではないためスキンを装備できない。
         // account_links に存在する＝実在のJava/Bedrockプレイヤーに紐づくUUIDであることを確認する。
@@ -2376,5 +2427,6 @@ app.get('/api/marketplace/certificate/verify', certVerifyLimiter, async (req, re
 // ==========================================
 app.listen(PORT, async () => {
     await initDatabase();
+    await backfillLegacySkinListings();
     console.log(`FJ Economy Full-Featured API Server running on port ${PORT}`);
 });
