@@ -11,6 +11,7 @@
     <modules>
         <module>プラグイン関連/BGMPlayer</module>
         <module>経済システム/プラグイン/FJEconomy</module>
+        <module>経済システム/プラグイン/FJESkinBridge</module>
         <module>プラグイン関連/WebRegionAutomator</module>
     </modules>
 

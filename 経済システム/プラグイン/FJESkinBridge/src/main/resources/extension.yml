@@ -1,0 +1,6 @@
+id: fjeskinbridge
+name: FJESkinBridge
+main: com.clustersprj.fjeskinbridge.FJESkinBridgeExtension
+api: 2.11.0
+version: 1.0.0
+authors: [Clusters-PRJ]

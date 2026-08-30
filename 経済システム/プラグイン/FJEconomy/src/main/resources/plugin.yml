@@ -39,6 +39,10 @@ commands:
     usage: /fjegovernment <subcommand> [args]
     aliases: [fjegov, gov]
 
+  skin:
+    description: Marketplace skin management commands
+    usage: /skin [list|use <番号>]
+
 permissions:
   fj.use:
     description: Use FJ Economy commands

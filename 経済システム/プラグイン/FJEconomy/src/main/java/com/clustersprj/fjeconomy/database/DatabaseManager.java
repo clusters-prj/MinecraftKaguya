@@ -256,6 +256,18 @@ public class DatabaseManager {
                     "  FOREIGN KEY (query_id) REFERENCES fje_build_queries(id) ON DELETE CASCADE" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+            // fje_active_skins（マーケットプレイスで「使用中」に設定されたスキンNFT。
+            // Web側(server.js)の initDatabase() でも同一定義で CREATE TABLE IF NOT EXISTS しており、
+            // link_codes と同じ「Web/Java両方が同一定義を持つ共有テーブル」の運用パターンを踏襲している。
+            // nft_id はWeb所有の marketplace_nfts(id) を指すが、アプリをまたぐ外部キーはこのリポジトリの
+            // 既存方針で張らない（起動順序に依存させないため。corporate_accounts等と同様）。
+            executeUpdate(conn,
+                    "CREATE TABLE IF NOT EXISTS fje_active_skins (" +
+                    "  minecraft_uuid VARCHAR(36) PRIMARY KEY," +
+                    "  nft_id INT NOT NULL," +
+                    "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
             plugin.getLogger().info("✓ テーブルを確認/作成しました");
 
         } catch (SQLException e) {

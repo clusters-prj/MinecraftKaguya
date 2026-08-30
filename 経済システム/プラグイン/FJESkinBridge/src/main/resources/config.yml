@@ -1,0 +1,13 @@
+# FJESkinBridge の設定
+# FJEconomy(Paper側)のconfig.ymlや Web/fjew の .env と同じ共有MariaDB(fjeconomyデータベース)を指定する。
+# ここで指定したDBに接続できるユーザーには marketplace_listings / marketplace_nfts /
+# fje_active_skins テーブルへの参照権限が必要。
+database:
+  url: "jdbc:mariadb://10.2.1.27:3306/fjeconomy"
+  username: "changeme"
+  password: "changeme"
+  pool_size: 4
+
+# fje_active_skins の問い合わせ結果をメモリキャッシュする秒数。
+# DBラウンドトリップを減らすためのものなので、この秒数だけスキン変更の反映が遅れる場合がある。
+skin_cache_ttl_seconds: 30

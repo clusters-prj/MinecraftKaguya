@@ -15,6 +15,7 @@ const nodemailer = require('nodemailer');
 const rateLimit = require('express-rate-limit');
 const helmet = require("helmet");
 const multer = require('multer');
+const imageSize = require('image-size');
 const pool = require('./db'); // この中で process.env が正常に使える
 
 // BigIntをJSONで出力できるようにシリアライズ方法を定義
@@ -247,6 +248,87 @@ const requireAdmin = async (req, res, next) => {
     } finally {
         if (conn) conn.release();
     }
+};
+
+// ==========================================
+// 3.4. マーケットプレイス: スキン検証・署名 (mineskin.org)
+// ==========================================
+// Java版クライアントは署名(signature)の無いテクスチャを表示しないため、販売する自作PNGは
+// mineskin.org（https://docs.mineskin.org/）にアップロードしてMojang互換の署名付きテクスチャに
+// 変換してもらう。この処理は出品時に一度だけ行い、結果をDBへ永続化する（購入・使用・ログイン時の
+// Minecraftサーバー側の処理は一切外部通信をせず、共有DBを読むだけで完結させるため）。
+//
+// 署名方式を将来差し替えられるよう、呼び出し側は本関数のシグネチャ（PNGバイト列を渡すと
+// { model, textureValue, textureSignature } を返す）にのみ依存させる。
+const MINESKIN_API_KEY = process.env.MINESKIN_API_KEY || null;
+const MINESKIN_BASE_URL = 'https://api.mineskin.org';
+const MINESKIN_POLL_INTERVAL_MS = 1500;
+const MINESKIN_POLL_TIMEOUT_MS = 30000;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// PNGの実寸が仕様どおり64x64か検証する（現状は拡張子/MIMEのみのチェックだったギャップを埋める）
+const validateSkinPngDimensions = (pngBuffer) => {
+    let dimensions;
+    try {
+        dimensions = imageSize(pngBuffer);
+    } catch (err) {
+        throw new Error("PNGファイルとして読み込めませんでした");
+    }
+    if (dimensions.width !== 64 || dimensions.height !== 64) {
+        throw new Error(`スキン画像は64×64ピクセルである必要があります（アップロードされた画像: ${dimensions.width}×${dimensions.height}）`);
+    }
+};
+
+// mineskin.org へPNGをアップロードし、署名済みJavaテクスチャとClassic/Slim判定を取得する。
+// mineskinはv2で「キューに積む→ジョブが完了するまでポーリングする」方式のため、ここで同期的に待つ。
+const signSkinTexture = async (pngBuffer) => {
+    const headers = { 'Accept': 'application/json' };
+    if (MINESKIN_API_KEY) headers['Authorization'] = `Bearer ${MINESKIN_API_KEY}`;
+
+    const form = new FormData();
+    form.append('file', new Blob([pngBuffer], { type: 'image/png' }), 'skin.png');
+
+    const queueRes = await fetch(`${MINESKIN_BASE_URL}/v2/queue`, {
+        method: 'POST',
+        headers,
+        body: form
+    });
+    const queueBody = await queueRes.json().catch(() => null);
+    if (!queueRes.ok || !queueBody || queueBody.success === false) {
+        const message = queueBody?.errors?.[0]?.message || `mineskin.orgへのリクエストに失敗しました (HTTP ${queueRes.status})`;
+        throw new Error(`スキンの署名処理に失敗しました: ${message}`);
+    }
+
+    const jobId = queueBody.job?.id;
+    if (!jobId) throw new Error("スキンの署名処理に失敗しました: ジョブIDを取得できませんでした");
+
+    const deadline = Date.now() + MINESKIN_POLL_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+        const jobRes = await fetch(`${MINESKIN_BASE_URL}/v2/queue/${jobId}`, { headers });
+        const jobBody = await jobRes.json().catch(() => null);
+        if (!jobRes.ok || !jobBody || jobBody.success === false) {
+            const message = jobBody?.errors?.[0]?.message || `ジョブ状態の取得に失敗しました (HTTP ${jobRes.status})`;
+            throw new Error(`スキンの署名処理に失敗しました: ${message}`);
+        }
+
+        const status = jobBody.job?.status;
+        if (status === 'failed') {
+            throw new Error("スキンの署名処理に失敗しました: mineskin.org側でジョブが失敗しました");
+        }
+        if (status === 'completed' && jobBody.skin) {
+            const skin = jobBody.skin;
+            const variant = skin.variant === 'slim' ? 'slim' : 'classic';
+            const value = skin.texture?.data?.value;
+            const signature = skin.texture?.data?.signature;
+            if (!value || !signature) {
+                throw new Error("スキンの署名処理に失敗しました: 署名データを取得できませんでした");
+            }
+            return { model: variant, textureValue: value, textureSignature: signature };
+        }
+        await sleep(MINESKIN_POLL_INTERVAL_MS);
+    }
+    throw new Error("スキンの署名処理がタイムアウトしました。しばらくしてから再度お試しください");
 };
 
 // ==========================================
@@ -483,6 +565,37 @@ async function initDatabase() {
                 price INT NOT NULL DEFAULT 0,
                 transferred_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (nft_id) REFERENCES marketplace_nfts(id)
+            )
+        `);
+
+        // マーケットプレイス: スキン(item_type='skin')出品専用の追加カラム。
+        // 出品時に検証済みの生PNG(Bedrock観測者向けGeyser変換で使用)と、mineskin.orgで署名済みの
+        // Javaテクスチャ(Java観測者向け)を保持する。既存テーブルへの追記なのでALTERで補う。
+        for (const alter of [
+            "ALTER TABLE marketplace_listings ADD COLUMN skin_model ENUM('classic','slim') DEFAULT NULL",
+            "ALTER TABLE marketplace_listings ADD COLUMN skin_png_data LONGBLOB DEFAULT NULL",
+            "ALTER TABLE marketplace_listings ADD COLUMN skin_texture_value TEXT DEFAULT NULL",
+            "ALTER TABLE marketplace_listings ADD COLUMN skin_texture_signature TEXT DEFAULT NULL",
+            "ALTER TABLE marketplace_listings ADD COLUMN skin_signed_at TIMESTAMP NULL DEFAULT NULL"
+        ]) {
+            try {
+                await conn.query(alter);
+            } catch (err) {
+                if (err.code !== 'ER_DUP_FIELDNAME') throw err;
+            }
+        }
+
+        // マーケットプレイス: 現在「使用中」のスキンNFT。Minecraftサーバー側(FJEconomyのDatabaseManager)
+        // でも同一定義で CREATE TABLE IF NOT EXISTS しており、link_codes と同じ「Web/Java両方が
+        // 同一定義を持つ共有テーブル」というこのリポジトリ既存の運用パターンを踏襲している。
+        // nft_id にFKを張らないのは、marketplace_nfts(Web所有)と fje_balances 等(Java所有)の間で
+        // このリポジトリが一貫して踏襲している「アプリをまたぐ外部キーは張らない」方針に合わせるため
+        // （起動順序に依存しないようにするための既存の意図的な設計。corporate_accounts等と同様）。
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS fje_active_skins (
+                minecraft_uuid VARCHAR(36) PRIMARY KEY,
+                nft_id INT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         `);
 
@@ -1795,9 +1908,11 @@ app.get('/api/marketplace/my-collection', requireAuth, async (req, res) => {
         const placeholders = ownedUuids.map(() => '?').join(',');
         const rows = await conn.query(`
             SELECT n.id AS nft_id, n.serial_number, n.minted_at, n.owner_uuid,
-                   l.id AS listing_id, l.title, l.item_type, l.preview_image_path, l.max_editions, l.edition_type
+                   l.id AS listing_id, l.title, l.item_type, l.preview_image_path, l.max_editions, l.edition_type,
+                   (a.nft_id IS NOT NULL) AS is_active_skin
             FROM marketplace_nfts n
             JOIN marketplace_listings l ON n.listing_id = l.id
+            LEFT JOIN fje_active_skins a ON a.minecraft_uuid = n.owner_uuid AND a.nft_id = n.id
             WHERE n.owner_uuid IN (${placeholders})
             ORDER BY n.minted_at DESC
         `, ownedUuids);
@@ -1903,6 +2018,22 @@ app.post('/api/marketplace/listings', requireAuth, async (req, res) => {
         return res.status(400).json({ error: "プレビュー画像のサイズが上限を超えています" });
     }
 
+    // スキンは仕様上64x64のPNGしか販売できない。Java版クライアントは署名(signature)の無いテクスチャを
+    // 表示しないため、ここで実寸検証したうえでmineskin.orgへ署名を依頼し、結果が得られなければ
+    // 出品自体を拒否する(fail-closed。未署名スキンを出品してもMinecraft側で表示できないため)。
+    let skinSignature = null;
+    if (item_type === 'skin') {
+        try {
+            const pngBuffer = fs.readFileSync(fileEntry.path);
+            validateSkinPngDimensions(pngBuffer);
+            skinSignature = await signSkinTexture(pngBuffer);
+            skinSignature.pngData = pngBuffer;
+        } catch (err) {
+            cleanupMarketplaceFiles(req);
+            return res.status(400).json({ error: err.message });
+        }
+    }
+
     let conn;
     try {
         conn = await pool.getConnection();
@@ -1926,10 +2057,14 @@ app.post('/api/marketplace/listings', requireAuth, async (req, res) => {
         const insertResult = await conn.query(
             `INSERT INTO marketplace_listings
                 (seller_uuid, seller_web_user_id, item_type, title, description, price, edition_type, max_editions,
-                 file_path, file_original_name, file_size, file_mime, preview_image_path)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 file_path, file_original_name, file_size, file_mime, preview_image_path,
+                 skin_model, skin_png_data, skin_texture_value, skin_texture_signature, skin_signed_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [seller_uuid, req.session.webUserId, item_type, title, description, priceAmount, edition_type, maxEditions,
-             fileEntry.filename, fileEntry.originalname, fileEntry.size, fileEntry.mimetype, previewImagePath]
+             fileEntry.filename, fileEntry.originalname, fileEntry.size, fileEntry.mimetype, previewImagePath,
+             skinSignature?.model ?? null, skinSignature?.pngData ?? null,
+             skinSignature?.textureValue ?? null, skinSignature?.textureSignature ?? null,
+             skinSignature ? new Date() : null]
         );
 
         await conn.commit();
@@ -2056,6 +2191,55 @@ app.post('/api/marketplace/listings/:id/purchase', requireAuth, async (req, res)
             tax_amount: taxAmount.toString(),
             seller_amount: sellerAmount.toString()
         });
+    } catch (err) {
+        if (conn) await conn.rollback();
+        res.status(400).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// スキンNFTを「使用中」に設定する。実際にMinecraftサーバー側へ反映するのはFJEconomy/FJESkinBridge
+// プラグイン側で、ここでは共有DB(fje_active_skins)の状態を更新するのみ（MC側プラグインは
+// ログイン時・スキン参照時にこのテーブルを直読みするため、Web-MC間のHTTP APIは不要）。
+app.post('/api/marketplace/nfts/:nftId/use', requireAuth, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        const ownedUuids = await getOwnedUuids(conn, req.session.webUserId);
+        if (ownedUuids.length === 0) throw new Error("マイクラアカウントが連携されていません");
+
+        const rows = await conn.query(
+            `SELECT n.id, n.owner_uuid, l.item_type
+             FROM marketplace_nfts n
+             JOIN marketplace_listings l ON n.listing_id = l.id
+             WHERE n.id = ?`,
+            [req.params.nftId]
+        );
+        if (rows.length === 0) throw new Error("スキンが見つかりません");
+        const nft = rows[0];
+
+        if (nft.item_type !== 'skin') throw new Error("このアイテムはスキンではありません");
+        if (!ownedUuids.includes(nft.owner_uuid)) throw new Error("このスキンを所有していません");
+
+        // 法人口座(corporate_accounts)はプレイヤーではないためスキンを装備できない。
+        // account_links に存在する＝実在のJava/Bedrockプレイヤーに紐づくUUIDであることを確認する。
+        const playerRows = await conn.query(
+            "SELECT 1 FROM account_links WHERE minecraft_uuid = ? LIMIT 1",
+            [nft.owner_uuid]
+        );
+        if (playerRows.length === 0) throw new Error("法人口座はスキンを使用できません");
+
+        await conn.query(
+            `INSERT INTO fje_active_skins (minecraft_uuid, nft_id) VALUES (?, ?)
+             ON DUPLICATE KEY UPDATE nft_id = VALUES(nft_id)`,
+            [nft.owner_uuid, nft.id]
+        );
+
+        await conn.commit();
+        res.json({ success: true });
     } catch (err) {
         if (conn) await conn.rollback();
         res.status(400).json({ error: err.message });
