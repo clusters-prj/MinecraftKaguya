@@ -581,6 +581,12 @@ async function initDatabase() {
         } catch (err) {
             if (err.code !== 'ER_DUP_FIELDNAME') throw err;
         }
+        // item_typeのENUMに'blueprint'を追加(MARKETPLACE_ITEM_TYPESに追加した際にこれを忘れていたため、
+        // 出品時に "Data truncated for column 'item_type'" で失敗していた)。MODIFY COLUMNは
+        // 既に同じ定義であれば何度実行してもエラーにならないので、ER_DUP_FIELDNAME的な分岐は不要。
+        await conn.query(
+            "ALTER TABLE marketplace_listings MODIFY COLUMN item_type ENUM('world_data','skin','media','blueprint') NOT NULL"
+        );
 
         // マーケットプレイス: スキン(item_type='skin')出品専用の追加カラム。
         // 出品時に検証済みの生PNG(Bedrock観測者向けGeyser変換で使用)と、mineskin.orgで署名済みの
