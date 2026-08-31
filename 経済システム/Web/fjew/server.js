@@ -2343,12 +2343,26 @@ app.post('/api/pets/purchase', requireAuth, async (req, res) => {
         const catalog = catalogRows[0];
         const cost = BigInt(catalog.tame_cost);
 
-        // 公式ショップなので税は取らない(マーケットプレイスと違い相手プレイヤーがいないため)
+        // 公式ショップ(相手プレイヤーがいない)なので、マーケットプレイスのような税の按分はせず、
+        // 購入額の全額を政府口座(GOV_UUID)へ収入として計上する(消えて無くなるとお金の総量が合わなくなるため)。
         const updateResult = await conn.query(
             "UPDATE fje_balances SET balance = balance - ? WHERE uuid = ? AND balance >= ?",
             [cost, buyerUuid, cost]
         );
         if (updateResult.affectedRows === 0) throw new Error("残高が不足しています");
+
+        await conn.query(
+            "UPDATE fje_balances SET balance = balance + ? WHERE uuid = ?",
+            [cost, GOV_UUID]
+        );
+        await conn.query(
+            "INSERT INTO fje_government_ledger (timestamp, type, amount, description) VALUES (NOW(), 'PET_SHOP_IN', ?, ?)",
+            [cost, `${catalog.display_name} (${catalog.mob_type})`]
+        );
+        await conn.query(
+            "INSERT INTO fje_transactions (buyer_uuid, owner_uuid, price_total, server_id, item_id, tax_amount, net_profit, timestamp) VALUES (?, ?, ?, 'WEB', ?, 0, ?, NOW())",
+            [buyerUuid, GOV_UUID, cost, `PET_${catalog.mob_type}`, cost]
+        );
 
         await conn.query(
             "INSERT INTO cm_pet_claims (owner_uuid, mob_type) VALUES (?, ?)",
