@@ -5,6 +5,7 @@ import com.clustersprj.fjeconomy.build.BuildRewardManager;
 import com.clustersprj.fjeconomy.command.CommandManager;
 import com.clustersprj.fjeconomy.command.GovernmentCommand;
 import com.clustersprj.fjeconomy.command.ShopCommand;
+import com.clustersprj.fjeconomy.command.SkinCommand;
 import com.clustersprj.fjeconomy.config.ConfigManager;
 import com.clustersprj.fjeconomy.economy.EconomyManager;
 import com.clustersprj.fjeconomy.database.DatabaseManager;
@@ -12,6 +13,8 @@ import com.clustersprj.fjeconomy.government.GovernmentManager;
 import com.clustersprj.fjeconomy.link.LinkManager;
 import com.clustersprj.fjeconomy.shop.ShopManager;
 import com.clustersprj.fjeconomy.shop.ShopUI; // 追加
+import com.clustersprj.fjeconomy.skin.SkinListener;
+import com.clustersprj.fjeconomy.skin.SkinManager;
 import com.clustersprj.fjeconomy.listener.PlayerListener;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -28,6 +31,7 @@ public class FJEconomy extends JavaPlugin {
     private ShopManager shopManager; // 追加
     private GovernmentManager governmentManager;
     private LinkManager linkManager; // 追加
+    private SkinManager skinManager; // 追加
     private LoginBonusManager loginBonusManager; // 追加
     private ArenaManager arenaManager; // 追加
     private BuildRewardManager buildRewardManager; // 追加
@@ -93,6 +97,16 @@ public class FJEconomy extends JavaPlugin {
             this.linkManager = new LinkManager(this);
             getLogger().info("✓ アカウント連携システムを初期化しました");
 
+            // SkinManager initialization（マーケットプレイスのスキン購入・使用状態を共有DB経由で参照）
+            this.skinManager = new SkinManager(this);
+            getLogger().info("✓ スキン連携システムを初期化しました");
+
+            // Skin command registration
+            SkinCommand skinCommand = new SkinCommand(this, skinManager);
+            getCommand("skin").setExecutor(skinCommand);
+            getCommand("skin").setTabCompleter(skinCommand);
+            getLogger().info("✓ スキンコマンドを登録しました");
+
             // ArenaManager initialization（アリーナ監視・優勝者予想ベット）
             this.arenaManager = new ArenaManager(this);
             arenaManager.startZoneWatcher();
@@ -106,6 +120,7 @@ public class FJEconomy extends JavaPlugin {
             // Event listener registration
             getServer().getPluginManager().registerEvents(new PlayerListener(this), this); // PlayerListenerのコンストラクタ変更に対応
             getServer().getPluginManager().registerEvents(new ShopUI(this), this); // ShopUIを登録
+            getServer().getPluginManager().registerEvents(new SkinListener(this), this); // マーケットプレイススキンの適用
             getLogger().info("✓ イベントリスナーを登録しました");
 
             getLogger().info("===================================");
@@ -175,6 +190,10 @@ public class FJEconomy extends JavaPlugin {
 
     public LinkManager getLinkManager() {
         return linkManager;
+    }
+
+    public SkinManager getSkinManager() {
+        return skinManager;
     }
 
     public ArenaManager getArenaManager() {

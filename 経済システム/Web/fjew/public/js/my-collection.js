@@ -21,9 +21,34 @@ function renderCard(nft) {
             <p class="text-[10px] text-gray-400">#${nft.serial_number}${nft.edition_type === 'limited' ? ` / ${nft.max_editions}` : ''}</p>
             <a href="/api/marketplace/nfts/${nft.nft_id}/download" target="_blank" rel="noopener" class="block text-center fj-btn-primary py-2 text-xs mt-2">開く / ダウンロード</a>
             <a href="/marketplace-certificate?nft_id=${nft.nft_id}" class="block text-center fj-navbtn py-2 text-xs mt-1 border border-gray-200 rounded-xl">証明書を見る</a>
+            ${nft.item_type === 'skin' ? (
+                nft.is_active_skin
+                    ? `<button data-unuse-nft-id="${nft.nft_id}" class="unuse-skin-btn block w-full text-center py-2 text-xs mt-1 rounded-xl bg-brand-100 text-brand-700 font-bold">使用中（押すと元に戻す）</button>`
+                    : `<button data-use-nft-id="${nft.nft_id}" class="use-skin-btn block w-full text-center py-2 text-xs mt-1 border border-gray-200 rounded-xl">このスキンを使用する</button>`
+            ) : ''}
         </div>
     `;
     return card;
+}
+
+async function useSkin(nftId) {
+    try {
+        const { res, data } = await window.fjew.fetchJson(`/api/marketplace/nfts/${nftId}/use`, { method: 'POST' });
+        if (!res.ok) throw new Error(data.error || "スキンの使用設定に失敗しました");
+        await loadCollection();
+    } catch (err) {
+        alert('スキンの使用設定に失敗しました: ' + err.message);
+    }
+}
+
+async function unuseSkin(nftId) {
+    try {
+        const { res, data } = await window.fjew.fetchJson(`/api/marketplace/nfts/${nftId}/unuse`, { method: 'POST' });
+        if (!res.ok) throw new Error(data.error || "スキンの解除に失敗しました");
+        await loadCollection();
+    } catch (err) {
+        alert('スキンの解除に失敗しました: ' + err.message);
+    }
 }
 
 async function loadCollection() {
@@ -53,6 +78,13 @@ async function loadCollection() {
         document.getElementById('loadingIndicator').classList.add('hidden');
     }
 }
+
+document.getElementById('collectionGrid').addEventListener('click', (e) => {
+    const useBtn = e.target.closest('.use-skin-btn');
+    if (useBtn) return useSkin(useBtn.dataset.useNftId);
+    const unuseBtn = e.target.closest('.unuse-skin-btn');
+    if (unuseBtn) return unuseSkin(unuseBtn.dataset.unuseNftId);
+});
 
 document.getElementById('backBtn').addEventListener('click', () => { window.location.href = '/marketplace'; });
 
