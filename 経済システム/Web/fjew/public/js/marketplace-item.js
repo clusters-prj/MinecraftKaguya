@@ -1,7 +1,8 @@
 const ITEM_TYPE_LABELS = {
     world_data: 'ワールドデータ',
     skin: 'スキン',
-    media: 'メディア'
+    media: 'メディア',
+    blueprint: '設計図'
 };
 
 function getListingId() {

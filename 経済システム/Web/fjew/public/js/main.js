@@ -147,6 +147,10 @@ document.getElementById('marketplaceBtn').addEventListener('click', () => {
     window.location.href = '/marketplace';
 });
 
+document.getElementById('petShopBtn').addEventListener('click', () => {
+    window.location.href = '/pet-shop';
+});
+
 document.getElementById('arenaBtn').addEventListener('click', () => {
     window.location.href = '/arena';
 });

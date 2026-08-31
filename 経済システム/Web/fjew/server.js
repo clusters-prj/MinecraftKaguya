@@ -260,7 +260,7 @@ const MARKETPLACE_PREVIEW_DIR = path.join(__dirname, 'public', 'uploads', 'marke
 fs.mkdirSync(MARKETPLACE_UPLOAD_DIR, { recursive: true });
 fs.mkdirSync(MARKETPLACE_PREVIEW_DIR, { recursive: true });
 
-const MARKETPLACE_ITEM_TYPES = ['world_data', 'skin', 'media'];
+const MARKETPLACE_ITEM_TYPES = ['world_data', 'skin', 'media', 'blueprint'];
 const MARKETPLACE_EDITION_TYPES = ['unique', 'limited', 'unlimited'];
 
 // アイテム種別ごとの拡張子/MIME許可リストとサイズ上限。
@@ -280,6 +280,12 @@ const MARKETPLACE_TYPE_RULES = {
         extensions: ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.mp4', '.webm'],
         isValidMime: (mime) => mime.startsWith('image/') || mime.startsWith('video/'),
         maxSize: 100 * 1024 * 1024
+    },
+    // CustomMobsの建築設計図(Blueprint JSON)。小さいテキストファイルなので上限も小さめにする
+    blueprint: {
+        extensions: ['.json'],
+        isValidMime: () => true,
+        maxSize: 1 * 1024 * 1024
     }
 };
 const MARKETPLACE_PREVIEW_RULE = {
@@ -485,6 +491,14 @@ async function initDatabase() {
                 FOREIGN KEY (nft_id) REFERENCES marketplace_nfts(id)
             )
         `);
+        // 設計図(item_type='blueprint')出品用。CustomMobsプラグイン(Java)がDB経由で内容を読めるよう、
+        // アップロードされたJSONファイルの中身をそのままテキストとして複製しておく
+        // (ディスク上のファイル自体はダウンロード/証明書機能のために従来どおり保持する)。
+        try {
+            await conn.query("ALTER TABLE marketplace_listings ADD COLUMN blueprint_json LONGTEXT NULL");
+        } catch (err) {
+            if (err.code !== 'ER_DUP_FIELDNAME') throw err;
+        }
 
         console.log("Database tables initialized successfully.");
     } catch (err) {
@@ -562,6 +576,9 @@ app.get('/arena-admin', (req, res) => {
 });
 app.get('/build-admin', (req, res) => {
     sendHtmlWithGTM(path.join(__dirname, 'public', 'build-admin.html'), res);
+});
+app.get('/pet-shop', (req, res) => {
+    sendHtmlWithGTM(path.join(__dirname, 'public', 'pet-shop.html'), res);
 });
 app.get('/marketplace', (req, res) => {
     sendHtmlWithGTM(path.join(__dirname, 'public', 'marketplace.html'), res);
@@ -1903,6 +1920,32 @@ app.post('/api/marketplace/listings', requireAuth, async (req, res) => {
         return res.status(400).json({ error: "プレビュー画像のサイズが上限を超えています" });
     }
 
+    // 設計図(blueprint)は、CustomMobsプラグイン(Java)がDB経由で直接読めるよう、
+    // アップロードされたJSONの中身をそのまま複製してDBに保存する。
+    // 中身が壊れている/最低限の形を満たさない場合はここで弾く(ディスクへの保存前)。
+    let blueprintJson = null;
+    if (item_type === 'blueprint') {
+        let raw;
+        try {
+            raw = fs.readFileSync(fileEntry.path, 'utf8');
+        } catch (err) {
+            cleanupMarketplaceFiles(req);
+            return res.status(400).json({ error: "設計図ファイルの読み込みに失敗しました" });
+        }
+        let parsed;
+        try {
+            parsed = JSON.parse(raw);
+        } catch (err) {
+            cleanupMarketplaceFiles(req);
+            return res.status(400).json({ error: "設計図のJSONが不正です" });
+        }
+        if (!parsed || !Array.isArray(parsed.blocks)) {
+            cleanupMarketplaceFiles(req);
+            return res.status(400).json({ error: "設計図の形式が正しくありません({ name, blocks: [...] } が必要です)" });
+        }
+        blueprintJson = raw;
+    }
+
     let conn;
     try {
         conn = await pool.getConnection();
@@ -1926,10 +1969,10 @@ app.post('/api/marketplace/listings', requireAuth, async (req, res) => {
         const insertResult = await conn.query(
             `INSERT INTO marketplace_listings
                 (seller_uuid, seller_web_user_id, item_type, title, description, price, edition_type, max_editions,
-                 file_path, file_original_name, file_size, file_mime, preview_image_path)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 file_path, file_original_name, file_size, file_mime, preview_image_path, blueprint_json)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [seller_uuid, req.session.webUserId, item_type, title, description, priceAmount, edition_type, maxEditions,
-             fileEntry.filename, fileEntry.originalname, fileEntry.size, fileEntry.mimetype, previewImagePath]
+             fileEntry.filename, fileEntry.originalname, fileEntry.size, fileEntry.mimetype, previewImagePath, blueprintJson]
         );
 
         await conn.commit();
@@ -2055,6 +2098,80 @@ app.post('/api/marketplace/listings/:id/purchase', requireAuth, async (req, res)
             serial_number: newSerial,
             tax_amount: taxAmount.toString(),
             seller_amount: sellerAmount.toString()
+        });
+    } catch (err) {
+        if (conn) await conn.rollback();
+        res.status(400).json({ error: err.message });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// ==========================================
+// ペットショップ(CustomMobsプラグイン連携)
+// cm_pet_catalog / cm_pet_claims はCustomMobsプラグイン(Java)が所有・作成するテーブル。
+// ここではSELECT/INSERTのみ行い、テーブル定義(CREATE TABLE)はJava側に委ねる
+// (Paperサーバーが一度も起動していない環境ではテーブルが無くエラーになる)。
+// ==========================================
+
+// カタログ一覧(公開・誰でも閲覧可)
+app.get('/api/pets/catalog', async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query(
+            "SELECT mob_type, display_name, tame_cost FROM cm_pet_catalog ORDER BY tame_cost ASC"
+        );
+        res.json(rows);
+    } catch (err) {
+        sendServerError(res, err);
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 購入(残高消費 + 受け取り待ちレコード作成。実際のスポーンはゲーム内 /cmob claim で行う)
+app.post('/api/pets/purchase', requireAuth, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        const ownedUuids = await getOwnedUuids(conn, req.session.webUserId);
+        if (ownedUuids.length === 0) throw new Error("マイクラアカウントが連携されていません");
+
+        let buyerUuid = req.body.buyer_uuid;
+        if (!buyerUuid) {
+            buyerUuid = ownedUuids[0];
+        } else if (!ownedUuids.includes(buyerUuid)) {
+            throw new Error("指定された購入元アカウントはあなたに連携されていません");
+        }
+
+        const mobType = String(req.body.mob_type || '');
+        const catalogRows = await conn.query(
+            "SELECT mob_type, display_name, tame_cost FROM cm_pet_catalog WHERE mob_type = ? FOR UPDATE",
+            [mobType]
+        );
+        if (catalogRows.length === 0) throw new Error("そのペットは販売されていません");
+        const catalog = catalogRows[0];
+        const cost = BigInt(catalog.tame_cost);
+
+        // 公式ショップなので税は取らない(マーケットプレイスと違い相手プレイヤーがいないため)
+        const updateResult = await conn.query(
+            "UPDATE fje_balances SET balance = balance - ? WHERE uuid = ? AND balance >= ?",
+            [cost, buyerUuid, cost]
+        );
+        if (updateResult.affectedRows === 0) throw new Error("残高が不足しています");
+
+        await conn.query(
+            "INSERT INTO cm_pet_claims (owner_uuid, mob_type) VALUES (?, ?)",
+            [buyerUuid, catalog.mob_type]
+        );
+
+        await conn.commit();
+        res.json({
+            success: true,
+            message: `「${catalog.display_name}」を購入しました。ゲーム内で /cmob claim を実行して受け取ってください`
         });
     } catch (err) {
         if (conn) await conn.rollback();

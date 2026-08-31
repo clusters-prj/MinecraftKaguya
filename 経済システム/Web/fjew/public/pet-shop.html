@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ふじゅ〜ペイ | マーケットプレイス</title>
+    <title>ふじゅ〜ペイ | ペットショップ</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/js/theme.js"></script>
     <link rel="stylesheet" href="/css/style.css">
@@ -13,31 +13,29 @@
         <div class="fj-header__inner">
             <div class="flex items-center gap-2">
                 <button id="backBtn" class="fj-back" aria-label="戻る">←</button>
-                <h1 class="fj-logo">マーケットプレイス</h1>
-            </div>
-            <div class="flex gap-2">
-                <button id="myCollectionBtn" class="fj-navbtn">マイコレクション</button>
-                <button id="sellBtn" class="fj-navbtn">出品する</button>
+                <h1 class="fj-logo">ペットショップ</h1>
             </div>
         </div>
     </header>
 
     <main class="max-w-md w-full mx-auto px-4 py-6 flex-grow space-y-4">
-        <div class="bg-white rounded-2xl shadow-sm p-1 flex gap-1">
-            <button data-type="" class="filterTab flex-1 text-xs font-bold py-2 rounded-xl transition bg-brand-600 text-white">すべて</button>
-            <button data-type="world_data" class="filterTab flex-1 text-xs font-bold py-2 rounded-xl transition text-gray-500 hover:bg-gray-100">ワールド</button>
-            <button data-type="skin" class="filterTab flex-1 text-xs font-bold py-2 rounded-xl transition text-gray-500 hover:bg-gray-100">スキン</button>
-            <button data-type="media" class="filterTab flex-1 text-xs font-bold py-2 rounded-xl transition text-gray-500 hover:bg-gray-100">メディア</button>
-            <button data-type="blueprint" class="filterTab flex-1 text-xs font-bold py-2 rounded-xl transition text-gray-500 hover:bg-gray-100">設計図</button>
+        <div class="bg-white rounded-2xl shadow-sm p-4 space-y-2">
+            <label class="text-xs font-bold text-gray-500">購入するアカウント</label>
+            <select id="buyerSelect" class="w-full border rounded-xl px-3 py-2 text-sm"></select>
         </div>
 
         <div id="emptyState" class="hidden bg-white rounded-2xl shadow-sm p-8 text-center text-gray-400 text-sm">
-            出品中のアイテムはまだありません
+            現在販売中のペットはありません
         </div>
 
-        <div id="listingGrid" class="grid grid-cols-2 gap-3"></div>
+        <div id="catalogGrid" class="grid grid-cols-2 gap-3"></div>
 
         <div id="loadingIndicator" class="text-center text-xs text-gray-400 py-4">読み込み中...</div>
+
+        <div class="bg-white rounded-2xl shadow-sm p-4 text-xs text-gray-500 leading-relaxed">
+            購入後、ゲーム内で <code class="bg-gray-100 px-1 rounded">/cmob claim</code> を実行すると
+            現在地にペットが受け取れます。
+        </div>
     </main>
 
     <footer class="fj-footer">
@@ -52,6 +50,6 @@
     </footer>
 
     <script src="/js/common.js"></script>
-    <script src="/js/marketplace.js"></script>
+    <script src="/js/pet-shop.js"></script>
 </body>
 </html>
