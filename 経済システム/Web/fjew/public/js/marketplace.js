@@ -4,7 +4,8 @@ const ITEM_TYPE_LABELS = {
     world_data: 'ワールド',
     skin: 'スキン',
     media: 'メディア',
-    blueprint: '設計図'
+    blueprint: '設計図',
+    tool: 'ツール'
 };
 
 function editionLabel(listing) {

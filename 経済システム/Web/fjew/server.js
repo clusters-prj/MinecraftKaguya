@@ -342,7 +342,7 @@ const MARKETPLACE_PREVIEW_DIR = path.join(__dirname, 'public', 'uploads', 'marke
 fs.mkdirSync(MARKETPLACE_UPLOAD_DIR, { recursive: true });
 fs.mkdirSync(MARKETPLACE_PREVIEW_DIR, { recursive: true });
 
-const MARKETPLACE_ITEM_TYPES = ['world_data', 'skin', 'media', 'blueprint'];
+const MARKETPLACE_ITEM_TYPES = ['world_data', 'skin', 'media', 'blueprint', 'tool'];
 const MARKETPLACE_EDITION_TYPES = ['unique', 'limited', 'unlimited'];
 
 // アイテム種別ごとの拡張子/MIME許可リストとサイズ上限。
@@ -365,6 +365,12 @@ const MARKETPLACE_TYPE_RULES = {
     },
     // CustomMobsの建築設計図(Blueprint JSON)。小さいテキストファイルなので上限も小さめにする
     blueprint: {
+        extensions: ['.json'],
+        isValidMime: () => true,
+        maxSize: 1 * 1024 * 1024
+    },
+    // 便利アイテム(ツール)の定義JSON。blueprintと同じく小さいテキストファイル
+    tool: {
         extensions: ['.json'],
         isValidMime: () => true,
         maxSize: 1 * 1024 * 1024
@@ -581,11 +587,19 @@ async function initDatabase() {
         } catch (err) {
             if (err.code !== 'ER_DUP_FIELDNAME') throw err;
         }
-        // item_typeのENUMに'blueprint'を追加(MARKETPLACE_ITEM_TYPESに追加した際にこれを忘れていたため、
+        // 便利アイテム(item_type='tool')出品用。ツールバー連携でFJEconomy(Java)がDB経由で内容を読めるよう、
+        // 出品時にアップロードされたJSON(material/amount/display_name/lore/custom_model_data/enchantments)
+        // をそのままテキストとして複製しておく。
+        try {
+            await conn.query("ALTER TABLE marketplace_listings ADD COLUMN tool_json LONGTEXT NULL");
+        } catch (err) {
+            if (err.code !== 'ER_DUP_FIELDNAME') throw err;
+        }
+        // item_typeのENUMに'blueprint'/'tool'を追加(MARKETPLACE_ITEM_TYPESに追加した際にこれを忘れていたため、
         // 出品時に "Data truncated for column 'item_type'" で失敗していた)。MODIFY COLUMNは
         // 既に同じ定義であれば何度実行してもエラーにならないので、ER_DUP_FIELDNAME的な分岐は不要。
         await conn.query(
-            "ALTER TABLE marketplace_listings MODIFY COLUMN item_type ENUM('world_data','skin','media','blueprint') NOT NULL"
+            "ALTER TABLE marketplace_listings MODIFY COLUMN item_type ENUM('world_data','skin','media','blueprint','tool') NOT NULL"
         );
 
         // マーケットプレイス: スキン(item_type='skin')出品専用の追加カラム。
@@ -2113,6 +2127,60 @@ app.post('/api/marketplace/listings', requireAuth, async (req, res) => {
         blueprintJson = raw;
     }
 
+    // 便利アイテム(tool)は、FJEconomy(Java)がツールバー連携GUIで実ItemStackを組み立てられるよう、
+    // アップロードされたJSONの中身をそのまま複製してDBに保存する。
+    // 中身が壊れている/最低限の形を満たさない場合はここで弾く(ディスクへの保存前)。
+    let toolJson = null;
+    if (item_type === 'tool') {
+        let raw;
+        try {
+            raw = fs.readFileSync(fileEntry.path, 'utf8');
+        } catch (err) {
+            cleanupMarketplaceFiles(req);
+            return res.status(400).json({ error: "ツールアイテムファイルの読み込みに失敗しました" });
+        }
+        let parsed;
+        try {
+            parsed = JSON.parse(raw);
+        } catch (err) {
+            cleanupMarketplaceFiles(req);
+            return res.status(400).json({ error: "ツールアイテムのJSONが不正です" });
+        }
+        if (!parsed || typeof parsed.material !== 'string' || !parsed.material.trim()) {
+            cleanupMarketplaceFiles(req);
+            return res.status(400).json({ error: "ツールアイテムの形式が正しくありません(materialが必要です)" });
+        }
+        if (parsed.amount !== undefined && (!Number.isInteger(parsed.amount) || parsed.amount < 1 || parsed.amount > 64)) {
+            cleanupMarketplaceFiles(req);
+            return res.status(400).json({ error: "ツールアイテムのamountは1〜64の整数で指定してください" });
+        }
+        if (parsed.display_name !== undefined && typeof parsed.display_name !== 'string') {
+            cleanupMarketplaceFiles(req);
+            return res.status(400).json({ error: "ツールアイテムのdisplay_nameは文字列で指定してください" });
+        }
+        if (parsed.lore !== undefined && (!Array.isArray(parsed.lore) || !parsed.lore.every((l) => typeof l === 'string'))) {
+            cleanupMarketplaceFiles(req);
+            return res.status(400).json({ error: "ツールアイテムのloreは文字列配列で指定してください" });
+        }
+        if (parsed.custom_model_data !== undefined && (!Number.isInteger(parsed.custom_model_data) || parsed.custom_model_data < 0)) {
+            cleanupMarketplaceFiles(req);
+            return res.status(400).json({ error: "ツールアイテムのcustom_model_dataは0以上の整数で指定してください" });
+        }
+        if (parsed.enchantments !== undefined) {
+            if (typeof parsed.enchantments !== 'object' || parsed.enchantments === null || Array.isArray(parsed.enchantments)) {
+                cleanupMarketplaceFiles(req);
+                return res.status(400).json({ error: "ツールアイテムのenchantmentsはオブジェクトで指定してください" });
+            }
+            for (const level of Object.values(parsed.enchantments)) {
+                if (!Number.isInteger(level) || level < 1) {
+                    cleanupMarketplaceFiles(req);
+                    return res.status(400).json({ error: "ツールアイテムのenchantmentsのレベルは1以上の整数で指定してください" });
+                }
+            }
+        }
+        toolJson = raw;
+    }
+
     // スキンは仕様上64x64のPNGしか販売できない。Java版クライアントは署名(signature)の無いテクスチャを
     // 表示しないため、ここで実寸検証したうえでmineskin.orgへ署名を依頼し、結果が得られなければ
     // 出品自体を拒否する(fail-closed。未署名スキンを出品してもMinecraft側で表示できないため)。
@@ -2152,11 +2220,11 @@ app.post('/api/marketplace/listings', requireAuth, async (req, res) => {
         const insertResult = await conn.query(
             `INSERT INTO marketplace_listings
                 (seller_uuid, seller_web_user_id, item_type, title, description, price, edition_type, max_editions,
-                 file_path, file_original_name, file_size, file_mime, preview_image_path, blueprint_json,
+                 file_path, file_original_name, file_size, file_mime, preview_image_path, blueprint_json, tool_json,
                  skin_model, skin_png_data, skin_texture_value, skin_texture_signature, skin_signed_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [seller_uuid, req.session.webUserId, item_type, title, description, priceAmount, edition_type, maxEditions,
-             fileEntry.filename, fileEntry.originalname, fileEntry.size, fileEntry.mimetype, previewImagePath, blueprintJson,
+             fileEntry.filename, fileEntry.originalname, fileEntry.size, fileEntry.mimetype, previewImagePath, blueprintJson, toolJson,
              skinSignature?.model ?? null, skinSignature?.pngData ?? null,
              skinSignature?.textureValue ?? null, skinSignature?.textureSignature ?? null,
              skinSignature ? new Date() : null]
@@ -2229,6 +2297,9 @@ app.post('/api/marketplace/listings/:id/purchase', requireAuth, async (req, res)
         // 失敗して署名データが無いスキンは、購入してもMinecraft上で使用できないため購入自体を止める。
         if (listing.item_type === 'skin' && !listing.skin_texture_value) {
             throw new Error("このスキンは現在検証中のため購入できません。しばらくしてから再度お試しください");
+        }
+        if (listing.item_type === 'tool' && !listing.tool_json) {
+            throw new Error("このアイテムは購入できません");
         }
 
         if (listing.edition_type === 'unique' && listing.minted_count >= 1) {

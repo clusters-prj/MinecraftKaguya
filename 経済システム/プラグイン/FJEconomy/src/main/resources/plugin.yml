@@ -43,6 +43,10 @@ commands:
     description: Marketplace skin management commands
     usage: /skin [list|use <番号>|reset]
 
+  tools:
+    description: Open purchased marketplace tool items GUI
+    usage: /tools
+
 permissions:
   fj.use:
     description: Use FJ Economy commands
