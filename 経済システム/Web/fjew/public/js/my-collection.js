@@ -26,7 +26,9 @@ function renderCard(nft) {
             ${nft.item_type === 'tool'
                 ? `<p class="text-[10px] text-gray-500">ゲーム内で <code>/tools</code> を実行するとアイテム一覧から受け取れます</p>`
                 : ''}
-            <a href="/api/marketplace/nfts/${nft.nft_id}/download" target="_blank" rel="noopener" class="block text-center fj-btn-primary py-2 text-xs mt-2">開く / ダウンロード</a>
+            ${nft.item_type !== 'tool'
+                ? `<a href="/api/marketplace/nfts/${nft.nft_id}/download" target="_blank" rel="noopener" class="block text-center fj-btn-primary py-2 text-xs mt-2">開く / ダウンロード</a>`
+                : ''}
             <a href="/marketplace-certificate?nft_id=${nft.nft_id}" class="block text-center fj-navbtn py-2 text-xs mt-1 border border-gray-200 rounded-xl">証明書を見る</a>
             ${nft.item_type === 'skin' ? (
                 nft.is_active_skin

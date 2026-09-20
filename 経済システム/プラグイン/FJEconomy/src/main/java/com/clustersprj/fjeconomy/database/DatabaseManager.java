@@ -268,6 +268,23 @@ public class DatabaseManager {
                     "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+            // fje_tool_catalog（マーケットプレイスの便利アイテム(tool)の固定カタログ。
+            // 中身はこのプラグインが起動時に plugins/FJEconomy/tools/*.yml から同期する専用の管理者操作でのみ
+            // 書き換わり、出品者(Web側)はここに載っている tool_code を選ぶだけで中身を持ち込めない。
+            // Web側(server.js)の initDatabase() でも同一定義で CREATE TABLE IF NOT EXISTS しており、
+            // link_codes/fje_active_skins と同じ「Web/Java両方が同一定義を持つ共有テーブル」の運用パターン。
+            // Web側はSELECTのみ行い、書き込みは一切しない。
+            executeUpdate(conn,
+                    "CREATE TABLE IF NOT EXISTS fje_tool_catalog (" +
+                    "  tool_code VARCHAR(64) PRIMARY KEY," +
+                    "  material VARCHAR(64) NOT NULL," +
+                    "  display_name VARCHAR(255) NOT NULL," +
+                    "  lore TEXT," +
+                    "  custom_model_data INT NULL," +
+                    "  description VARCHAR(500) NULL," +
+                    "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
             plugin.getLogger().info("✓ テーブルを確認/作成しました");
 
         } catch (SQLException e) {

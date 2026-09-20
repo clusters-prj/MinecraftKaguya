@@ -18,6 +18,7 @@ import com.clustersprj.fjeconomy.skin.SkinListener;
 import com.clustersprj.fjeconomy.skin.SkinManager;
 import com.clustersprj.fjeconomy.tool.ToolGUI;
 import com.clustersprj.fjeconomy.tool.ToolManager;
+import com.clustersprj.fjeconomy.tool.ToolPermissionListener;
 import com.clustersprj.fjeconomy.listener.PlayerListener;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -114,6 +115,7 @@ public class FJEconomy extends JavaPlugin {
 
             // ToolManager initialization（マーケットプレイスの便利アイテム購入状態を共有DB経由で参照）
             this.toolManager = new ToolManager(this);
+            this.toolManager.syncCatalogFromFolder();
             this.toolGui = new ToolGUI(this);
             getLogger().info("✓ ツールアイテム連携システムを初期化しました");
 
@@ -136,6 +138,7 @@ public class FJEconomy extends JavaPlugin {
             getServer().getPluginManager().registerEvents(new ShopUI(this), this); // ShopUIを登録
             getServer().getPluginManager().registerEvents(new SkinListener(this), this); // マーケットプレイススキンの適用
             getServer().getPluginManager().registerEvents(toolGui, this); // 購入アイテムGUI
+            getServer().getPluginManager().registerEvents(new ToolPermissionListener(this), this); // ツール所有権限の付与
             getLogger().info("✓ イベントリスナーを登録しました");
 
             getLogger().info("===================================");

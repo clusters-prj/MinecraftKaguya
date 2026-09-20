@@ -368,13 +368,10 @@ const MARKETPLACE_TYPE_RULES = {
         extensions: ['.json'],
         isValidMime: () => true,
         maxSize: 1 * 1024 * 1024
-    },
-    // 便利アイテム(ツール)の定義JSON。blueprintと同じく小さいテキストファイル
-    tool: {
-        extensions: ['.json'],
-        isValidMime: () => true,
-        maxSize: 1 * 1024 * 1024
     }
+    // tool(便利アイテム)はファイルアップロードを伴わない(fje_tool_catalogからtool_codeを選ぶだけ)ため、
+    // ここには意図的にルールを持たない。file フィールドが送られてきた場合はMARKETPLACE_TYPE_RULES[item_type]が
+    // undefinedになり、multerのfileFilterがfail-closedで拒否する。
 };
 const MARKETPLACE_PREVIEW_RULE = {
     extensions: ['.png', '.jpg', '.jpeg', '.webp'],
@@ -587,20 +584,43 @@ async function initDatabase() {
         } catch (err) {
             if (err.code !== 'ER_DUP_FIELDNAME') throw err;
         }
-        // 便利アイテム(item_type='tool')出品用。ツールバー連携でFJEconomy(Java)がDB経由で内容を読めるよう、
-        // 出品時にアップロードされたJSON(material/amount/display_name/lore/custom_model_data/enchantments)
-        // をそのままテキストとして複製しておく。
+        // 便利アイテム(item_type='tool')出品用。ツール自体の中身(見た目・エンチャント等)は出品者が
+        // 自由に持ち込めるようにはせず、FJEconomy(Java)が管理する固定カタログ(fje_tool_catalog、
+        // サーバー上のYAMLファイルから同期される)から選んだ tool_code だけを保持する
+        // (出品者が実行コードや任意NBTを持ち込める経路を作らないため)。
         try {
-            await conn.query("ALTER TABLE marketplace_listings ADD COLUMN tool_json LONGTEXT NULL");
+            await conn.query("ALTER TABLE marketplace_listings ADD COLUMN tool_code VARCHAR(64) NULL");
         } catch (err) {
             if (err.code !== 'ER_DUP_FIELDNAME') throw err;
         }
+        // tool出品はファイルアップロードを伴わないため、file系カラムをNULL許可にする
+        // (world_data/skin/media/blueprintは引き続きアプリ側でファイル必須のバリデーションを行う)。
+        await conn.query("ALTER TABLE marketplace_listings MODIFY COLUMN file_path VARCHAR(255) NULL");
+        await conn.query("ALTER TABLE marketplace_listings MODIFY COLUMN file_original_name VARCHAR(255) NULL");
+        await conn.query("ALTER TABLE marketplace_listings MODIFY COLUMN file_size INT NULL");
+        await conn.query("ALTER TABLE marketplace_listings MODIFY COLUMN file_mime VARCHAR(100) NULL");
         // item_typeのENUMに'blueprint'/'tool'を追加(MARKETPLACE_ITEM_TYPESに追加した際にこれを忘れていたため、
         // 出品時に "Data truncated for column 'item_type'" で失敗していた)。MODIFY COLUMNは
         // 既に同じ定義であれば何度実行してもエラーにならないので、ER_DUP_FIELDNAME的な分岐は不要。
         await conn.query(
             "ALTER TABLE marketplace_listings MODIFY COLUMN item_type ENUM('world_data','skin','media','blueprint','tool') NOT NULL"
         );
+
+        // ツールアイテムの固定カタログ(管理者がサーバー上のYAMLファイルで管理し、FJEconomyが起動時に
+        // ここへ同期する。Web側はSELECTのみ行い、書き込みは一切しない=出品者はtool_codeを選ぶだけで
+        // 中身を持ち込めない)。link_codes/fje_active_skinsと同じく、Web/Java双方が同一定義で
+        // CREATE TABLE IF NOT EXISTS する共有テーブル。
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS fje_tool_catalog (
+                tool_code VARCHAR(64) PRIMARY KEY,
+                material VARCHAR(64) NOT NULL,
+                display_name VARCHAR(255) NOT NULL,
+                lore TEXT,
+                custom_model_data INT NULL,
+                description VARCHAR(500) NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
 
         // マーケットプレイス: スキン(item_type='skin')出品専用の追加カラム。
         // 出品時に検証済みの生PNG(Bedrock観測者向けGeyser変換で使用)と、mineskin.orgで署名済みの
@@ -1920,6 +1940,24 @@ app.get('/api/admin/build/queries/:id', requireAuth, requireAdmin, async (req, r
 // 11.5. APIルート: マーケットプレイス（ふじゅでデジタルデータを売買する擬似NFT）
 // ==========================================
 
+// ツールアイテムの固定カタログ一覧（出品フォームの選択肢用）。
+// 書き込みはFJEconomy(Java)が起動時にサーバー上のYAMLファイルから行うのみで、
+// Web側はSELECTのみ（出品者はここに載っているtool_codeを選ぶだけで、中身を持ち込むことはできない）。
+app.get('/api/marketplace/tool-catalog', requireAuth, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query(
+            "SELECT tool_code, display_name, description FROM fje_tool_catalog ORDER BY tool_code ASC"
+        );
+        res.json(rows);
+    } catch (err) {
+        sendServerError(res, err);
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
 // 一覧（公開・誰でも閲覧可）
 app.get('/api/marketplace/listings', async (req, res) => {
     let conn;
@@ -2085,15 +2123,18 @@ app.post('/api/marketplace/listings', requireAuth, async (req, res) => {
         maxEditions = parsed;
     }
 
+    // tool(便利アイテム)だけはファイルアップロードを伴わない(fje_tool_catalogからtool_codeを選ぶ方式)
     const fileEntry = req.files && req.files.file && req.files.file[0];
-    if (!fileEntry) {
+    if (item_type !== 'tool' && !fileEntry) {
         cleanupMarketplaceFiles(req);
         return res.status(400).json({ error: "ファイルをアップロードしてください" });
     }
-    const rule = MARKETPLACE_TYPE_RULES[item_type];
-    if (fileEntry.size > rule.maxSize) {
-        cleanupMarketplaceFiles(req);
-        return res.status(400).json({ error: "ファイルサイズが上限を超えています" });
+    if (item_type !== 'tool') {
+        const rule = MARKETPLACE_TYPE_RULES[item_type];
+        if (fileEntry.size > rule.maxSize) {
+            cleanupMarketplaceFiles(req);
+            return res.status(400).json({ error: "ファイルサイズが上限を超えています" });
+        }
     }
     const previewEntry = req.files && req.files.preview_image && req.files.preview_image[0];
     if (previewEntry && previewEntry.size > MARKETPLACE_PREVIEW_RULE.maxSize) {
@@ -2127,58 +2168,16 @@ app.post('/api/marketplace/listings', requireAuth, async (req, res) => {
         blueprintJson = raw;
     }
 
-    // 便利アイテム(tool)は、FJEconomy(Java)がツールバー連携GUIで実ItemStackを組み立てられるよう、
-    // アップロードされたJSONの中身をそのまま複製してDBに保存する。
-    // 中身が壊れている/最低限の形を満たさない場合はここで弾く(ディスクへの保存前)。
-    let toolJson = null;
+    // 便利アイテム(tool)は、出品者が中身(見た目・エンチャント等)を持ち込むのではなく、
+    // FJEconomy(Java)が管理する固定カタログ(fje_tool_catalog、管理者がサーバー上のYAMLファイルで
+    // 追加する)から tool_code を選ぶだけにする。存在しないtool_codeは拒否する(fail-closed)。
+    let toolCode = null;
     if (item_type === 'tool') {
-        let raw;
-        try {
-            raw = fs.readFileSync(fileEntry.path, 'utf8');
-        } catch (err) {
+        toolCode = (req.body.tool_code || '').trim();
+        if (!toolCode) {
             cleanupMarketplaceFiles(req);
-            return res.status(400).json({ error: "ツールアイテムファイルの読み込みに失敗しました" });
+            return res.status(400).json({ error: "ツールを選択してください" });
         }
-        let parsed;
-        try {
-            parsed = JSON.parse(raw);
-        } catch (err) {
-            cleanupMarketplaceFiles(req);
-            return res.status(400).json({ error: "ツールアイテムのJSONが不正です" });
-        }
-        if (!parsed || typeof parsed.material !== 'string' || !parsed.material.trim()) {
-            cleanupMarketplaceFiles(req);
-            return res.status(400).json({ error: "ツールアイテムの形式が正しくありません(materialが必要です)" });
-        }
-        if (parsed.amount !== undefined && (!Number.isInteger(parsed.amount) || parsed.amount < 1 || parsed.amount > 64)) {
-            cleanupMarketplaceFiles(req);
-            return res.status(400).json({ error: "ツールアイテムのamountは1〜64の整数で指定してください" });
-        }
-        if (parsed.display_name !== undefined && typeof parsed.display_name !== 'string') {
-            cleanupMarketplaceFiles(req);
-            return res.status(400).json({ error: "ツールアイテムのdisplay_nameは文字列で指定してください" });
-        }
-        if (parsed.lore !== undefined && (!Array.isArray(parsed.lore) || !parsed.lore.every((l) => typeof l === 'string'))) {
-            cleanupMarketplaceFiles(req);
-            return res.status(400).json({ error: "ツールアイテムのloreは文字列配列で指定してください" });
-        }
-        if (parsed.custom_model_data !== undefined && (!Number.isInteger(parsed.custom_model_data) || parsed.custom_model_data < 0)) {
-            cleanupMarketplaceFiles(req);
-            return res.status(400).json({ error: "ツールアイテムのcustom_model_dataは0以上の整数で指定してください" });
-        }
-        if (parsed.enchantments !== undefined) {
-            if (typeof parsed.enchantments !== 'object' || parsed.enchantments === null || Array.isArray(parsed.enchantments)) {
-                cleanupMarketplaceFiles(req);
-                return res.status(400).json({ error: "ツールアイテムのenchantmentsはオブジェクトで指定してください" });
-            }
-            for (const level of Object.values(parsed.enchantments)) {
-                if (!Number.isInteger(level) || level < 1) {
-                    cleanupMarketplaceFiles(req);
-                    return res.status(400).json({ error: "ツールアイテムのenchantmentsのレベルは1以上の整数で指定してください" });
-                }
-            }
-        }
-        toolJson = raw;
     }
 
     // スキンは仕様上64x64のPNGしか販売できない。Java版クライアントは署名(signature)の無いテクスチャを
@@ -2215,16 +2214,28 @@ app.post('/api/marketplace/listings', requireAuth, async (req, res) => {
             throw new Error("アクティブな出品は1アカウントにつき20件までです");
         }
 
+        if (item_type === 'tool') {
+            const catalogRows = await conn.query(
+                "SELECT tool_code FROM fje_tool_catalog WHERE tool_code = ?",
+                [toolCode]
+            );
+            if (catalogRows.length === 0) {
+                throw new Error("指定されたツールは存在しません");
+            }
+        }
+
         const previewImagePath = previewEntry ? `/uploads/marketplace-previews/${previewEntry.filename}` : null;
 
         const insertResult = await conn.query(
             `INSERT INTO marketplace_listings
                 (seller_uuid, seller_web_user_id, item_type, title, description, price, edition_type, max_editions,
-                 file_path, file_original_name, file_size, file_mime, preview_image_path, blueprint_json, tool_json,
+                 file_path, file_original_name, file_size, file_mime, preview_image_path, blueprint_json, tool_code,
                  skin_model, skin_png_data, skin_texture_value, skin_texture_signature, skin_signed_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [seller_uuid, req.session.webUserId, item_type, title, description, priceAmount, edition_type, maxEditions,
-             fileEntry.filename, fileEntry.originalname, fileEntry.size, fileEntry.mimetype, previewImagePath, blueprintJson, toolJson,
+             fileEntry ? fileEntry.filename : null, fileEntry ? fileEntry.originalname : null,
+             fileEntry ? fileEntry.size : null, fileEntry ? fileEntry.mimetype : null,
+             previewImagePath, blueprintJson, toolCode,
              skinSignature?.model ?? null, skinSignature?.pngData ?? null,
              skinSignature?.textureValue ?? null, skinSignature?.textureSignature ?? null,
              skinSignature ? new Date() : null]
@@ -2298,7 +2309,7 @@ app.post('/api/marketplace/listings/:id/purchase', requireAuth, async (req, res)
         if (listing.item_type === 'skin' && !listing.skin_texture_value) {
             throw new Error("このスキンは現在検証中のため購入できません。しばらくしてから再度お試しください");
         }
-        if (listing.item_type === 'tool' && !listing.tool_json) {
+        if (listing.item_type === 'tool' && !listing.tool_code) {
             throw new Error("このアイテムは購入できません");
         }
 
@@ -2572,6 +2583,9 @@ app.get('/api/marketplace/nfts/:nftId/download', requireAuth, async (req, res) =
         const nft = rows[0];
         if (!ownedUuids.includes(nft.owner_uuid)) {
             return res.status(403).json({ error: "このアイテムを所有していません" });
+        }
+        if (!nft.file_path) {
+            return res.status(404).json({ error: "このアイテムにはダウンロード対象のファイルがありません" });
         }
 
         // file_path はサーバー生成のファイル名のみを保存しているが、防御的にbasenameで再度縛る

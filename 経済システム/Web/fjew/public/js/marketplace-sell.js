@@ -12,6 +12,43 @@ function toggleMaxEditionsField() {
 document.getElementById('editionType').addEventListener('change', toggleMaxEditionsField);
 toggleMaxEditionsField();
 
+// ツール(item_type='tool')はファイルアップロードの代わりに、管理者が登録済みのtool_codeを選ぶ。
+let toolCatalogLoaded = false;
+async function loadToolCatalog() {
+    if (toolCatalogLoaded) return;
+    toolCatalogLoaded = true;
+    try {
+        const { res, data } = await window.fjew.fetchJson('/api/marketplace/tool-catalog');
+        if (!res.ok) throw new Error(data.error || 'ツール一覧の取得に失敗しました');
+        const select = document.getElementById('toolCode');
+        select.innerHTML = '';
+        if (data.length === 0) {
+            select.innerHTML = '<option value="">現在出品できるツールがありません</option>';
+            return;
+        }
+        for (const tool of data) {
+            const option = document.createElement('option');
+            option.value = tool.tool_code;
+            option.textContent = tool.description ? `${tool.display_name}（${tool.description}）` : tool.display_name;
+            select.appendChild(option);
+        }
+    } catch (err) {
+        console.error('ツール一覧取得エラー:', err);
+    }
+}
+
+function toggleItemTypeFields() {
+    const isTool = document.getElementById('itemType').value === 'tool';
+    document.getElementById('toolCodeField').classList.toggle('hidden', !isTool);
+    document.getElementById('fileInputField').classList.toggle('hidden', isTool);
+    document.getElementById('fileInput').required = !isTool;
+    document.getElementById('toolCode').required = isTool;
+    if (isTool) loadToolCatalog();
+}
+
+document.getElementById('itemType').addEventListener('change', toggleItemTypeFields);
+toggleItemTypeFields();
+
 async function loadSellerAccounts() {
     const user = await window.fjew.requireAuth();
     if (!user) return;
@@ -122,8 +159,13 @@ document.getElementById('sellForm').addEventListener('submit', async (e) => {
         if (document.getElementById('editionType').value === 'limited') {
             formData.append('max_editions', document.getElementById('maxEditions').value);
         }
-        const fileInput = document.getElementById('fileInput');
-        if (fileInput.files[0]) formData.append('file', fileInput.files[0]);
+        const isTool = document.getElementById('itemType').value === 'tool';
+        if (isTool) {
+            formData.append('tool_code', document.getElementById('toolCode').value);
+        } else {
+            const fileInput = document.getElementById('fileInput');
+            if (fileInput.files[0]) formData.append('file', fileInput.files[0]);
+        }
         const previewInput = document.getElementById('previewInput');
         if (previewInput.files[0]) formData.append('preview_image', previewInput.files[0]);
 
@@ -134,6 +176,7 @@ document.getElementById('sellForm').addEventListener('submit', async (e) => {
             alert('出品しました');
             form.reset();
             toggleMaxEditionsField();
+            toggleItemTypeFields();
             loadMyListings();
         } else {
             alert('出品失敗: ' + (data.error || '不明なエラー'));
