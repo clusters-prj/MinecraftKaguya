@@ -246,6 +246,13 @@ public class FJEconomy extends JavaPlugin {
                 getLogger().info("✓ データベース接続を再確立しました");
             }
 
+            // plugins/FJEconomy/tools/*.yml の追加・変更をDBカタログへ反映する
+            // (onEnable時にしか同期しないと、管理者がYAMLを置いてreloadしただけでは反映されないため)
+            if (toolManager != null) {
+                toolManager.syncCatalogFromFolder();
+                getLogger().info("✓ ツールカタログを再同期しました");
+            }
+
             getLogger().info("✓ FJ Economy をリロードしました");
 
         } catch (Exception e) {
