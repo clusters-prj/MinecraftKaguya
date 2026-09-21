@@ -180,6 +180,10 @@ public class DatabaseManager {
                     "  INDEX idx_status (status)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+            // 初期装備（1行1アイテムの「MATERIAL:個数」テキスト。Web側(server.js)でも同じカラムを補う）
+            executeUpdate(conn,
+                    "ALTER TABLE fje_arena_events ADD COLUMN IF NOT EXISTS loadout TEXT NULL DEFAULT NULL");
+
             // fje_arena_participants（アリーナイベントの対戦カード）
             executeUpdate(conn,
                     "CREATE TABLE IF NOT EXISTS fje_arena_participants (" +

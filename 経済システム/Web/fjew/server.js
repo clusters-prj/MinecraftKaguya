@@ -639,6 +639,15 @@ async function initDatabase() {
             }
         }
 
+        // アリーナ: 試合の初期装備（1行1アイテムの「MATERIAL:個数」テキスト）。
+        // fje_arena_events はJava側(DatabaseManager)が作るテーブルなので、Java側が未起動で
+        // まだ存在しない場合は無視する（Java側でも同じカラムを ADD COLUMN IF NOT EXISTS で補う）。
+        try {
+            await conn.query("ALTER TABLE fje_arena_events ADD COLUMN loadout TEXT NULL DEFAULT NULL");
+        } catch (err) {
+            if (err.code !== 'ER_DUP_FIELDNAME' && err.code !== 'ER_NO_SUCH_TABLE') throw err;
+        }
+
         // マーケットプレイス: 現在「使用中」のスキンNFT。Minecraftサーバー側(FJEconomyのDatabaseManager)
         // でも同一定義で CREATE TABLE IF NOT EXISTS しており、link_codes と同じ「Web/Java両方が
         // 同一定義を持つ共有テーブル」というこのリポジトリ既存の運用パターンを踏襲している。
@@ -1621,6 +1630,24 @@ app.get('/api/admin/government/ledger', requireAuth, requireAdmin, async (req, r
 app.post('/api/admin/arena/events', requireAuth, requireAdmin, async (req, res) => {
     const { name, world, x, y, z, radius, prize_amount, participants } = req.body;
 
+    // 初期装備: 1行1アイテムの「MATERIAL:個数」に正規化して保存する（空なら装備なし）
+    let loadout = null;
+    if (req.body.loadout !== undefined && req.body.loadout !== null && req.body.loadout !== '') {
+        if (typeof req.body.loadout !== 'string') return res.status(400).json({ error: "初期装備の形式が正しくありません" });
+        const lines = req.body.loadout.split(/\r?\n/).map(s => s.trim()).filter(s => s.length > 0);
+        if (lines.length > 40) return res.status(400).json({ error: "初期装備は40行までです" });
+        const normalized = [];
+        for (const line of lines) {
+            const m = line.match(/^([A-Za-z0-9_]{1,64})\s*(?:[:x× ]\s*(\d{1,3}))?$/);
+            const amount = m && m[2] ? Number(m[2]) : 1;
+            if (!m || amount < 1 || amount > 64) {
+                return res.status(400).json({ error: `初期装備の行が正しくありません: ${line}（例: DIAMOND_SWORD:1）` });
+            }
+            normalized.push(`${m[1].toUpperCase()}:${amount}`);
+        }
+        loadout = normalized.join('\n');
+    }
+
     if (!name || !world || !Array.isArray(participants) || participants.length < 2) {
         return res.status(400).json({ error: "name, world, participants(2件以上) が必要です" });
     }
@@ -1645,8 +1672,8 @@ app.post('/api/admin/arena/events', requireAuth, requireAdmin, async (req, res) 
         }
 
         const eventResult = await conn.query(
-            "INSERT INTO fje_arena_events (name, world, center_x, center_y, center_z, radius, prize_amount) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [name, world, centerX, centerY, centerZ, r, prizeAmount]
+            "INSERT INTO fje_arena_events (name, world, center_x, center_y, center_z, radius, prize_amount, loadout) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [name, world, centerX, centerY, centerZ, r, prizeAmount, loadout]
         );
         const eventId = eventResult.insertId;
 

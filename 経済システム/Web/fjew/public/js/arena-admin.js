@@ -32,13 +32,30 @@ function renderEventCard(event) {
             <span>賞金: ¥${window.fjew.formatYen(event.prize_amount)}</span>
             <span>${formatDate(event.created_at)}</span>
         </div>
+        ${event.loadout ? `<div class="text-[10px] text-gray-400">初期装備: ${window.fjew.escapeHtml(event.loadout.split('\n').join(', '))}</div>` : ''}
         ${event.status === 'ACTIVE' ? '<button class="w-full bg-gray-800 text-white text-sm font-bold py-2 rounded-xl hover:bg-gray-700 transition cancelBtn">キャンセル（全額返金）</button>' : ''}
+        <button class="w-full border border-gray-300 text-gray-600 text-sm font-bold py-2 rounded-xl hover:bg-gray-50 transition reuseBtn">この試合設定を使いまわす</button>
     `;
+    card.querySelector('.reuseBtn').addEventListener('click', () => reuseEvent(event));
     const cancelBtn = card.querySelector('.cancelBtn');
     if (cancelBtn) {
         cancelBtn.addEventListener('click', () => cancelEvent(event.id));
     }
     return card;
+}
+
+// 過去の試合の設定（会場・賞金・対戦者・初期装備）を作成フォームへ複写する。内容は編集してから作成できる。
+function reuseEvent(event) {
+    document.getElementById('fName').value = event.name;
+    document.getElementById('fWorld').value = event.world;
+    document.getElementById('fX').value = event.center_x;
+    document.getElementById('fY').value = event.center_y;
+    document.getElementById('fZ').value = event.center_z;
+    document.getElementById('fRadius').value = event.radius;
+    document.getElementById('fPrize').value = event.prize_amount;
+    document.getElementById('fParticipants').value = event.participants.map(p => p.player_name).join(',');
+    document.getElementById('fLoadout').value = event.loadout || '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 async function cancelEvent(eventId) {
@@ -80,6 +97,7 @@ document.getElementById('createEventBtn').addEventListener('click', async () => 
         .split(',')
         .map(s => s.trim())
         .filter(s => s.length > 0);
+    const loadout = document.getElementById('fLoadout').value;
 
     if (!name || !world || !radius || participants.length < 2) {
         alert('イベント名・ワールド名・半径・2人以上の対戦プレイヤーを入力してください');
@@ -90,7 +108,7 @@ document.getElementById('createEventBtn').addEventListener('click', async () => 
         const { res, data } = await window.fjew.fetchJson('/api/admin/arena/events', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, world, x, y, z, radius, prize_amount, participants })
+            body: JSON.stringify({ name, world, x, y, z, radius, prize_amount, participants, loadout })
         });
         if (!res.ok) throw new Error(data.error || 'イベント作成に失敗しました');
 
@@ -103,6 +121,7 @@ document.getElementById('createEventBtn').addEventListener('click', async () => 
         document.getElementById('fRadius').value = '';
         document.getElementById('fPrize').value = '';
         document.getElementById('fParticipants').value = '';
+        document.getElementById('fLoadout').value = '';
         loadEvents();
     } catch (err) {
         alert(err.message);

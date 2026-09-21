@@ -117,6 +117,7 @@ public class ArenaManager {
         String name;
         String world;
         double x, y, z, radius;
+        String loadout; // 1行1アイテムの「MATERIAL:個数」。無ければnull
         Set<UUID> participants = new HashSet<>();
     }
 
@@ -145,7 +146,7 @@ public class ArenaManager {
         Map<Integer, CachedEvent> latest = new HashMap<>();
         try (Connection conn = dbManager.getConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT id, name, world, center_x, center_y, center_z, radius FROM fje_arena_events WHERE status = 'ACTIVE'");
+                    "SELECT id, name, world, center_x, center_y, center_z, radius, loadout FROM fje_arena_events WHERE status = 'ACTIVE'");
                  ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     CachedEvent e = new CachedEvent();
@@ -156,6 +157,7 @@ public class ArenaManager {
                     e.y = rs.getDouble("center_y");
                     e.z = rs.getDouble("center_z");
                     e.radius = rs.getDouble("radius");
+                    e.loadout = rs.getString("loadout");
                     latest.put(e.id, e);
                 }
             }
@@ -452,7 +454,54 @@ public class ArenaManager {
         inv.setArmorContents(new ItemStack[4]);
         inv.setItemInOffHand(null);
         player.setGameMode(GameMode.SURVIVAL);
+        giveLoadout(player, event);
         player.sendMessage("§6[アリーナ] §f「" + event.name + "」の対戦エリアに入りました。持ち物は試合終了後に返却されます。");
+    }
+
+    /**
+     * イベントに設定された初期装備を配布します。防具は対応スロットへ、盾は左手へ自動で装備し、
+     * それ以外はインベントリへ入れます。不正なアイテムIDの行は警告ログを出して読み飛ばします。
+     */
+    private void giveLoadout(Player player, CachedEvent event) {
+        if (event.loadout == null || event.loadout.isBlank()) return;
+
+        PlayerInventory inv = player.getInventory();
+        for (String line : event.loadout.split("\\R")) {
+            String[] parts = line.trim().split(":");
+            Material material = Material.matchMaterial(parts[0]);
+            if (material == null || material.isAir() || !material.isItem()) {
+                plugin.getLogger().warning("アリーナ初期装備に不正なアイテムIDがあります(" + event.name + "): " + line);
+                continue;
+            }
+            int amount = 1;
+            if (parts.length > 1) {
+                try {
+                    amount = Math.max(1, Integer.parseInt(parts[1].trim()));
+                } catch (NumberFormatException ignored) {
+                    // 個数が読めなければ1個として扱う
+                }
+            }
+            ItemStack item = new ItemStack(material, Math.min(amount, material.getMaxStackSize()));
+
+            String name = material.name();
+            if (name.endsWith("_HELMET") && isEmpty(inv.getHelmet())) {
+                inv.setHelmet(item);
+            } else if (name.endsWith("_CHESTPLATE") && isEmpty(inv.getChestplate())) {
+                inv.setChestplate(item);
+            } else if (name.endsWith("_LEGGINGS") && isEmpty(inv.getLeggings())) {
+                inv.setLeggings(item);
+            } else if (name.endsWith("_BOOTS") && isEmpty(inv.getBoots())) {
+                inv.setBoots(item);
+            } else if (material == Material.SHIELD && isEmpty(inv.getItemInOffHand())) {
+                inv.setItemInOffHand(item);
+            } else {
+                inv.addItem(item);
+            }
+        }
+    }
+
+    private boolean isEmpty(ItemStack item) {
+        return item == null || item.getType().isAir();
     }
 
     private void restorePlayer(UUID uuid) {

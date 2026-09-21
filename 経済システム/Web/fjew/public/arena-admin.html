@@ -37,6 +37,10 @@
                 <input id="fRadius" type="number" min="1" placeholder="半径（ブロック）" class="w-full border rounded-xl px-3 py-2 text-sm">
                 <input id="fPrize" type="number" min="0" placeholder="優勝賞金（0で賞金なし）" class="w-full border rounded-xl px-3 py-2 text-sm">
                 <input id="fParticipants" type="text" placeholder="対戦プレイヤー名をカンマ区切りで（例: Alice,Bob）" class="w-full border rounded-xl px-3 py-2 text-sm">
+                <div>
+                    <label for="fLoadout" class="text-xs text-gray-500">初期装備（任意）。1行1アイテム、「アイテムID:個数」。防具・盾は自動で装備されます</label>
+                    <textarea id="fLoadout" rows="5" placeholder="DIAMOND_SWORD:1&#10;DIAMOND_CHESTPLATE:1&#10;COOKED_BEEF:16" class="w-full border rounded-xl px-3 py-2 text-sm font-mono"></textarea>
+                </div>
                 <button id="createEventBtn" class="w-full fj-btn-primary py-3">イベントを作成</button>
             </section>
 
