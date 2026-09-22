@@ -780,6 +780,9 @@ app.get('/arena-admin', (req, res) => {
 app.get('/build-admin', (req, res) => {
     sendHtmlWithGTM(path.join(__dirname, 'public', 'build-admin.html'), res);
 });
+app.get('/tool-admin', (req, res) => {
+    sendHtmlWithGTM(path.join(__dirname, 'public', 'tool-admin.html'), res);
+});
 app.get('/pet-shop', (req, res) => {
     sendHtmlWithGTM(path.join(__dirname, 'public', 'pet-shop.html'), res);
 });
@@ -1976,6 +1979,25 @@ app.get('/api/marketplace/tool-catalog', requireAuth, async (req, res) => {
         conn = await pool.getConnection();
         const rows = await conn.query(
             "SELECT tool_code, display_name, description FROM fje_tool_catalog ORDER BY tool_code ASC"
+        );
+        res.json(rows);
+    } catch (err) {
+        sendServerError(res, err);
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// ツールカタログの全カラム参照（管理者専用）。
+// plugins/FJEconomy/tools/*.yml に登録済みの内容を確認・再編集の下書きにするためのもので、
+// ここからDBへの書き込みは一切行わない(書き込みはFJEconomy起動時のYAML同期のみ)。
+app.get('/api/admin/tool-catalog', requireAuth, requireAdmin, async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query(
+            "SELECT tool_code, material, display_name, lore, custom_model_data, description, updated_at " +
+            "FROM fje_tool_catalog ORDER BY tool_code ASC"
         );
         res.json(rows);
     } catch (err) {

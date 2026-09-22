@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ふじゅ〜ペイ | ツールカタログ生成</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/js/theme.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col justify-between font-sans">
+    <header class="fj-header">
+        <div class="fj-header__inner">
+            <div class="flex items-center gap-2">
+                <button id="backBtn" class="fj-back" aria-label="戻る">←</button>
+                <h1 class="fj-logo">ツールカタログ生成</h1>
+            </div>
+            <button id="logoutBtn" class="fj-navbtn">ログアウト</button>
+        </div>
+    </header>
+
+    <main class="max-w-md w-full mx-auto px-4 py-6 flex-grow space-y-6">
+        <div id="forbidden" class="hidden bg-white rounded-2xl shadow-sm p-8 text-center text-gray-400 text-sm">
+            管理者権限がありません
+        </div>
+
+        <div id="adminContent" class="hidden space-y-6">
+            <p class="text-xs text-gray-500">
+                ここで生成したYAML/Skriptは、このサイトからは一切書き込まれません(fjewとマイクラサーバーは別マシンのため)。
+                生成されたテキストをコピーして、サーバー側に手動で配置してください。
+            </p>
+
+            <section class="bg-white rounded-2xl shadow-sm p-4 space-y-3">
+                <h2 class="text-sm font-bold text-gray-500">ツールの内容を入力</h2>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">tool_code（ファイル名にもなる。英数字とアンダースコアのみ推奨）</label>
+                    <input id="fToolCode" type="text" placeholder="例: worldedit_command" class="w-full border rounded-xl px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">material（Bukkitのアイテム名）</label>
+                    <input id="fMaterial" type="text" placeholder="例: DIAMOND" class="w-full border rounded-xl px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">display_name（&amp;で色コード可）</label>
+                    <input id="fDisplayName" type="text" placeholder="例: &b&lWorldEdit command&7(右クリック)" class="w-full border rounded-xl px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">lore（説明文、1行ずつ改行で入力）</label>
+                    <textarea id="fLore" rows="3" placeholder="クリックでWEの主要コマンドを選択し使用します" class="w-full border rounded-xl px-3 py-2 text-sm"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">custom_model_data（任意・数値。リソースパック側と番号を合わせる）</label>
+                    <input id="fCustomModelData" type="number" placeholder="例: 1005" class="w-full border rounded-xl px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">description（出品プルダウンに出る説明・任意）</label>
+                    <input id="fDescription" type="text" placeholder="例: WorldEdit主要コマンドの選択メニューを開く" class="w-full border rounded-xl px-3 py-2 text-sm">
+                </div>
+                <button id="generateBtn" class="w-full fj-btn-primary py-3">生成する</button>
+            </section>
+
+            <section id="outputSection" class="hidden space-y-4">
+                <div class="bg-white rounded-2xl shadow-sm p-4 space-y-2">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-sm font-bold text-gray-500">plugins/FJEconomy/tools/&lt;tool_code&gt;.yml</h2>
+                        <button id="copyYamlBtn" class="fj-navbtn text-[10px]">コピー</button>
+                    </div>
+                    <pre id="yamlOutput" class="bg-gray-50 rounded-xl p-3 text-xs overflow-x-auto whitespace-pre-wrap"></pre>
+                </div>
+                <div class="bg-white rounded-2xl shadow-sm p-4 space-y-2">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-sm font-bold text-gray-500">Skriptテンプレート（挙動は要実装）</h2>
+                        <button id="copySkriptBtn" class="fj-navbtn text-[10px]">コピー</button>
+                    </div>
+                    <pre id="skriptOutput" class="bg-gray-50 rounded-xl p-3 text-xs overflow-x-auto whitespace-pre-wrap"></pre>
+                </div>
+            </section>
+
+            <section>
+                <h2 class="text-sm font-bold text-gray-500 mb-2">登録済みカタログ（参照用）</h2>
+                <div id="catalogList" class="space-y-2"></div>
+            </section>
+        </div>
+    </main>
+
+    <footer class="fj-footer">
+        <div class="fj-footer__links">
+            <a href="https://web-kaguya.clusters-prj.com" target="_blank" rel="noopener">MCツクヨミコミュニティサイト</a>
+            <span class="fj-footer__sep">|</span>
+            <a href="https://discord.gg/UXpPWxyq2" target="_blank" rel="noopener">Discord</a>
+        </div>
+        &copy; 2026 FJ Economy / clusters-prj.com<br>
+        これはファンによる非公式サイトであり、公式による許可・賛同を得たものではありません。<br>
+        また、表示される通貨は仮想のものであり、現実での取引に使用できるものではありません。
+    </footer>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/tool-admin.js"></script>
+</body>
+</html>
