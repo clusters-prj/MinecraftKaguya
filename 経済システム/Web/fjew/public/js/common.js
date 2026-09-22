@@ -64,5 +64,36 @@ window.fjew = {
                 reloadFn();
             }
         });
+    },
+
+    // スマホ用の下部固定タブバー。PC(md以上)ではCSS側で非表示にする(.fj-bottom-nav)。
+    // ヘッダーに6個ボタンを横並びさせると詰まってしまうため、主要セクションへの導線はここに集約する。
+    // ログイン前のページ(login/reset-password)では表示しない。
+    renderBottomNav() {
+        const hiddenOn = ['/login', '/reset-password'];
+        if (hiddenOn.includes(window.location.pathname)) return;
+
+        const items = [
+            { href: '/main', icon: '🏠', label: 'ホーム' },
+            { href: '/history', icon: '📜', label: '履歴' },
+            { href: '/marketplace', icon: '🛒', label: 'マーケット' },
+            { href: '/pet-shop', icon: '🐾', label: 'ペット' },
+            { href: '/arena', icon: '⚔️', label: 'アリーナ' },
+            { href: '/settings', icon: '⚙️', label: '設定' }
+        ];
+
+        const nav = document.createElement('nav');
+        nav.className = 'fj-bottom-nav';
+        nav.setAttribute('aria-label', '主要ナビゲーション');
+        nav.innerHTML = items.map(item => {
+            const isActive = window.location.pathname === item.href;
+            return `<a href="${item.href}" class="fj-bottom-nav__item${isActive ? ' is-active' : ''}">` +
+                `<span class="fj-bottom-nav__icon">${item.icon}</span><span>${item.label}</span></a>`;
+        }).join('');
+
+        document.body.appendChild(nav);
+        document.body.classList.add('fj-has-bottom-nav');
     }
 };
+
+window.fjew.renderBottomNav();

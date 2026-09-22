@@ -14,7 +14,7 @@
             <h1 class="fj-logo">
                 <span class="fj-logo__mark">ふじゅ〜</span> ペイ
             </h1>
-            <div class="flex gap-2">
+            <div class="hidden md:flex gap-2">
                 <button id="historyBtn" class="fj-navbtn">履歴</button>
                 <button id="marketplaceBtn" class="fj-navbtn">マーケット</button>
                 <button id="petShopBtn" class="fj-navbtn">ペット</button>
@@ -25,46 +25,48 @@
         </div>
     </header>
 
-    <main class="max-w-md w-full mx-auto px-4 py-6 flex-grow space-y-4">
-        <div class="fj-balance text-white rounded-3xl p-6">
-            <div class="flex justify-between items-start z-10 relative">
+    <main class="max-w-md w-full mx-auto px-4 py-6 flex-grow space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-6 md:items-start">
+        <div class="space-y-4">
+            <div class="fj-balance text-white rounded-3xl p-6">
+                <div class="flex justify-between items-start z-10 relative">
+                    <div>
+                        <p class="text-xs font-medium opacity-80">現在の総残高</p>
+                        <h3 class="text-3xl font-black tracking-tight mt-1">
+                            ¥ <span id="userBalance">0</span>
+                        </h3>
+                    </div>
+                    <span class="bg-white/20 text-xs px-2.5 py-1 rounded-full font-bold backdrop-blur-sm" id="mcStatus">未連携</span>
+                </div>
+                <div class="mt-6 flex justify-between items-center z-10 relative">
+                    <div>
+                        <p class="text-[10px] opacity-60">マイクラアカウント</p>
+                        <p class="text-sm font-bold mt-0.5" id="mcPlayerName">未連携のユーザー</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-[10px] opacity-60">Webアカウント</p>
+                        <p class="text-xs font-medium mt-0.5 opacity-90 cursor-pointer select-none hover:underline" id="webUserEmail" title="タップで表示/非表示">••••••••</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="accountListSection" class="hidden bg-white rounded-2xl shadow-md p-4">
+                <p class="text-[10px] font-bold text-gray-400 mb-2">連携中のアカウント一覧</p>
+                <div id="accountList" class="space-y-2"></div>
+            </div>
+
+            <div id="unlinkedAlert" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-800 text-xs flex flex-col gap-3">
                 <div>
-                    <p class="text-xs font-medium opacity-80">現在の総残高</p>
-                    <h3 class="text-3xl font-black tracking-tight mt-1">
-                        ¥ <span id="userBalance">0</span>
-                    </h3>
+                    <p class="font-bold mb-1">⚠️ マイクラアカウントが連携されていません</p>
+                    <p>ゲーム内で <code class="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold text-brand-700">/fje link</code> を実行し、表示された6桁のコードを入力してください。</p>
                 </div>
-                <span class="bg-white/20 text-xs px-2.5 py-1 rounded-full font-bold backdrop-blur-sm" id="mcStatus">未連携</span>
-            </div>
-            <div class="mt-6 flex justify-between items-center z-10 relative">
-                <div>
-                    <p class="text-[10px] opacity-60">マイクラアカウント</p>
-                    <p class="text-sm font-bold mt-0.5" id="mcPlayerName">未連携のユーザー</p>
-                </div>
-                <div class="text-right">
-                    <p class="text-[10px] opacity-60">Webアカウント</p>
-                    <p class="text-xs font-medium mt-0.5 opacity-90 cursor-pointer select-none hover:underline" id="webUserEmail" title="タップで表示/非表示">••••••••</p>
+                <div class="flex gap-2">
+                    <input type="text" id="linkCode" class="border border-amber-300 rounded-xl px-4 py-2 text-sm text-gray-800 font-mono tracking-widest text-center w-32 focus:outline-none focus:border-brand-600" placeholder="000000" maxlength="6">
+                    <button id="submitLink" class="fj-btn-primary px-4 py-2">連携する</button>
                 </div>
             </div>
         </div>
 
-        <div id="accountListSection" class="hidden bg-white rounded-2xl shadow-md p-4">
-            <p class="text-[10px] font-bold text-gray-400 mb-2">連携中のアカウント一覧</p>
-            <div id="accountList" class="space-y-2"></div>
-        </div>
-
-        <div id="unlinkedAlert" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-800 text-xs flex flex-col gap-3">
-            <div>
-                <p class="font-bold mb-1">⚠️ マイクラアカウントが連携されていません</p>
-                <p>ゲーム内で <code class="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold text-brand-700">/fje link</code> を実行し、表示された6桁のコードを入力してください。</p>
-            </div>
-            <div class="flex gap-2">
-                <input type="text" id="linkCode" class="border border-amber-300 rounded-xl px-4 py-2 text-sm text-gray-800 font-mono tracking-widest text-center w-32 focus:outline-none focus:border-brand-600" placeholder="000000" maxlength="6">
-                <button id="submitLink" class="fj-btn-primary px-4 py-2">連携する</button>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow-md p-6">
+        <div class="bg-white rounded-2xl shadow-md p-6 mt-4 md:mt-0">
             <h4 class="text-sm font-bold text-gray-800 mb-4 fj-rule">お金を送る</h4>
             <div class="space-y-4">
                 <div>

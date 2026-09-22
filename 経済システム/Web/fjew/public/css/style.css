@@ -59,6 +59,75 @@ body {
     gap: .5rem;
 }
 
+/* ---- PC向け: 横幅を広げる(中身は各ページ側でgrid化して余白を活かす) ---- */
+@media (min-width: 768px) {
+    .fj-header__inner,
+    main.max-w-md {
+        max-width: 72rem;
+    }
+}
+
+/* ---- スマホ下部固定タブバー(common.js が全ページへ自動挿入する) ---- */
+.fj-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    display: flex;
+    background: rgba(255, 255, 255, .92);
+    backdrop-filter: saturate(180%) blur(14px);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    border-top: 1px solid var(--fj-border);
+    padding: .35rem .25rem calc(.35rem + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 768px) {
+    .fj-bottom-nav {
+        display: none;
+    }
+}
+
+.fj-bottom-nav__item {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .15rem;
+    padding: .3rem 0;
+    margin: 0 .1rem;
+    border-radius: .6rem;
+    color: var(--fj-muted);
+    font-size: .625rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: background-color .15s ease, color .15s ease;
+}
+
+.fj-bottom-nav__icon {
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+.fj-bottom-nav__item.is-active {
+    color: var(--fj-brand);
+}
+
+.fj-bottom-nav__item:active {
+    background: rgba(109, 40, 217, .08);
+}
+
+/* 下部タブバーの分だけ本文末尾が隠れないようにする */
+body.fj-has-bottom-nav main {
+    padding-bottom: 5rem;
+}
+
+@media (min-width: 768px) {
+    body.fj-has-bottom-nav main {
+        padding-bottom: 1.5rem;
+    }
+}
+
 .fj-logo {
     display: inline-flex;
     align-items: center;
