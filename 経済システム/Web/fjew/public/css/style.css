@@ -43,10 +43,11 @@ body {
     position: sticky;
     top: 0;
     z-index: 40;
-    background: rgba(255, 255, 255, .8);
-    backdrop-filter: saturate(180%) blur(14px);
-    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    background: linear-gradient(180deg, rgba(255, 255, 255, .78), rgba(255, 255, 255, .6));
+    backdrop-filter: saturate(220%) blur(18px);
+    -webkit-backdrop-filter: saturate(220%) blur(18px);
     border-bottom: 1px solid var(--fj-border);
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, .5);
 }
 
 .fj-header__inner {
@@ -67,19 +68,35 @@ body {
     }
 }
 
-/* ---- スマホ下部固定タブバー(common.js が全ページへ自動挿入する) ---- */
+/* ---- スマホ下部固定タブバー(common.js が全ページへ自動挿入する) ----
+   Liquid Glass風: 画面端から浮かせた丸ピル形状+強めのブラー+内側ハイライトで
+   ガラスの反射っぽさを出す。 */
 .fj-bottom-nav {
     position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    left: .75rem;
+    right: .75rem;
+    bottom: calc(.75rem + env(safe-area-inset-bottom));
     z-index: 40;
     display: flex;
-    background: rgba(255, 255, 255, .92);
-    backdrop-filter: saturate(180%) blur(14px);
-    -webkit-backdrop-filter: saturate(180%) blur(14px);
-    border-top: 1px solid var(--fj-border);
-    padding: .35rem .25rem calc(.35rem + env(safe-area-inset-bottom));
+    overflow: hidden;
+    border-radius: 1.75rem;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .68), rgba(255, 255, 255, .42));
+    backdrop-filter: saturate(220%) blur(22px);
+    -webkit-backdrop-filter: saturate(220%) blur(22px);
+    border: 1px solid rgba(255, 255, 255, .65);
+    box-shadow:
+        0 16px 32px -12px rgba(30, 27, 52, .35),
+        inset 0 1px 0 rgba(255, 255, 255, .8);
+    padding: .4rem .35rem;
+}
+
+/* ガラスの反射ハイライト(左上から淡く抜ける光) */
+.fj-bottom-nav::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(125deg, rgba(255, 255, 255, .55) 0%, rgba(255, 255, 255, 0) 40%);
 }
 
 @media (min-width: 768px) {
@@ -89,14 +106,16 @@ body {
 }
 
 .fj-bottom-nav__item {
+    position: relative;
+    z-index: 1;
     flex: 1 1 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: .15rem;
-    padding: .3rem 0;
+    padding: .35rem 0;
     margin: 0 .1rem;
-    border-radius: .6rem;
+    border-radius: 1.25rem;
     color: var(--fj-muted);
     font-size: .625rem;
     font-weight: 700;
@@ -105,21 +124,23 @@ body {
 }
 
 .fj-bottom-nav__icon {
-    font-size: 1.1rem;
-    line-height: 1;
+    width: 1.35rem;
+    height: 1.35rem;
 }
 
 .fj-bottom-nav__item.is-active {
     color: var(--fj-brand);
+    background: rgba(255, 255, 255, .55);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), 0 2px 8px -2px rgba(109, 40, 217, .35);
 }
 
 .fj-bottom-nav__item:active {
-    background: rgba(109, 40, 217, .08);
+    background: rgba(109, 40, 217, .12);
 }
 
-/* 下部タブバーの分だけ本文末尾が隠れないようにする */
+/* 下部タブバー(浮いている分の余白込み)の分だけ本文末尾が隠れないようにする */
 body.fj-has-bottom-nav main {
-    padding-bottom: 5rem;
+    padding-bottom: 6rem;
 }
 
 @media (min-width: 768px) {
