@@ -110,17 +110,22 @@ function parseBlockData(blockData) {
     return { name: m[1], props };
 }
 
+// Minecraft公式仕様(Minecraft Wiki "Stairs"): facingは「フルブロック側(背の高いriser面)が向く方向」。
+// 低い段差(踏み込み側)はfacingの逆側になる。ここを取り違えると、プレビュー上は
+// 意図通りに見えても実機で階段の向きが逆(ミラー)になる不具合につながる。
+// 座標系はMinecraftのワールド座標をそのまま使う: +X=east, -X=west, +Z=south, -Z=north。
 function addStairMesh(group, mat, getBoxGeom, x, y, z, props) {
     const half = props.half === 'top' ? 'top' : 'bottom';
     const facing = props.facing || 'north';
     const axis = (facing === 'north' || facing === 'south') ? 'z' : 'x';
+    // north/west は座標が減る方向(-x/-z)、south/east は座標が増える方向(+x/+z)
     const sign = (facing === 'north' || facing === 'west') ? -1 : 1;
 
-    // 奥側：全高の半分幅ブロック
+    // フルブロック側(riser、背の高い面)：facingが指す方向に配置
     const backW = axis === 'x' ? 0.5 : 1;
     const backD = axis === 'z' ? 0.5 : 1;
     const backMesh = new THREE.Mesh(getBoxGeom(backW, 1, backD), mat);
-    const backOffset = -sign * 0.25;
+    const backOffset = sign * 0.25;
     backMesh.position.set(
         x + 0.5 + (axis === 'x' ? backOffset : 0),
         y + 0.5,
@@ -128,11 +133,11 @@ function addStairMesh(group, mat, getBoxGeom, x, y, z, props) {
     );
     group.add(backMesh);
 
-    // 手前側：段差になる半分高さのブロック
+    // 低い段差側：facingの逆方向に配置
     const frontW = axis === 'x' ? 0.5 : 1;
     const frontD = axis === 'z' ? 0.5 : 1;
     const frontMesh = new THREE.Mesh(getBoxGeom(frontW, 0.5, frontD), mat);
-    const frontOffset = sign * 0.25;
+    const frontOffset = -sign * 0.25;
     const frontY = half === 'top' ? 0.75 : 0.25;
     frontMesh.position.set(
         x + 0.5 + (axis === 'x' ? frontOffset : 0),
