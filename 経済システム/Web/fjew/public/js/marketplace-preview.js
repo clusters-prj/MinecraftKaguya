@@ -16,7 +16,9 @@ async function loadBlueprintData() {
         return data;
     }
     if (getParam('source') === 'session') {
-        const raw = sessionStorage.getItem('fj_blueprint_preview');
+        // sell画面がwindow.openを'noopener'付きで呼ぶため、opener経由でしか
+        // 参照できないsessionStorageではなく、同一オリジンのタブ間で共有されるlocalStorageを使う
+        const raw = localStorage.getItem('fj_blueprint_preview');
         if (!raw) throw new Error('プレビューするデータが見つかりません。出品画面からやり直してください。');
         try {
             return JSON.parse(raw);

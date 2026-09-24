@@ -65,7 +65,9 @@ document.getElementById('blueprintPreviewBtn').addEventListener('click', async (
         if (!parsed || !Array.isArray(parsed.blocks)) {
             throw new Error('{ name, blocks: [...] } の形式が必要です');
         }
-        sessionStorage.setItem('fj_blueprint_preview', JSON.stringify(parsed));
+        // window.openに'noopener'を付けると新しいタブがopenerから完全に切り離され、
+        // sessionStorageは共有されない(別の記憶域になる)ため、タブ間で共有されるlocalStorageを使う
+        localStorage.setItem('fj_blueprint_preview', JSON.stringify(parsed));
         window.open('/marketplace-preview?source=session', '_blank', 'noopener');
     } catch (err) {
         alert('プレビューできませんでした: ' + err.message);
