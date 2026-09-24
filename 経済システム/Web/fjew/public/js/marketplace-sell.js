@@ -38,16 +38,39 @@ async function loadToolCatalog() {
 }
 
 function toggleItemTypeFields() {
-    const isTool = document.getElementById('itemType').value === 'tool';
+    const itemType = document.getElementById('itemType').value;
+    const isTool = itemType === 'tool';
     document.getElementById('toolCodeField').classList.toggle('hidden', !isTool);
     document.getElementById('fileInputField').classList.toggle('hidden', isTool);
     document.getElementById('fileInput').required = !isTool;
     document.getElementById('toolCode').required = isTool;
+    document.getElementById('blueprintPreviewBtn').classList.toggle('hidden', itemType !== 'blueprint');
     if (isTool) loadToolCatalog();
 }
 
 document.getElementById('itemType').addEventListener('change', toggleItemTypeFields);
 toggleItemTypeFields();
+
+// 出品前に、選択した設計図JSONの中身をその場でプレビューできるようにする(サーバーには送らない)
+document.getElementById('blueprintPreviewBtn').addEventListener('click', async () => {
+    const fileInput = document.getElementById('fileInput');
+    const file = fileInput.files[0];
+    if (!file) {
+        alert('先に設計図ファイル（.json）を選択してください');
+        return;
+    }
+    try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        if (!parsed || !Array.isArray(parsed.blocks)) {
+            throw new Error('{ name, blocks: [...] } の形式が必要です');
+        }
+        sessionStorage.setItem('fj_blueprint_preview', JSON.stringify(parsed));
+        window.open('/marketplace-preview?source=session', '_blank', 'noopener');
+    } catch (err) {
+        alert('プレビューできませんでした: ' + err.message);
+    }
+});
 
 async function loadSellerAccounts() {
     const user = await window.fjew.requireAuth();

@@ -21,7 +21,8 @@ function renderCard(nft) {
             <p class="text-sm font-bold text-gray-800 truncate">${window.fjew.escapeHtml(nft.title)}</p>
             <p class="text-[10px] text-gray-400">#${nft.serial_number}${nft.edition_type === 'limited' ? ` / ${nft.max_editions}` : ''}</p>
             ${nft.item_type === 'blueprint'
-                ? `<p class="text-[10px] text-gray-500">設計図ID: <span class="font-mono font-bold">${nft.listing_id}</span>(ゲーム内で <code>/cmob build ${nft.listing_id}</code>)</p>`
+                ? `<p class="text-[10px] text-gray-500">設計図ID: <span class="font-mono font-bold">${nft.listing_id}</span>(ゲーム内で <code>/cmob build ${nft.listing_id}</code>)</p>
+                   <a href="/marketplace-preview?listingId=${nft.listing_id}" target="_blank" rel="noopener" class="block text-center fj-navbtn py-2 text-xs mt-1 border border-gray-200 rounded-xl">プレビュー</a>`
                 : ''}
             ${nft.item_type === 'tool'
                 ? `<p class="text-[10px] text-gray-500">ゲーム内で <code>/tools</code> を実行するとアイテム一覧から受け取れます</p>`

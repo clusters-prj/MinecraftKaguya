@@ -70,6 +70,14 @@ async function loadItem() {
         renderPreview(data);
         renderEditions(data.editions);
 
+        const blueprintPreviewBtn = document.getElementById('blueprintPreviewBtn');
+        if (data.item_type === 'blueprint') {
+            blueprintPreviewBtn.classList.remove('hidden');
+            blueprintPreviewBtn.onclick = () => {
+                window.open(`/marketplace-preview?listingId=${listingId}`, '_blank', 'noopener');
+            };
+        }
+
         const purchaseBtn = document.getElementById('purchaseBtn');
         if (soldOut) {
             purchaseBtn.disabled = true;

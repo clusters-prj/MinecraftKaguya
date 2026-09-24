@@ -801,6 +801,9 @@ app.get('/my-collection', (req, res) => {
 app.get('/marketplace-certificate', (req, res) => {
     sendHtmlWithGTM(path.join(__dirname, 'public', 'marketplace-certificate.html'), res);
 });
+app.get('/marketplace-preview', (req, res) => {
+    sendHtmlWithGTM(path.join(__dirname, 'public', 'marketplace-preview.html'), res);
+});
 app.get('/marketplace-verify', (req, res) => {
     sendHtmlWithGTM(path.join(__dirname, 'public', 'marketplace-verify.html'), res);
 });
@@ -2122,6 +2125,37 @@ app.get('/api/marketplace/listings/:id', async (req, res) => {
             remaining: listing.edition_type === 'unlimited' ? null : (listing.max_editions ?? 1) - listing.minted_count,
             editions
         });
+    } catch (err) {
+        sendServerError(res, err);
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// 設計図のブロック内容（Web上の3Dプレビュー用）。
+// 未購入でも閲覧できる仕様（出品ページと同様、誰でも中身を確認してから買えるようにする）。
+app.get('/api/marketplace/listings/:id/blueprint', async (req, res) => {
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const rows = await conn.query(
+            `SELECT item_type, blueprint_json FROM marketplace_listings WHERE id = ?`,
+            [req.params.id]
+        );
+        if (rows.length === 0) return res.status(404).json({ error: "出品が見つかりません" });
+
+        const listing = rows[0];
+        if (listing.item_type !== 'blueprint' || !listing.blueprint_json) {
+            return res.status(404).json({ error: "この出品には設計図データがありません" });
+        }
+
+        let parsed;
+        try {
+            parsed = JSON.parse(listing.blueprint_json);
+        } catch (err) {
+            return res.status(500).json({ error: "設計図データの読み込みに失敗しました" });
+        }
+        res.json(parsed);
     } catch (err) {
         sendServerError(res, err);
     } finally {
