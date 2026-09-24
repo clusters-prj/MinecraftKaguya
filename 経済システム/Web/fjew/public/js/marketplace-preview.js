@@ -142,6 +142,45 @@ function addStairMesh(group, mat, getBoxGeom, x, y, z, props) {
     group.add(frontMesh);
 }
 
+// facingから「薄い方向の軸」を決める(ドア/トラップドア等はfacingに垂直な面を持つ板状ブロック)
+function axisFromFacing(facing) {
+    return (facing === 'north' || facing === 'south') ? 'z' : 'x';
+}
+
+// ドア・開いたトラップドア・フェンスゲート用: facingに対して垂直な薄い板
+function addPanelMesh(group, mat, getBoxGeom, x, y, z, facing, thickness, height, yOffset) {
+    const axis = axisFromFacing(facing || 'north');
+    const w = axis === 'x' ? thickness : 1;
+    const d = axis === 'z' ? thickness : 1;
+    const mesh = new THREE.Mesh(getBoxGeom(w, height, d), mat);
+    mesh.position.set(x + 0.5, y + height / 2 + yOffset, z + 0.5);
+    group.add(mesh);
+}
+
+// フェンス・塀用: セル中央に立つ細い柱
+function addPostMesh(group, mat, getBoxGeom, x, y, z, thickness, height, yOffset) {
+    const mesh = new THREE.Mesh(getBoxGeom(thickness, height, thickness), mat);
+    mesh.position.set(x + 0.5, y + height / 2 + yOffset, z + 0.5);
+    group.add(mesh);
+}
+
+// ガラス板・鉄格子用: 接続方向の情報までは反映せず、十字型の薄い板で近似する
+function addCrossPanelMesh(group, mat, getBoxGeom, x, y, z, thickness) {
+    const meshX = new THREE.Mesh(getBoxGeom(1, 1, thickness), mat);
+    meshX.position.set(x + 0.5, y + 0.5, z + 0.5);
+    group.add(meshX);
+    const meshZ = new THREE.Mesh(getBoxGeom(thickness, 1, 1), mat);
+    meshZ.position.set(x + 0.5, y + 0.5, z + 0.5);
+    group.add(meshZ);
+}
+
+// カーペット・感圧板用: 床にほぼ張り付く薄い層
+function addThinLayerMesh(group, mat, getBoxGeom, x, y, z, w, d, thickness) {
+    const mesh = new THREE.Mesh(getBoxGeom(w, thickness, d), mat);
+    mesh.position.set(x + 0.5, y + thickness / 2, z + 0.5);
+    group.add(mesh);
+}
+
 function buildScene(container, blueprint) {
     const width = container.clientWidth;
     const height = container.clientHeight;
@@ -203,16 +242,41 @@ function buildScene(container, blueprint) {
         const upperMaterial = material.toUpperCase();
         const blockData = parseBlockData(block['block-data']);
 
+        const mat = getMaterial(hex);
+        const props = blockData?.props || {};
+
         if (upperMaterial.endsWith('_SLAB')) {
-            const type = blockData?.props?.type || 'bottom';
+            const type = props.type || 'bottom';
             let h = 0.5, yOff = -0.25;
             if (type === 'top') yOff = 0.25;
             else if (type === 'double') { h = 1; yOff = 0; }
-            const mesh = new THREE.Mesh(getBoxGeom(1, h, 1), getMaterial(hex));
+            const mesh = new THREE.Mesh(getBoxGeom(1, h, 1), mat);
             mesh.position.set(x + 0.5, y + 0.5 + yOff, z + 0.5);
             group.add(mesh);
         } else if (upperMaterial.endsWith('_STAIRS')) {
-            addStairMesh(group, getMaterial(hex), getBoxGeom, x, y, z, blockData?.props || {});
+            addStairMesh(group, mat, getBoxGeom, x, y, z, props);
+        } else if (upperMaterial.endsWith('_TRAPDOOR')) {
+            const open = props.open === 'true';
+            if (open) {
+                addPanelMesh(group, mat, getBoxGeom, x, y, z, props.facing, 0.1875, 1, 0);
+            } else {
+                const yOff = props.half === 'top' ? 0.40625 : -0.40625;
+                addThinLayerMesh(group, mat, getBoxGeom, x, y + 0.5 + yOff - 0.09375, z, 1, 1, 0.1875);
+            }
+        } else if (upperMaterial.endsWith('_DOOR')) {
+            addPanelMesh(group, mat, getBoxGeom, x, y, z, props.facing, 0.1875, 1, 0);
+        } else if (upperMaterial.endsWith('_FENCE_GATE')) {
+            addPanelMesh(group, mat, getBoxGeom, x, y, z, props.facing, 0.125, 0.8, -0.1);
+        } else if (upperMaterial.endsWith('_FENCE')) {
+            addPostMesh(group, mat, getBoxGeom, x, y, z, 0.25, 1, 0);
+        } else if (upperMaterial.endsWith('_WALL')) {
+            addPostMesh(group, mat, getBoxGeom, x, y, z, 0.5, 0.9, -0.05);
+        } else if (upperMaterial.endsWith('_PANE') || upperMaterial.endsWith('_BARS')) {
+            addCrossPanelMesh(group, mat, getBoxGeom, x, y, z, 0.125);
+        } else if (upperMaterial.endsWith('_CARPET')) {
+            addThinLayerMesh(group, mat, getBoxGeom, x, y, z, 1, 1, 0.0625);
+        } else if (upperMaterial.endsWith('_PRESSURE_PLATE')) {
+            addThinLayerMesh(group, mat, getBoxGeom, x, y, z, 0.75, 0.75, 0.0625);
         } else {
             if (!cubeBuckets.has(hex)) cubeBuckets.set(hex, []);
             cubeBuckets.get(hex).push([x, y, z]);
