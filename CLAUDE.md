@@ -71,10 +71,10 @@ node server.js
 
 MariaDB（`10.2.1.27` / DB 名 `fjeconomy`）を複数の Minecraft サーバー（`server.id` = mc1/mc2/mc3）と Web ダッシュボードが共有する。プラグイン間・Web 間の連携はすべてこの DB 経由で、REST や RPC の直接呼び出しは存在しない。したがって**テーブルのスキーマや意味を変える変更は Java 側と `server.js` の両方に波及する**。
 
-- Java 側のテーブル定義は `FJEconomy/.../database/DatabaseManager.java` の `createTables()` に集約（`fje_balances`, `fje_shops`, `fje_transactions`, `fje_government_ledger`, `fje_login_bonuses`, `link_codes`, `fje_arena_events`, `fje_arena_participants`, `fje_arena_bets`, `fje_active_skins`）。
-- Web 側だけが作る/使うテーブル: `web_users`, `account_links`, `email_verifications`, `password_resets`, `marketplace_listings`, `marketplace_nfts`, `marketplace_transfers`。
+- Java 側のテーブル定義は `FJEconomy/.../database/DatabaseManager.java` の `createTables()` に集約（`fje_balances`, `fje_shops`, `fje_transactions`, `fje_government_ledger`, `fje_login_bonuses`, `link_codes`, `fje_arena_events`, `fje_arena_participants`, `fje_arena_bets`, `fje_build_rewards`, `fje_build_queries`, `fje_build_query_results`, `fje_active_skins`, `fje_tool_catalog`）。
+- Web 側だけが作る/使うテーブル: `web_users`, `account_links`, `email_verifications`, `password_resets`, `corporate_accounts`, `fje_api_keys`（fjeapi と共用）, `marketplace_listings`, `marketplace_nfts`, `marketplace_transfers`。
 - `fje_active_skins`（マーケットプレイスで「使用中」のスキンNFT）は `link_codes` と同じく **Web側(`server.js`)とJava側(`DatabaseManager`)の両方が同一定義で`CREATE TABLE IF NOT EXISTS`する共有テーブル**。`marketplace_nfts`（Web所有）へのFKはこのリポジトリの既存方針どおり張らない（起動順序に依存させないため）。
-- 仕様書は `経済システム/仕様/`（`DB.md`, 日付つき仕様書ディレクトリ）と `FJEconomy/README.md` / `DEVELOPMENT.md` / `SHOP_SYSTEM.md`。DB 変更時はここも更新対象。
+- 仕様書は `経済システム/仕様/`（`DB.md` / `プラグイン.md` / `アリーナ.md` / `建築ポイント.md` / `スキン・ツール.md` / `Web.md`。日付つきディレクトリは 2026-06-10 時点の履歴資料で現状とは異なる）と `FJEconomy/README.md` / `DEVELOPMENT.md` / `SHOP_SYSTEM.md`。DB・コマンド・設定の変更時はここも更新対象。
 
 ### 金額は必ず整数
 
