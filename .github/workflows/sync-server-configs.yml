@@ -1,0 +1,37 @@
+name: Sync Subtree to Server-configs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '経済システム/Web/**'  # fjew / fjeapi が更新されたら発動
+  workflow_dispatch: {}
+
+concurrency:
+  group: sync-server-configs
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Push update to Server-configs
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          git clone https://x-access-token:${SYNC_TOKEN}@github.com/swmr71/Server-configs.git main_repo
+          cd main_repo
+
+          git subtree pull --prefix=Web/MinecraftKaguya https://x-access-token:${SYNC_TOKEN}@github.com/${{ github.repository }}.git main --squash || {
+            echo "マージ競合が発生しました。MinecraftKaguyaの変更を強制的に反映させます。"
+
+            # 競合を解決するため、MinecraftKaguya側を優先
+            git reset --hard MERGE_HEAD
+            git commit -m "Resolve merge conflict: Keep MinecraftKaguya changes" --allow-empty
+          }
+
+          git push origin main
