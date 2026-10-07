@@ -1,8 +1,13 @@
 name: Paper Plugins Build
 
+# スナップショット: main を含む全ブランチへの push
+#   -> /snapshots/<プラグイン名>/<ブランチ名>/<バージョン(ビルド番号なし)>/
+# リリース: <プラグイン名>-v<バージョン> のタグを作ったときだけ (例: fj-economy-v2.0.1)
+#   -> /releases/<プラグイン名>/<バージョン>/
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "**" ]
+    tags: [ "*-v*" ]
   pull_request:
     branches: [ "main" ]
 
@@ -21,22 +26,60 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      # -SNAPSHOT があれば -bXX-SNAPSHOT、無ければ -bXX を付与してビルド
+      # 通常のビルド: 各 pom のバージョンの後ろに -b<run_number> を付けてビルドする
+      # タグのビルド: タグ名 (<artifactId>-v<version>) の対象モジュールだけ、バージョンをタグの値にする
       - name: Update Version and Build
         run: |
-          ROOT_DIR=$(pwd) && find . -name pom.xml | while read -r pom; do pom_dir=$(dirname "$pom") && cd "$ROOT_DIR/$pom_dir" && CURRENT_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout) && if echo "$CURRENT_VERSION" | grep -q "-SNAPSHOT"; then BASE_VER=$(echo "$CURRENT_VERSION" | sed 's/-SNAPSHOT//') && NEW_VER="${BASE_VER}-b${{ github.run_number }}-SNAPSHOT"; else NEW_VER="${CURRENT_VERSION}-b${{ github.run_number }}"; fi && mvn versions:set -DnewVersion="$NEW_VER"; done && cd "$ROOT_DIR" && mvn -B clean package
+          set -euo pipefail
+          ROOT_DIR=$(pwd)
+          RELEASE_ARTIFACT=""
+          RELEASE_VERSION=""
 
-      # -SNAPSHOT の有無で /snapshots と /releases を自動判定してデプロイ
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            if [[ "$GITHUB_REF_NAME" =~ ^(.+)-v([0-9][0-9A-Za-z._-]*)$ ]]; then
+              RELEASE_ARTIFACT="${BASH_REMATCH[1]}"
+              RELEASE_VERSION="${BASH_REMATCH[2]}"
+            else
+              echo "::error::タグ名は <プラグイン名>-v<バージョン> の形式にしてください (例: fj-economy-v2.0.1): $GITHUB_REF_NAME"
+              exit 1
+            fi
+            # deploy ステップに引き継ぐ
+            echo "RELEASE_ARTIFACT=$RELEASE_ARTIFACT" >> "$GITHUB_ENV"
+            echo "RELEASE_VERSION=$RELEASE_VERSION" >> "$GITHUB_ENV"
+          fi
+
+          MATCHED=0
+          mapfile -t POMS < <(find . -name pom.xml)
+          for pom in "${POMS[@]}"; do
+            cd "$ROOT_DIR/$(dirname "$pom")"
+            ARTIFACT_ID=$(mvn help:evaluate -Dexpression=project.artifactId -q -DforceStdout)
+            CURRENT_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+            if [ -n "$RELEASE_ARTIFACT" ] && [ "$ARTIFACT_ID" = "$RELEASE_ARTIFACT" ]; then
+              NEW_VER="$RELEASE_VERSION"
+              MATCHED=1
+            else
+              NEW_VER="${CURRENT_VERSION}-b${GITHUB_RUN_NUMBER}"
+            fi
+            mvn -B versions:set -DnewVersion="$NEW_VER"
+          done
+
+          if [ -n "$RELEASE_ARTIFACT" ] && [ "$MATCHED" -eq 0 ]; then
+            echo "::error::タグ $GITHUB_REF_NAME に対応するモジュール (artifactId=$RELEASE_ARTIFACT) が見つかりません"
+            exit 1
+          fi
+
+          cd "$ROOT_DIR"
+          mvn -B clean package
+
+      # Reposilite へデプロイ (push のときだけ。PR ではビルドのみ)
       # - 1 つでもアップロードに失敗したらこのステップを失敗させる
       #   (以前は curl -s だけで、認証エラー(401)や上書き拒否(409)が握りつぶされていた)
       # - Reposilite は同名ファイルの上書きを拒否する (409) ため、
-      #   <artifactId>-<baseVersion>-latest.jar は一度削除してから置き直す
-      # NOTE: 下の grep -q "-SNAPSHOT" は "-S" がオプション扱いになり常に失敗するため、
-      #       (ビルド側のバージョン付与も同様) 現状は SNAPSHOT も含め全て /releases に
-      #       <version>-SNAPSHOT-b<N> の形で置かれる。配置先を変えると取得 URL が変わるので、
-      #       この修正では既存の挙動をそのまま維持している。
+      #   <artifactId>-<バージョン>-latest.jar は一度削除してから置き直す
+      # - スナップショットとリリースの判定は、バージョン文字列ではなく
+      #   「ブランチの push か、タグの push か」で行う
       - name: Deploy Artifacts to Reposilite
-        if: github.ref == 'refs/heads/main'
+        if: github.event_name == 'push'
         env:
           REPO_USER: ${{ secrets.REPOSILITE_USER }}
           REPO_TOKEN: ${{ secrets.REPOSILITE_TOKEN }}
@@ -65,48 +108,59 @@ jobs:
             return 1
           }
 
+          # ブランチ名をパスに使える形にする (/ は - に、それ以外の記号は _ に)
+          SAFE_BRANCH=$(echo "$GITHUB_REF_NAME" | sed -E 's#/#-#g; s#[^A-Za-z0-9._-]#_#g')
+
           mapfile -t POMS < <(find . -mindepth 2 -name pom.xml)
           for pom in "${POMS[@]}"; do
             pom_dir=$(dirname "$pom")
             cd "$ROOT_DIR/$pom_dir"
             ARTIFACT_ID=$(mvn help:evaluate -Dexpression=project.artifactId -q -DforceStdout)
             FULL_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-
-            if echo "$FULL_VERSION" | grep -q "-SNAPSHOT"; then
-              REPO_TYPE="snapshots"
-              BASE_VERSION=$(echo "$FULL_VERSION" | sed -E 's/-b[0-9]+-SNAPSHOT/-SNAPSHOT/')
-            else
-              REPO_TYPE="releases"
-              BASE_VERSION=$(echo "$FULL_VERSION" | sed -E 's/-b[0-9]+$//')
-            fi
-
             JAR_FILE="target/${ARTIFACT_ID}-${FULL_VERSION}.jar"
-            if [ ! -f "$JAR_FILE" ]; then
-              echo "::warning::$pom_dir: $JAR_FILE が無いためスキップします"
-              continue
+
+            if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+              # ---- リリース: タグの対象モジュールだけ ----
+              [ "$ARTIFACT_ID" = "${RELEASE_ARTIFACT:-}" ] || continue
+              [ -f "$JAR_FILE" ] || { echo "::error::$JAR_FILE が見つかりません"; exit 1; }
+              URL="$REPO_BASE_URL/releases/$ARTIFACT_ID/$FULL_VERSION/${ARTIFACT_ID}-${FULL_VERSION}.jar"
+              echo "Uploading $JAR_FILE to releases/$ARTIFACT_ID/$FULL_VERSION/ ..."
+              upload "$JAR_FILE" "$URL"
+              echo "Released: $URL"
+            else
+              # ---- スナップショット: ブランチごと ----
+              BASE_VERSION="${FULL_VERSION%-b${GITHUB_RUN_NUMBER}}"   # ビルド番号を除いたバージョン
+              if [ "$BASE_VERSION" = "$FULL_VERSION" ]; then
+                echo "::error::$pom_dir: バージョン $FULL_VERSION の末尾に -b${GITHUB_RUN_NUMBER} がありません"
+                exit 1
+              fi
+              if [ ! -f "$JAR_FILE" ]; then
+                echo "::warning::$pom_dir: $JAR_FILE が無いためスキップします"
+                continue
+              fi
+
+              BASE_URL="$REPO_BASE_URL/snapshots/$ARTIFACT_ID/$SAFE_BRANCH/$BASE_VERSION"
+              LATEST_URL="$BASE_URL/${ARTIFACT_ID}-${BASE_VERSION}-latest.jar"
+
+              echo "Uploading $JAR_FILE to snapshots/$ARTIFACT_ID/$SAFE_BRANCH/$BASE_VERSION/ ..."
+              upload "$JAR_FILE" "$BASE_URL/${ARTIFACT_ID}-${FULL_VERSION}.jar" allow-conflict
+
+              # -latest.jar は先に削除する (まだ無い場合の 404 は問題ない)
+              code=$(http_code -X DELETE "$LATEST_URL")
+              case "$code" in
+                2??|404) ;;
+                *) echo "::error::-latest.jar の削除に失敗しました: DELETE $LATEST_URL (HTTP $code)"; exit 1 ;;
+              esac
+              upload "$JAR_FILE" "$LATEST_URL"
+
+              # 反映されたことを確認する
+              code=$(http_code "$LATEST_URL")
+              if [ "$code" != "200" ]; then
+                echo "::error::アップロード後に $LATEST_URL を取得できません (HTTP $code)"
+                exit 1
+              fi
+              echo "Deployed: $LATEST_URL"
             fi
-
-            BASE_URL="$REPO_BASE_URL/$REPO_TYPE/$ARTIFACT_ID/$BASE_VERSION"
-            LATEST_URL="$BASE_URL/${ARTIFACT_ID}-${BASE_VERSION}-latest.jar"
-
-            echo "Uploading $JAR_FILE to $REPO_TYPE/$ARTIFACT_ID/$BASE_VERSION/ ..."
-            upload "$JAR_FILE" "$BASE_URL/${ARTIFACT_ID}-${FULL_VERSION}.jar" allow-conflict
-
-            # -latest.jar は先に削除する (まだ無い場合の 404 は問題ない)
-            code=$(http_code -X DELETE "$LATEST_URL")
-            case "$code" in
-              2??|404) ;;
-              *) echo "::error::-latest.jar の削除に失敗しました: DELETE $LATEST_URL (HTTP $code)"; exit 1 ;;
-            esac
-            upload "$JAR_FILE" "$LATEST_URL"
-
-            # 反映されたことを確認する
-            code=$(http_code "$LATEST_URL")
-            if [ "$code" != "200" ]; then
-              echo "::error::アップロード後に $LATEST_URL を取得できません (HTTP $code)"
-              exit 1
-            fi
-            echo "Deployed: $LATEST_URL"
             DEPLOYED=$((DEPLOYED + 1))
           done
 

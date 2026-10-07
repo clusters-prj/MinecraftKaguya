@@ -41,9 +41,13 @@ node server.js
 
 ## CI / デプロイの仕組み
 
-- `build.yml`: main への push で全 pom のバージョンに `-b<run_number>` を付与してビルドし、JAR を Reposilite（`reposilite.clusters-prj.com`）へアップロード。`-SNAPSHOT` の有無で `snapshots` / `releases` を自動振り分けし、`<artifactId>-<baseVersion>-latest.jar` も同時に置き直す（Reposilite は同名ファイルの上書きを 409 で拒否するため、削除してから PUT する。アップロードや削除に失敗した場合、デプロイのステップは失敗する）。
+- `build.yml`: push のたびに全 pom のバージョンへ `-b<run_number>` を付与してビルドし、JAR を Reposilite（`reposilite.clusters-prj.com`）へアップロードする（PR ではビルドのみ）。公開先は「ブランチの push か、タグの push か」で決まる（バージョン文字列の `-SNAPSHOT` は見ない）。
+  - **スナップショット**: `main` を含む**全ブランチ**の push。`/snapshots/<プラグイン名>/<ブランチ名>/<バージョン(ビルド番号なし)>/<プラグイン名>-<バージョン>-b<run_number>.jar` と、固定名の `…/<プラグイン名>-<バージョン>-latest.jar`（ブランチ名の `/` は `-` に、その他の記号は `_` に置換）。
+  - **リリース**: **`<プラグイン名>-v<バージョン>` のタグ**（例: `fj-economy-v2.0.1`）を push したときだけ。そのモジュールのバージョンをタグの値にしてビルドし、`/releases/<プラグイン名>/<バージョン>/<プラグイン名>-<バージョン>.jar` に置く。リリースは上書きしない（既存なら失敗）。`-latest.jar` は作らない。
+  - `-latest.jar` は Reposilite が同名ファイルの上書きを 409 で拒否するため、削除してから PUT する。アップロードや削除に失敗した場合、デプロイのステップは失敗する。
   - **実サーバーへの自動配布・自動再起動の仕組みは存在しない。** `-latest.jar` は用意されるがそれを自動で取得しにいくcron等は無く、各サーバーへの反映は**手動**（後述の「本番サーバー構成・デプロイ手順」）。push しただけではゲーム内には一切反映されない。
-  - ダウンロードURLの実際の形式（groupIdを含まないフラット構成）: `https://reposilite.clusters-prj.com/<releases|snapshots>/<artifactId>/<baseVersion>/<artifactId>-<baseVersion>-b<run_number>.jar`（例: `https://reposilite.clusters-prj.com/releases/fj-economy/2.0.1-SNAPSHOT/fj-economy-2.0.1-SNAPSHOT-b182.jar`）。GitHub Actionsの実行番号は `gh run list --repo clusters-prj/MinecraftKaguya --workflow=build.yml` で確認できる。
+  - ダウンロードURLの例（groupIdを含まないフラット構成）: `https://reposilite.clusters-prj.com/snapshots/fj-economy/main/2.0.1-SNAPSHOT/fj-economy-2.0.1-SNAPSHOT-latest.jar`。GitHub Actionsの実行番号は `gh run list --repo clusters-prj/MinecraftKaguya --workflow=build.yml` で確認できる。
+  - 以前は全てのビルドが `/releases/<プラグイン名>/<バージョン>-SNAPSHOT/` に置かれていた（`grep -q "-SNAPSHOT"` が常に失敗していたため）。`migrate-reposilite-layout.yml`（手動実行・一回限り）で旧ファイルを新しい配置へ移す。まず `dry_run=true` で計画を確認すること。
 - `release-pipeline.yml`: `プラグイン関連/BGMPlayer/**` の変更で `java-resourcepack/` を zip 化し `BGM-latest` タグの Release に上げ、SHA-1 を計算して**リポジトリ内の全 `config.yml` の `resource-pack-sha1:` を sed で書き換えて main に push する**。BGM 以外のプラグインの config.yml にも同名キーがあると巻き込まれる点に注意。
 - `java-ci.yml`: 静的解析結果の Discord 通知。
 
