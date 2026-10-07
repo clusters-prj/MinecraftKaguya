@@ -1,8 +1,16 @@
 name: Paper Plugins Build
 
+# 公開先は pom のバージョンが -SNAPSHOT かどうかだけで決まる (タグは使わない)
+#   -SNAPSHOT のバージョン (全ブランチ)
+#     -> /snapshots/<プラグイン名>/<ブランチ名>/<バージョン(ビルド番号なし)>/
+#   -SNAPSHOT でないバージョン (main だけ)
+#     -> /releases/<プラグイン名>/<バージョン>/
+#   リリースするには、pom から -SNAPSHOT を外して main に push する。
+#   同じバージョンが既にリリース済みなら何もしない (次のバージョンへ上げるまで)。
+#   main 以外のブランチで -SNAPSHOT を外しても、公開しない。
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "**" ]
   pull_request:
     branches: [ "main" ]
 
@@ -21,17 +29,140 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      # -SNAPSHOT があれば -bXX-SNAPSHOT、無ければ -bXX を付与してビルド
+      # -SNAPSHOT のバージョンには -b<run_number> を付ける (例: 2.0.1-SNAPSHOT -> 2.0.1-SNAPSHOT-b182)
+      # -SNAPSHOT でないバージョンは、リリース用なのでそのままにする
       - name: Update Version and Build
         run: |
-          ROOT_DIR=$(pwd) && find . -name pom.xml | while read -r pom; do pom_dir=$(dirname "$pom") && cd "$ROOT_DIR/$pom_dir" && CURRENT_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout) && if echo "$CURRENT_VERSION" | grep -q "-SNAPSHOT"; then BASE_VER=$(echo "$CURRENT_VERSION" | sed 's/-SNAPSHOT//') && NEW_VER="${BASE_VER}-b${{ github.run_number }}-SNAPSHOT"; else NEW_VER="${CURRENT_VERSION}-b${{ github.run_number }}"; fi && mvn versions:set -DnewVersion="$NEW_VER"; done && cd "$ROOT_DIR" && mvn -B clean package
+          set -euo pipefail
+          ROOT_DIR=$(pwd)
+          mapfile -t POMS < <(find . -name pom.xml)
+          for pom in "${POMS[@]}"; do
+            cd "$ROOT_DIR/$(dirname "$pom")"
+            CURRENT_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+            # grep -q "-SNAPSHOT" は "-S" がオプション扱いになり常に失敗するので、bash の判定を使う
+            if [[ "$CURRENT_VERSION" == *-SNAPSHOT ]]; then
+              mvn -B versions:set -DnewVersion="${CURRENT_VERSION}-b${GITHUB_RUN_NUMBER}"
+            fi
+          done
+          cd "$ROOT_DIR"
+          mvn -B clean package
 
-      # -SNAPSHOT の有無で /snapshots と /releases を自動判定してデプロイ
+      # Reposilite へデプロイ (push のときだけ。PR ではビルドのみ)
+      # - 1 つでもアップロードに失敗したらこのステップを失敗させる
+      #   (以前は curl -s だけで、認証エラー(401)や上書き拒否(409)が握りつぶされていた)
+      # - Reposilite は同名ファイルの上書きを拒否する (409) ため、
+      #   <artifactId>-<バージョン>-latest.jar は一度削除してから置き直す
       - name: Deploy Artifacts to Reposilite
-        if: github.ref == 'refs/heads/main'
+        if: github.event_name == 'push'
         env:
           REPO_USER: ${{ secrets.REPOSILITE_USER }}
           REPO_TOKEN: ${{ secrets.REPOSILITE_TOKEN }}
           REPO_BASE_URL: "https://reposilite.clusters-prj.com" # 末尾のリポジトリ名は除いたベースURL
         run: |
-          ROOT_DIR=$(pwd) && find . -mindepth 2 -name pom.xml | while read -r pom; do pom_dir=$(dirname "$pom") && cd "$ROOT_DIR/$pom_dir" && ARTIFACT_ID=$(mvn help:evaluate -Dexpression=project.artifactId -q -DforceStdout) && FULL_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout) && if echo "$FULL_VERSION" | grep -q "-SNAPSHOT"; then REPO_TYPE="snapshots" && BASE_VERSION=$(echo "$FULL_VERSION" | sed -E 's/-b[0-9]+-SNAPSHOT/-SNAPSHOT/') && LATEST_NAME="${ARTIFACT_ID}-${BASE_VERSION}-latest.jar"; else REPO_TYPE="releases" && BASE_VERSION=$(echo "$FULL_VERSION" | sed -E 's/-b[0-9]+$//') && LATEST_NAME="${ARTIFACT_ID}-${BASE_VERSION}-latest.jar"; fi && JAR_FILE="target/${ARTIFACT_ID}-${FULL_VERSION}.jar" && if [ -f "$JAR_FILE" ]; then echo "Uploading $JAR_FILE to $REPO_TYPE/$ARTIFACT_ID/$BASE_VERSION/..." && curl -s -u "$REPO_USER:$REPO_TOKEN" -X PUT "$REPO_BASE_URL/$REPO_TYPE/$ARTIFACT_ID/$BASE_VERSION/${ARTIFACT_ID}-${FULL_VERSION}.jar" --upload-file "$JAR_FILE" && curl -s -u "$REPO_USER:$REPO_TOKEN" -X PUT "$REPO_BASE_URL/$REPO_TYPE/$ARTIFACT_ID/$BASE_VERSION/$LATEST_NAME" --upload-file "$JAR_FILE"; fi; done
+          set -euo pipefail
+          ROOT_DIR=$(pwd)
+          DEPLOYED=0
+          SKIPPED=0   # 意図して公開しなかったモジュールの数
+
+          # HTTP ステータスコードだけを返す (接続できない場合は 000)
+          http_code() { curl -s -o /dev/null -w '%{http_code}' -u "$REPO_USER:$REPO_TOKEN" "$@"; }
+
+          # upload <ローカルファイル> <URL> [409 のときの扱い: ok-conflict なら成功扱いにする]
+          upload() {
+            local code
+            code=$(http_code -X PUT "$2" --upload-file "$1")
+            case "$code" in
+              2??) return 0 ;;
+              409)
+                if [ "${3:-}" = "ok-conflict" ]; then
+                  return 0
+                fi ;;
+            esac
+            echo "::error::アップロードに失敗しました: PUT $2 (HTTP $code)"
+            return 1
+          }
+
+          # ブランチ名をパスに使える形にする (/ は - に、それ以外の記号は _ に)
+          SAFE_BRANCH=$(printf '%s' "$GITHUB_REF_NAME" | sed -E 's#/#-#g; s#[^A-Za-z0-9._-]#_#g')
+          if printf '%s' "$GITHUB_REF_NAME" | grep -q '[^A-Za-z0-9._/-]'; then
+            # 日本語や記号を _ に置換すると、別のブランチ同士が同じパスになるため、元の名前のハッシュを付ける
+            SAFE_BRANCH="${SAFE_BRANCH}-$(printf '%s' "$GITHUB_REF_NAME" | sha1sum | cut -c1-6)"
+          fi
+
+          mapfile -t POMS < <(find . -mindepth 2 -name pom.xml)
+          for pom in "${POMS[@]}"; do
+            pom_dir=$(dirname "$pom")
+            cd "$ROOT_DIR/$pom_dir"
+            ARTIFACT_ID=$(mvn help:evaluate -Dexpression=project.artifactId -q -DforceStdout)
+            FULL_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+            JAR_FILE="target/${ARTIFACT_ID}-${FULL_VERSION}.jar"
+
+            if [[ "$FULL_VERSION" == *-SNAPSHOT-b${GITHUB_RUN_NUMBER} ]]; then
+              # ---- スナップショット: -SNAPSHOT のバージョン。全ブランチ ----
+              BASE_VERSION="${FULL_VERSION%-b${GITHUB_RUN_NUMBER}}"   # ビルド番号を除いたバージョン
+              if [ ! -f "$JAR_FILE" ]; then
+                echo "::warning::$pom_dir: $JAR_FILE が無いためスキップします"
+                continue
+              fi
+
+              BASE_URL="$REPO_BASE_URL/snapshots/$ARTIFACT_ID/$SAFE_BRANCH/$BASE_VERSION"
+              LATEST_URL="$BASE_URL/${ARTIFACT_ID}-${BASE_VERSION}-latest.jar"
+
+              echo "Uploading $JAR_FILE to snapshots/$ARTIFACT_ID/$SAFE_BRANCH/$BASE_VERSION/ ..."
+              # 同じビルドの再実行では 409 になるので、成功扱いにする
+              upload "$JAR_FILE" "$BASE_URL/${ARTIFACT_ID}-${FULL_VERSION}.jar" ok-conflict
+
+              # -latest.jar は先に削除する (まだ無い場合の 404 は問題ない)
+              code=$(http_code -X DELETE "$LATEST_URL")
+              case "$code" in
+                2??|404) ;;
+                *) echo "::error::-latest.jar の削除に失敗しました: DELETE $LATEST_URL (HTTP $code)"; exit 1 ;;
+              esac
+              upload "$JAR_FILE" "$LATEST_URL"
+
+              # 反映されたことを確認する
+              code=$(http_code "$LATEST_URL")
+              if [ "$code" != "200" ]; then
+                echo "::error::アップロード後に $LATEST_URL を取得できません (HTTP $code)"
+                exit 1
+              fi
+              echo "Deployed: $LATEST_URL"
+              DEPLOYED=$((DEPLOYED + 1))
+
+            elif [[ "$FULL_VERSION" != *SNAPSHOT* ]]; then
+              # ---- リリース: -SNAPSHOT でないバージョン。main だけ ----
+              if [ "$GITHUB_REF_NAME" != "main" ]; then
+                echo "::notice::$ARTIFACT_ID: バージョン $FULL_VERSION は -SNAPSHOT ではありませんが、main 以外のブランチ ($GITHUB_REF_NAME) のためリリースしません"
+                SKIPPED=$((SKIPPED + 1))
+                continue
+              fi
+              if [ ! -f "$JAR_FILE" ]; then
+                echo "::error::$pom_dir: $JAR_FILE が見つかりません"
+                exit 1
+              fi
+              URL="$REPO_BASE_URL/releases/$ARTIFACT_ID/$FULL_VERSION/${ARTIFACT_ID}-${FULL_VERSION}.jar"
+              echo "Releasing $JAR_FILE to releases/$ARTIFACT_ID/$FULL_VERSION/ ..."
+              code=$(http_code -X PUT "$URL" --upload-file "$JAR_FILE")
+              case "$code" in
+                2??)
+                  echo "Released: $URL"
+                  DEPLOYED=$((DEPLOYED + 1)) ;;
+                409)
+                  # リリースは上書きしない。次のバージョンに上げるまでは何もしない
+                  echo "::notice::$ARTIFACT_ID: バージョン $FULL_VERSION は既にリリース済みのため、何もしません (新しくリリースするには pom のバージョンを上げてください)"
+                  SKIPPED=$((SKIPPED + 1)) ;;
+                *)
+                  echo "::error::アップロードに失敗しました: PUT $URL (HTTP $code)"
+                  exit 1 ;;
+              esac
+
+            else
+              echo "::error::$ARTIFACT_ID: 想定外のバージョン形式です: $FULL_VERSION"
+              exit 1
+            fi
+          done
+
+          if [ "$DEPLOYED" -eq 0 ] && [ "$SKIPPED" -eq 0 ]; then
+            echo "::error::デプロイされた jar が 1 つもありません"
+            exit 1
+          fi

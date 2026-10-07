@@ -41,9 +41,13 @@ node server.js
 
 ## CI / デプロイの仕組み
 
-- `build.yml`: main への push で全 pom のバージョンに `-b<run_number>` を付与してビルドし、JAR を Reposilite（`reposilite.clusters-prj.com`）へアップロード。`-SNAPSHOT` の有無で `snapshots` / `releases` を自動振り分けし、`<artifactId>-<baseVersion>-latest.jar` も同時に上書きする。
+- `build.yml`: push のたびに Reposilite（`reposilite.clusters-prj.com`）へ JAR をアップロードする（PR ではビルドのみ）。**公開先は pom のバージョンが `-SNAPSHOT` かどうかだけで決まる（タグは使わない）**。判定は bash の `[[ == *-SNAPSHOT ]]`（`grep -q "-SNAPSHOT"` は `-S` がオプション扱いになり常に失敗するので使わない）。
+  - **スナップショット**（`-SNAPSHOT` のバージョン。`main` を含む**全ブランチ**）: バージョンに `-b<run_number>` を付けてビルドし、`/snapshots/<プラグイン名>/<ブランチ名>/<バージョン(ビルド番号なし)>/<プラグイン名>-<バージョン>-b<run_number>.jar` と、固定名の `…/<プラグイン名>-<バージョン>-latest.jar` に置く（ブランチ名の `/` は `-` に置換。日本語や記号を含む場合は `_` に置換したうえで、衝突を避けるため元の名前のハッシュ 6 桁を末尾に付ける）。
+  - **リリース**（`-SNAPSHOT` でないバージョン。**`main` だけ**）: ビルド番号は付けず、`/releases/<プラグイン名>/<バージョン>/<プラグイン名>-<バージョン>.jar` に置く。`-latest.jar` は作らない。**リリースするには、pom から `-SNAPSHOT` を外して main に push する**。同じバージョンが既にリリース済みなら、上書きせず何もしない（通知だけ出して成功）ので、次のリリースは pom のバージョンを上げる。`main` 以外のブランチで `-SNAPSHOT` を外しても公開しない。
+  - `-latest.jar` は Reposilite が同名ファイルの上書きを 409 で拒否するため、削除してから PUT する。アップロードや削除に失敗した場合、デプロイのステップは失敗する。
   - **実サーバーへの自動配布・自動再起動の仕組みは存在しない。** `-latest.jar` は用意されるがそれを自動で取得しにいくcron等は無く、各サーバーへの反映は**手動**（後述の「本番サーバー構成・デプロイ手順」）。push しただけではゲーム内には一切反映されない。
-  - ダウンロードURLの実際の形式（groupIdを含まないフラット構成）: `https://reposilite.clusters-prj.com/<releases|snapshots>/<artifactId>/<baseVersion>/<artifactId>-<baseVersion>-b<run_number>.jar`（例: `https://reposilite.clusters-prj.com/releases/fj-economy/2.0.1-SNAPSHOT/fj-economy-2.0.1-SNAPSHOT-b182.jar`）。GitHub Actionsの実行番号は `gh run list --repo clusters-prj/MinecraftKaguya --workflow=build.yml` で確認できる。
+  - ダウンロードURLの例（groupIdを含まないフラット構成）: スナップショット `https://reposilite.clusters-prj.com/snapshots/fj-economy/main/2.0.1-SNAPSHOT/fj-economy-2.0.1-SNAPSHOT-latest.jar` / リリース `https://reposilite.clusters-prj.com/releases/fj-economy/2.0.1/fj-economy-2.0.1.jar`。GitHub Actionsの実行番号は `gh run list --repo clusters-prj/MinecraftKaguya --workflow=build.yml` で確認できる。
+  - 以前は全てのビルドが `/releases/<プラグイン名>/<バージョン>/` に置かれていた（`grep -q "-SNAPSHOT"` が常に失敗していたため）。`migrate-reposilite-layout.yml`（手動実行・一回限り）で、バージョンが `-SNAPSHOT` の旧ファイルを `/snapshots/<プラグイン名>/main/<バージョン>/` へ移す（`-SNAPSHOT` でないバージョンや、CI 形式でないファイルは触らない）。まず `dry_run=true` で計画を確認すること。
 - `release-pipeline.yml`: `プラグイン関連/BGMPlayer/**` の変更で `java-resourcepack/` を zip 化し `BGM-latest` タグの Release に上げ、SHA-1 を計算して**リポジトリ内の全 `config.yml` の `resource-pack-sha1:` を sed で書き換えて main に push する**。BGM 以外のプラグインの config.yml にも同名キーがあると巻き込まれる点に注意。
 - `java-ci.yml`: 静的解析結果の Discord 通知。
 

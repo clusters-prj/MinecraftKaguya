@@ -1,0 +1,150 @@
+name: Migrate Reposilite layout (one-off)
+
+# 旧レイアウトのファイルを新レイアウトへ移す、一回限りの手動ワークフロー。
+#   旧: /releases/<プラグイン名>/<バージョン>/<ファイル>   (main のビルドが全て releases に置かれていた)
+#       /snapshots/<プラグイン名>/<バージョン>/<ファイル>  (WEGuardBridge の旧配置)
+#   新: /snapshots/<プラグイン名>/<ブランチ名>/<バージョン>/<ファイル>
+# 手順: コピー -> 内容 (SHA-256) が一致することを確認 -> 旧ファイルを削除
+# 対象は、バージョンが -SNAPSHOT で終わり、CI が出力した形式のファイル (…-b<N>.jar と …-latest.jar) だけ。
+# それ以外 (-SNAPSHOT でないバージョン、手動アップロードしたリリースなど) は触らず、一覧に表示するだけ。
+#
+# まず dry_run=true (既定) で実行して、ログの計画を確認してから dry_run=false で実行する。
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "true: 計画を表示するだけで何も変更しない / false: 実際に移動する"
+        type: boolean
+        default: true
+      branch:
+        description: "移行先のブランチ名 (旧ファイルは全て main のビルドだったため main)"
+        type: string
+        default: main
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    env:
+      REPO_USER: ${{ secrets.REPOSILITE_USER }}
+      REPO_TOKEN: ${{ secrets.REPOSILITE_TOKEN }}
+      REPO_BASE_URL: "https://reposilite.clusters-prj.com"
+      DRY_RUN: ${{ inputs.dry_run }}
+      BRANCH: ${{ inputs.branch }}
+    steps:
+      - name: Migrate
+        shell: python3 {0}
+        run: |
+          import base64, hashlib, json, os, re, sys, urllib.error, urllib.request
+
+          BASE = os.environ["REPO_BASE_URL"].rstrip("/")
+          DRY = os.environ["DRY_RUN"].lower() == "true"
+          BRANCH = re.sub(r"[^A-Za-z0-9._-]", "_", os.environ["BRANCH"].replace("/", "-"))
+          AUTH = "Basic " + base64.b64encode(f"{os.environ['REPO_USER']}:{os.environ['REPO_TOKEN']}".encode()).decode()
+
+          def req(method, url, data=None):
+              r = urllib.request.Request(url, data=data, method=method, headers={"Authorization": AUTH})
+              try:
+                  with urllib.request.urlopen(r, timeout=120) as resp:
+                      return resp.status, resp.read()
+              except urllib.error.HTTPError as e:
+                  return e.code, e.read()
+
+          def listing(path):
+              """path 直下の (ディレクトリ名のリスト, ファイル名のリスト)。無ければ ([], [])"""
+              status, body = req("GET", f"{BASE}/api/maven/details/{path}")
+              if status == 404:
+                  return [], []
+              if status != 200:
+                  sys.exit(f"::error::一覧を取得できません: {path} (HTTP {status}) {body[:200]!r}")
+              doc = json.loads(body)
+              if doc.get("type") != "DIRECTORY" or "files" not in doc:
+                  sys.exit(f"::error::想定外の応答です: {path}: {str(doc)[:200]}")
+              dirs = sorted(f["name"] for f in doc["files"] if f["type"] == "DIRECTORY")
+              files = sorted(f["name"] for f in doc["files"] if f["type"] == "FILE")
+              return dirs, files
+
+          def new_name(plugin, version, name):
+              """CI が出力した形式で、かつ -SNAPSHOT のバージョンなら新しいファイル名を返す。そうでなければ None"""
+              if not version.endswith("-SNAPSHOT"):
+                  return None   # -SNAPSHOT でないバージョンはスナップショットではないので触らない
+              if name == f"{plugin}-{version}-latest.jar":
+                  return name
+              if re.fullmatch(re.escape(f"{plugin}-{version}") + r"-b\d+\.jar", name):
+                  return name
+              # WEGuardBridge の旧名: <plugin>-1.0.0-b<N>-SNAPSHOT.jar -> <plugin>-1.0.0-SNAPSHOT-b<N>.jar
+              m = re.fullmatch(re.escape(plugin) + r"-(.+)-b(\d+)-SNAPSHOT\.jar", name)
+              if m and version == f"{m.group(1)}-SNAPSHOT":
+                  return f"{plugin}-{version}-b{m.group(2)}.jar"
+              return None
+
+          plan, skipped = [], []   # plan: (旧パス, 新パス, ラベル)
+
+          # 旧: /releases/<plugin>/<version>/<file>
+          for plugin in listing("releases")[0]:
+              for version in listing(f"releases/{plugin}")[0]:
+                  for name in listing(f"releases/{plugin}/{version}")[1]:
+                      nn = new_name(plugin, version, name)
+                      src = f"releases/{plugin}/{version}/{name}"
+                      if nn:
+                          plan.append((src, f"snapshots/{plugin}/{BRANCH}/{version}/{nn}"))
+                      else:
+                          skipped.append(src)
+
+          # 旧: /snapshots/<plugin>/<version>/<file> (ファイルが直下にあるものだけ。新レイアウトのブランチ階層は対象外)
+          for plugin in listing("snapshots")[0]:
+              for version in listing(f"snapshots/{plugin}")[0]:
+                  files = listing(f"snapshots/{plugin}/{version}")[1]
+                  for name in files:
+                      nn = new_name(plugin, version, name)
+                      src = f"snapshots/{plugin}/{version}/{name}"
+                      if nn:
+                          plan.append((src, f"snapshots/{plugin}/{BRANCH}/{version}/{nn}"))
+                      else:
+                          skipped.append(src)
+
+          print(f"=== 移動の計画 ({'ドライラン: 何も変更しません' if DRY else '実行'}) : {len(plan)} 件 ===")
+          for src, dst in plan:
+              print(f"  {src}\n    -> {dst}")
+          print(f"=== 対象外 (-SNAPSHOT の CI 形式ではないため触りません) : {len(skipped)} 件 ===")
+          for s in skipped:
+              print(f"  {s}")
+
+          if DRY:
+              print("\nドライランです。内容を確認して、問題なければ dry_run=false で再実行してください。")
+              sys.exit(0)
+
+          failed = 0
+          for src, dst in plan:
+              try:
+                  status, data = req("GET", f"{BASE}/{src}")
+                  if status != 200:
+                      raise RuntimeError(f"取得できません (HTTP {status})")
+                  digest = hashlib.sha256(data).hexdigest()
+
+                  st, existing = req("GET", f"{BASE}/{dst}")
+                  if st == 200:
+                      if hashlib.sha256(existing).hexdigest() == digest:
+                          print(f"既にコピー済み (内容一致): {dst}")
+                      elif dst.endswith("-latest.jar"):
+                          print(f"移行先に新しい -latest.jar があるためコピーしません (旧は削除): {dst}")
+                      else:
+                          raise RuntimeError("移行先に内容が異なる同名ファイルがあります。旧は残します")
+                  else:
+                      st, body = req("PUT", f"{BASE}/{dst}", data)
+                      if not 200 <= st < 300:
+                          raise RuntimeError(f"コピーに失敗 (HTTP {st}) {body[:200]!r}")
+                      st, copied = req("GET", f"{BASE}/{dst}")
+                      if st != 200 or hashlib.sha256(copied).hexdigest() != digest:
+                          raise RuntimeError("コピー後の内容が一致しません。旧は残します")
+                      print(f"コピーして確認: {dst}")
+
+                  st, body = req("DELETE", f"{BASE}/{src}")
+                  if not (200 <= st < 300 or st == 404):
+                      raise RuntimeError(f"旧ファイルの削除に失敗 (HTTP {st}) {body[:200]!r}")
+                  print(f"旧を削除: {src}")
+              except Exception as e:
+                  failed += 1
+                  print(f"::error::{src}: {e}")
+
+          print(f"\n完了: 成功 {len(plan) - failed} 件 / 失敗 {failed} 件")
+          sys.exit(1 if failed else 0)
