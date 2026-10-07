@@ -24,6 +24,10 @@ on:
         description: "移行先のブランチ名 (旧ファイルは全て main のビルドだったため main)"
         type: string
         default: main
+      cleanup_empty_dirs:
+        description: "true: 移動のあとに、中身が空になったフォルダも削除する (空であることを確認できたフォルダだけ)"
+        type: boolean
+        default: false
 
 jobs:
   migrate:
@@ -34,6 +38,7 @@ jobs:
       REPO_BASE_URL: "https://reposilite.clusters-prj.com"
       DRY_RUN: ${{ inputs.dry_run }}
       BRANCH: ${{ inputs.branch }}
+      CLEANUP_EMPTY_DIRS: ${{ inputs.cleanup_empty_dirs }}
     steps:
       - name: Migrate
         shell: python3 {0}
@@ -133,7 +138,38 @@ jobs:
           for sk in skipped:
               print(f"  {sk}")
 
+          CLEANUP = os.environ.get("CLEANUP_EMPTY_DIRS", "false").lower() == "true"
+
+          def get_dir(path):
+              """path が空でないか確認するための一覧。ディレクトリの中身 (リスト) を返す。無い・ディレクトリでないなら None"""
+              st, body = req("GET", f"{BASE}/api/maven/details/{path}")
+              if st != 200:
+                  return None
+              doc = json.loads(body)
+              if doc.get("type") != "DIRECTORY":
+                  return None
+              return doc.get("files", [])
+
+          def empty_dirs():
+              """中身が空のフォルダを返す: <リポジトリ>/<プラグイン名>/<バージョン> と、子が全て空の <リポジトリ>/<プラグイン名>"""
+              found = []
+              for repo in ("releases", "snapshots"):
+                  for plugin in listing(repo)[0]:
+                      children = get_dir(f"{repo}/{plugin}") or []
+                      vers = [c["name"] for c in children if c["type"] == "DIRECTORY"]
+                      others = [c for c in children if c["type"] != "DIRECTORY"]
+                      empties = [v for v in vers if get_dir(f"{repo}/{plugin}/{v}") == []]
+                      found += [f"{repo}/{plugin}/{v}" for v in empties]
+                      if children and not others and len(empties) == len(vers):
+                          found.append(f"{repo}/{plugin}")   # 子が全て空 = このフォルダも空になる
+              return found
+
           if DRY:
+              if CLEANUP:
+                  ed = empty_dirs()
+                  print(f"\n=== 削除する空のフォルダ (ドライラン: 何も変更しません) : {len(ed)} 件 ===")
+                  for d in ed:
+                      print(f"  {d}/")
               print("\nドライランです。内容を確認して、問題なければ dry_run=false で再実行してください。")
               sys.exit(0)
 
@@ -179,4 +215,25 @@ jobs:
                   print(f"::error::{src}: {e}")
 
           print(f"\n完了: 成功 {len(plan) - failed} 件 / 失敗 {failed} 件")
+
+          if CLEANUP:
+              print("\n=== 空のフォルダの削除 ===")
+              removed = 0
+              # 子フォルダ -> 親フォルダの順に処理するため、深いものから (パスが長い順)
+              for d in sorted(empty_dirs(), key=lambda x: -x.count("/")):
+                  cur = get_dir(d)          # 削除の直前に、もう一度、空であることを確認する
+                  if cur is None:
+                      print(f"既に無いためスキップ: {d}/")
+                      continue
+                  if cur != []:
+                      print(f"空ではなくなったためスキップ: {d}/")
+                      continue
+                  st, body = req("DELETE", f"{BASE}/{d}")
+                  if 200 <= st < 300 or st == 404:
+                      removed += 1
+                      print(f"空のフォルダを削除: {d}/")
+                  else:
+                      print(f"::warning::空のフォルダを削除できません: {d}/ (HTTP {st}) {body[:200]!r}")
+              print(f"空のフォルダを {removed} 件削除しました")
+
           sys.exit(1 if failed else 0)
