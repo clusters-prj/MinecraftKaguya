@@ -1,9 +1,10 @@
 name: Paper Plugins Build
 
-# スナップショット: main を含む全ブランチへの push
+# スナップショット: main を含む全ブランチへの push のうち、pom のバージョンが -SNAPSHOT のもの
 #   -> /snapshots/<プラグイン名>/<ブランチ名>/<バージョン(ビルド番号なし)>/
+#   (-SNAPSHOT でないバージョンはブランチの push では公開しない。リリースはタグだけ)
 # リリース: <プラグイン名>-v<バージョン> のタグを作ったときだけ (例: fj-economy-v2.0.1)
-#   -> /releases/<プラグイン名>/<バージョン>/
+#   -> /releases/<プラグイン名>/<バージョン>/   (タグのバージョンに -SNAPSHOT は付けられない)
 on:
   push:
     branches: [ "**" ]
@@ -39,6 +40,10 @@ jobs:
             if [[ "$GITHUB_REF_NAME" =~ ^(.+)-v([0-9][0-9A-Za-z._-]*)$ ]]; then
               RELEASE_ARTIFACT="${BASH_REMATCH[1]}"
               RELEASE_VERSION="${BASH_REMATCH[2]}"
+              if [[ "$RELEASE_VERSION" == *SNAPSHOT* ]]; then
+                echo "::error::リリースのタグに -SNAPSHOT は付けられません: $GITHUB_REF_NAME"
+                exit 1
+              fi
             else
               echo "::error::タグ名は <プラグイン名>-v<バージョン> の形式にしてください (例: fj-economy-v2.0.1): $GITHUB_REF_NAME"
               exit 1
@@ -76,8 +81,12 @@ jobs:
       #   (以前は curl -s だけで、認証エラー(401)や上書き拒否(409)が握りつぶされていた)
       # - Reposilite は同名ファイルの上書きを拒否する (409) ため、
       #   <artifactId>-<バージョン>-latest.jar は一度削除してから置き直す
-      # - スナップショットとリリースの判定は、バージョン文字列ではなく
-      #   「ブランチの push か、タグの push か」で行う
+      # - 公開先の判定:
+      #     タグの push                       -> リリース (/releases)
+      #     ブランチの push + -SNAPSHOT 版    -> スナップショット (/snapshots)
+      #     ブランチの push + -SNAPSHOT でない -> 公開しない (リリースはタグだけ)
+      #   -SNAPSHOT の判定には bash の [[ == *-SNAPSHOT ]] を使う
+      #   (grep -q "-SNAPSHOT" は "-S" がオプション扱いになり常に失敗する)
       - name: Deploy Artifacts to Reposilite
         if: github.event_name == 'push'
         env:
@@ -88,6 +97,7 @@ jobs:
           set -euo pipefail
           ROOT_DIR=$(pwd)
           DEPLOYED=0
+          SKIPPED=0   # 意図して公開しなかったモジュールの数
 
           # HTTP ステータスコードだけを返す (接続できない場合は 000)
           http_code() { curl -s -o /dev/null -w '%{http_code}' -u "$REPO_USER:$REPO_TOKEN" "$@"; }
@@ -138,6 +148,11 @@ jobs:
                 echo "::error::$pom_dir: バージョン $FULL_VERSION の末尾に -b${GITHUB_RUN_NUMBER} がありません"
                 exit 1
               fi
+              if [[ "$BASE_VERSION" != *-SNAPSHOT ]]; then
+                echo "::notice::$ARTIFACT_ID: バージョン $BASE_VERSION は -SNAPSHOT ではないため、ブランチの push では公開しません (リリースはタグで行います)"
+                SKIPPED=$((SKIPPED + 1))
+                continue
+              fi
               if [ ! -f "$JAR_FILE" ]; then
                 echo "::warning::$pom_dir: $JAR_FILE が無いためスキップします"
                 continue
@@ -168,7 +183,7 @@ jobs:
             DEPLOYED=$((DEPLOYED + 1))
           done
 
-          if [ "$DEPLOYED" -eq 0 ]; then
+          if [ "$DEPLOYED" -eq 0 ] && [ "$SKIPPED" -eq 0 ]; then
             echo "::error::デプロイされた jar が 1 つもありません"
             exit 1
           fi

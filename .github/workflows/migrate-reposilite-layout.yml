@@ -5,8 +5,8 @@ name: Migrate Reposilite layout (one-off)
 #       /snapshots/<プラグイン名>/<バージョン>/<ファイル>  (WEGuardBridge の旧配置)
 #   新: /snapshots/<プラグイン名>/<ブランチ名>/<バージョン>/<ファイル>
 # 手順: コピー -> 内容 (SHA-256) が一致することを確認 -> 旧ファイルを削除
-# CI が出力した形式のファイル (…-b<N>.jar と …-latest.jar) だけが対象。
-# それ以外 (手動アップロードしたリリースなど) は触らず、一覧に表示するだけ。
+# 対象は、バージョンが -SNAPSHOT で終わり、CI が出力した形式のファイル (…-b<N>.jar と …-latest.jar) だけ。
+# それ以外 (-SNAPSHOT でないバージョン、手動アップロードしたリリースなど) は触らず、一覧に表示するだけ。
 #
 # まず dry_run=true (既定) で実行して、ログの計画を確認してから dry_run=false で実行する。
 on:
@@ -64,7 +64,9 @@ jobs:
               return dirs, files
 
           def new_name(plugin, version, name):
-              """CI が出力した形式なら新しいファイル名を返す。そうでなければ None"""
+              """CI が出力した形式で、かつ -SNAPSHOT のバージョンなら新しいファイル名を返す。そうでなければ None"""
+              if not version.endswith("-SNAPSHOT"):
+                  return None   # -SNAPSHOT でないバージョンはスナップショットではないので触らない
               if name == f"{plugin}-{version}-latest.jar":
                   return name
               if re.fullmatch(re.escape(f"{plugin}-{version}") + r"-b\d+\.jar", name):
@@ -103,7 +105,7 @@ jobs:
           print(f"=== 移動の計画 ({'ドライラン: 何も変更しません' if DRY else '実行'}) : {len(plan)} 件 ===")
           for src, dst in plan:
               print(f"  {src}\n    -> {dst}")
-          print(f"=== 対象外 (CI 形式ではないため触りません) : {len(skipped)} 件 ===")
+          print(f"=== 対象外 (-SNAPSHOT の CI 形式ではないため触りません) : {len(skipped)} 件 ===")
           for s in skipped:
               print(f"  {s}")
 
