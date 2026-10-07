@@ -109,7 +109,11 @@ jobs:
           }
 
           # ブランチ名をパスに使える形にする (/ は - に、それ以外の記号は _ に)
-          SAFE_BRANCH=$(echo "$GITHUB_REF_NAME" | sed -E 's#/#-#g; s#[^A-Za-z0-9._-]#_#g')
+          SAFE_BRANCH=$(printf '%s' "$GITHUB_REF_NAME" | sed -E 's#/#-#g; s#[^A-Za-z0-9._-]#_#g')
+          if printf '%s' "$GITHUB_REF_NAME" | grep -q '[^A-Za-z0-9._/-]'; then
+            # 日本語や記号を _ に置換すると、別のブランチ同士が同じパスになるため、元の名前のハッシュを付ける
+            SAFE_BRANCH="${SAFE_BRANCH}-$(printf '%s' "$GITHUB_REF_NAME" | sha1sum | cut -c1-6)"
+          fi
 
           mapfile -t POMS < <(find . -mindepth 2 -name pom.xml)
           for pom in "${POMS[@]}"; do
