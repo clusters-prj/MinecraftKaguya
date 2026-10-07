@@ -1,12 +1,16 @@
 name: Migrate Reposilite layout (one-off)
 
 # 旧レイアウトのファイルを新レイアウトへ移す、一回限りの手動ワークフロー。
-#   旧: /releases/<プラグイン名>/<バージョン>/<ファイル>   (main のビルドが全て releases に置かれていた)
-#       /snapshots/<プラグイン名>/<バージョン>/<ファイル>  (WEGuardBridge の旧配置)
 #   新: /snapshots/<プラグイン名>/<ブランチ名>/<バージョン>/<ファイル>
 # 手順: コピー -> 内容 (SHA-256) が一致することを確認 -> 旧ファイルを削除
-# 対象は、バージョンが -SNAPSHOT で終わり、CI が出力した形式のファイル (…-b<N>.jar と …-latest.jar) だけ。
-# それ以外 (-SNAPSHOT でないバージョン、手動アップロードしたリリースなど) は触らず、一覧に表示するだけ。
+# 対象は、CI が出力した形式のファイルだけ。それ以外 (手動アップロードしたリリースなど) は触らず、一覧に表示するだけ。
+#   (a) /releases/<プラグイン名>/<バージョン>/ の …-b<N>.jar と …-latest.jar
+#       (旧 CI は全てのビルドを /releases に置いていた。バージョンが -SNAPSHOT でなくても、
+#        <プラグイン名>-<バージョン>.jar (リリース) や <プラグイン名>-latest.jar は対象外)
+#   (b) /releases/<プラグイン名>/<バージョン>-b<N>/ (ビルドごとにフォルダが分かれていた、旧い形)
+#       ファイル名の二重の -b<N>-b<N> を直して、(a) と同じ場所へ移す。
+#       フォルダ内の …-b<N>-latest.jar は、同じビルドの jar と内容が同じ重複なので、確認のうえ削除する
+#   (c) /snapshots/<プラグイン名>/<バージョン>/ (WEGuardBridge の旧配置)
 #
 # まず dry_run=true (既定) で実行して、ログの計画を確認してから dry_run=false で実行する。
 on:
@@ -42,7 +46,9 @@ jobs:
           AUTH = "Basic " + base64.b64encode(f"{os.environ['REPO_USER']}:{os.environ['REPO_TOKEN']}".encode()).decode()
 
           def req(method, url, data=None):
-              r = urllib.request.Request(url, data=data, method=method, headers={"Authorization": AUTH})
+              # Cloudflare は既定の Python-urllib の User-Agent を弾く (403 error code: 1010) ので、明示する
+              r = urllib.request.Request(url, data=data, method=method,
+                                         headers={"Authorization": AUTH, "User-Agent": "MinecraftKaguya-reposilite-migrate/1.0 (GitHub Actions)"})
               try:
                   with urllib.request.urlopen(r, timeout=120) as resp:
                       return resp.status, resp.read()
@@ -64,9 +70,8 @@ jobs:
               return dirs, files
 
           def new_name(plugin, version, name):
-              """CI が出力した形式で、かつ -SNAPSHOT のバージョンなら新しいファイル名を返す。そうでなければ None"""
-              if not version.endswith("-SNAPSHOT"):
-                  return None   # -SNAPSHOT でないバージョンはスナップショットではないので触らない
+              """CI が出力した形式なら新しいファイル名を返す。そうでなければ None
+              (<プラグイン名>-<バージョン>.jar や <プラグイン名>-latest.jar は CI 形式ではないので対象外)"""
               if name == f"{plugin}-{version}-latest.jar":
                   return name
               if re.fullmatch(re.escape(f"{plugin}-{version}") + r"-b\d+\.jar", name):
@@ -77,66 +82,93 @@ jobs:
                   return f"{plugin}-{version}-b{m.group(2)}.jar"
               return None
 
-          plan, skipped = [], []   # plan: (旧パス, 新パス, ラベル)
+          # plan: dict(src, dst, kind)   kind: "move" (コピー→確認→旧を削除) / "dup" (重複。twin と同じ内容なら削除するだけ)
+          plan, skipped = [], []
 
-          # 旧: /releases/<plugin>/<version>/<file>
+          # (a)(b) 旧: /releases/<plugin>/<version>/<file>
           for plugin in listing("releases")[0]:
               for version in listing(f"releases/{plugin}")[0]:
-                  for name in listing(f"releases/{plugin}/{version}")[1]:
-                      nn = new_name(plugin, version, name)
+                  files = listing(f"releases/{plugin}/{version}")[1]
+                  odd = re.fullmatch(r"(.+)-b(\d+)", version)   # 例: 1.0.0-SNAPSHOT-b188 (ビルドごとのフォルダ)
+                  for name in files:
                       src = f"releases/{plugin}/{version}/{name}"
+                      if odd and odd.group(1).endswith("-SNAPSHOT"):
+                          base, n = odd.group(1), odd.group(2)
+                          if name == f"{plugin}-{version}-b{n}.jar":
+                              dst = f"snapshots/{plugin}/{BRANCH}/{base}/{plugin}-{base}-b{n}.jar"
+                              plan.append(dict(src=src, dst=dst, kind="move"))
+                              continue
+                          if name == f"{plugin}-{version}-latest.jar":
+                              twin = f"releases/{plugin}/{version}/{plugin}-{version}-b{n}.jar"
+                              if twin.rsplit("/", 1)[1] in files:
+                                  plan.append(dict(src=src, dst=f"snapshots/{plugin}/{BRANCH}/{base}/{plugin}-{base}-b{n}.jar",
+                                                   kind="dup", twin=twin))
+                                  continue
+                          skipped.append(src)
+                          continue
+                      nn = new_name(plugin, version, name)
                       if nn:
-                          plan.append((src, f"snapshots/{plugin}/{BRANCH}/{version}/{nn}"))
+                          plan.append(dict(src=src, dst=f"snapshots/{plugin}/{BRANCH}/{version}/{nn}", kind="move"))
                       else:
                           skipped.append(src)
 
-          # 旧: /snapshots/<plugin>/<version>/<file> (ファイルが直下にあるものだけ。新レイアウトのブランチ階層は対象外)
+          # (c) 旧: /snapshots/<plugin>/<version>/<file> (ファイルが直下にあるものだけ。新レイアウトのブランチ階層は対象外)
           for plugin in listing("snapshots")[0]:
               for version in listing(f"snapshots/{plugin}")[0]:
-                  files = listing(f"snapshots/{plugin}/{version}")[1]
-                  for name in files:
-                      nn = new_name(plugin, version, name)
+                  for name in listing(f"snapshots/{plugin}/{version}")[1]:
                       src = f"snapshots/{plugin}/{version}/{name}"
+                      nn = new_name(plugin, version, name)
                       if nn:
-                          plan.append((src, f"snapshots/{plugin}/{BRANCH}/{version}/{nn}"))
+                          plan.append(dict(src=src, dst=f"snapshots/{plugin}/{BRANCH}/{version}/{nn}", kind="move"))
                       else:
                           skipped.append(src)
 
           print(f"=== 移動の計画 ({'ドライラン: 何も変更しません' if DRY else '実行'}) : {len(plan)} 件 ===")
-          for src, dst in plan:
-              print(f"  {src}\n    -> {dst}")
-          print(f"=== 対象外 (-SNAPSHOT の CI 形式ではないため触りません) : {len(skipped)} 件 ===")
-          for s in skipped:
-              print(f"  {s}")
+          for it in plan:
+              if it["kind"] == "dup":
+                  print(f"  {it['src']}\n    -> (重複のため削除のみ。{it['twin']} と同じ内容か確認する)")
+              else:
+                  print(f"  {it['src']}\n    -> {it['dst']}")
+          print(f"=== 対象外 (CI 形式ではないため触りません) : {len(skipped)} 件 ===")
+          for sk in skipped:
+              print(f"  {sk}")
 
           if DRY:
               print("\nドライランです。内容を確認して、問題なければ dry_run=false で再実行してください。")
               sys.exit(0)
 
           failed = 0
-          for src, dst in plan:
+          for it in plan:
+              src, dst = it["src"], it["dst"]
               try:
                   status, data = req("GET", f"{BASE}/{src}")
                   if status != 200:
                       raise RuntimeError(f"取得できません (HTTP {status})")
                   digest = hashlib.sha256(data).hexdigest()
 
-                  st, existing = req("GET", f"{BASE}/{dst}")
-                  if st == 200:
-                      if hashlib.sha256(existing).hexdigest() == digest:
-                          print(f"既にコピー済み (内容一致): {dst}")
-                      elif dst.endswith("-latest.jar"):
-                          print(f"移行先に新しい -latest.jar があるためコピーしません (旧は削除): {dst}")
-                      else:
-                          raise RuntimeError("移行先に内容が異なる同名ファイルがあります。旧は残します")
+                  if it["kind"] == "dup":
+                      # 同じビルドの jar (移行済み) と内容が同じことを確認してから、削除だけする
+                      st, twin_data = req("GET", f"{BASE}/{dst}")
+                      if st != 200 or hashlib.sha256(twin_data).hexdigest() != digest:
+                          raise RuntimeError(f"移行先の {dst} と内容が一致しないため、削除しません")
+                      print(f"重複を確認 (内容一致): {src}")
                   else:
-                      st, body = req("PUT", f"{BASE}/{dst}", data)
-                      if not 200 <= st < 300:
-                          raise RuntimeError(f"コピーに失敗 (HTTP {st}) {body[:200]!r}")
-                      st, copied = req("GET", f"{BASE}/{dst}")
-                      if st != 200 or hashlib.sha256(copied).hexdigest() != digest:
-                          raise RuntimeError("コピー後の内容が一致しません。旧は残します")
-                      print(f"コピーして確認: {dst}")
+                      st, existing = req("GET", f"{BASE}/{dst}")
+                      if st == 200:
+                          if hashlib.sha256(existing).hexdigest() == digest:
+                              print(f"既にコピー済み (内容一致): {dst}")
+                          elif dst.endswith("-latest.jar"):
+                              print(f"移行先に新しい -latest.jar があるためコピーしません (旧は削除): {dst}")
+                          else:
+                              raise RuntimeError("移行先に内容が異なる同名ファイルがあります。旧は残します")
+                      else:
+                          st, body = req("PUT", f"{BASE}/{dst}", data)
+                          if not 200 <= st < 300:
+                              raise RuntimeError(f"コピーに失敗 (HTTP {st}) {body[:200]!r}")
+                          st, copied = req("GET", f"{BASE}/{dst}")
+                          if st != 200 or hashlib.sha256(copied).hexdigest() != digest:
+                              raise RuntimeError("コピー後の内容が一致しません。旧は残します")
+                          print(f"コピーして確認: {dst}")
 
                   st, body = req("DELETE", f"{BASE}/{src}")
                   if not (200 <= st < 300 or st == 404):

@@ -4,7 +4,7 @@ name: Paper Plugins Build
 #   -SNAPSHOT のバージョン (全ブランチ)
 #     -> /snapshots/<プラグイン名>/<ブランチ名>/<バージョン(ビルド番号なし)>/
 #   -SNAPSHOT でないバージョン (main だけ)
-#     -> /releases/<プラグイン名>/<バージョン>/
+#     -> /releases/<プラグイン名>/<バージョン>/  (<プラグイン名>-<バージョン>.jar と <プラグイン名>-latest.jar)
 #   リリースするには、pom から -SNAPSHOT を外して main に push する。
 #   同じバージョンが既にリリース済みなら何もしない (次のバージョンへ上げるまで)。
 #   main 以外のブランチで -SNAPSHOT を外しても、公開しない。
@@ -140,21 +140,37 @@ jobs:
                 echo "::error::$pom_dir: $JAR_FILE が見つかりません"
                 exit 1
               fi
-              URL="$REPO_BASE_URL/releases/$ARTIFACT_ID/$FULL_VERSION/${ARTIFACT_ID}-${FULL_VERSION}.jar"
+              BASE_URL="$REPO_BASE_URL/releases/$ARTIFACT_ID/$FULL_VERSION"
+              URL="$BASE_URL/${ARTIFACT_ID}-${FULL_VERSION}.jar"
+              LATEST_URL="$BASE_URL/${ARTIFACT_ID}-latest.jar"   # このバージョンのフォルダ内の固定名
               echo "Releasing $JAR_FILE to releases/$ARTIFACT_ID/$FULL_VERSION/ ..."
               code=$(http_code -X PUT "$URL" --upload-file "$JAR_FILE")
+              RELEASED=0
               case "$code" in
-                2??)
-                  echo "Released: $URL"
-                  DEPLOYED=$((DEPLOYED + 1)) ;;
-                409)
-                  # リリースは上書きしない。次のバージョンに上げるまでは何もしない
-                  echo "::notice::$ARTIFACT_ID: バージョン $FULL_VERSION は既にリリース済みのため、何もしません (新しくリリースするには pom のバージョンを上げてください)"
-                  SKIPPED=$((SKIPPED + 1)) ;;
+                2??) RELEASED=1 ;;
+                409) ;;   # リリースは上書きしない。既にあるので、次のバージョンに上げるまで何もしない
                 *)
                   echo "::error::アップロードに失敗しました: PUT $URL (HTTP $code)"
                   exit 1 ;;
               esac
+
+              # <プラグイン名>-latest.jar が無ければ置く (既にあれば上書きしない)
+              code=$(http_code "$LATEST_URL")
+              if [ "$code" = "404" ]; then
+                upload "$JAR_FILE" "$LATEST_URL"
+                RELEASED=1
+              elif [ "$code" != "200" ]; then
+                echo "::error::$LATEST_URL の確認に失敗しました (HTTP $code)"
+                exit 1
+              fi
+
+              if [ "$RELEASED" -eq 1 ]; then
+                echo "Released: $URL (latest: $LATEST_URL)"
+                DEPLOYED=$((DEPLOYED + 1))
+              else
+                echo "::notice::$ARTIFACT_ID: バージョン $FULL_VERSION は既にリリース済みのため、何もしません (新しくリリースするには pom のバージョンを上げてください)"
+                SKIPPED=$((SKIPPED + 1))
+              fi
 
             else
               echo "::error::$ARTIFACT_ID: 想定外のバージョン形式です: $FULL_VERSION"
