@@ -6,7 +6,7 @@ name: Paper Plugins Build
 #   -SNAPSHOT でないバージョン (main だけ)
 #     -> /releases/<プラグイン名>/<バージョン>/  (<プラグイン名>-<バージョン>.jar と <プラグイン名>-latest.jar)
 #   リリースするには、pom から -SNAPSHOT を外して main に push する。
-#   同じバージョンが既にリリース済みなら何もしない (次のバージョンへ上げるまで)。
+#   同じファイル名が既にあれば、上書きする (Reposilite は上書きを 409 で拒否するので、削除してから置き直す)。
 #   main 以外のブランチで -SNAPSHOT を外しても、公開しない。
 on:
   push:
@@ -50,8 +50,8 @@ jobs:
       # Reposilite へデプロイ (push のときだけ。PR ではビルドのみ)
       # - 1 つでもアップロードに失敗したらこのステップを失敗させる
       #   (以前は curl -s だけで、認証エラー(401)や上書き拒否(409)が握りつぶされていた)
-      # - Reposilite は同名ファイルの上書きを拒否する (409) ため、
-      #   <artifactId>-<バージョン>-latest.jar は一度削除してから置き直す
+      # - Reposilite は同名ファイルの上書きを拒否する (409) ため、既にあるファイルは
+      #   削除してから置き直す (リリースの jar と <artifactId>-latest.jar、同じビルドの再実行も同様)
       - name: Deploy Artifacts to Reposilite
         if: github.event_name == 'push'
         env:
@@ -67,16 +67,21 @@ jobs:
           # HTTP ステータスコードだけを返す (接続できない場合は 000)
           http_code() { curl -s -o /dev/null -w '%{http_code}' -u "$REPO_USER:$REPO_TOKEN" "$@"; }
 
-          # upload <ローカルファイル> <URL> [409 のときの扱い: ok-conflict なら成功扱いにする]
-          upload() {
-            local code
+          # put_replace <ローカルファイル> <URL>
+          #   PUT する。同名のファイルが既にあって 409 になったら、削除してから置き直す (上書き)
+          put_replace() {
+            local code del
             code=$(http_code -X PUT "$2" --upload-file "$1")
+            if [ "$code" = "409" ]; then
+              del=$(http_code -X DELETE "$2")
+              case "$del" in
+                2??|404) ;;
+                *) echo "::error::上書きのための削除に失敗しました: DELETE $2 (HTTP $del)"; return 1 ;;
+              esac
+              code=$(http_code -X PUT "$2" --upload-file "$1")
+            fi
             case "$code" in
               2??) return 0 ;;
-              409)
-                if [ "${3:-}" = "ok-conflict" ]; then
-                  return 0
-                fi ;;
             esac
             echo "::error::アップロードに失敗しました: PUT $2 (HTTP $code)"
             return 1
@@ -109,16 +114,8 @@ jobs:
               LATEST_URL="$BASE_URL/${ARTIFACT_ID}-${BASE_VERSION}-latest.jar"
 
               echo "Uploading $JAR_FILE to snapshots/$ARTIFACT_ID/$SAFE_BRANCH/$BASE_VERSION/ ..."
-              # 同じビルドの再実行では 409 になるので、成功扱いにする
-              upload "$JAR_FILE" "$BASE_URL/${ARTIFACT_ID}-${FULL_VERSION}.jar" ok-conflict
-
-              # -latest.jar は先に削除する (まだ無い場合の 404 は問題ない)
-              code=$(http_code -X DELETE "$LATEST_URL")
-              case "$code" in
-                2??|404) ;;
-                *) echo "::error::-latest.jar の削除に失敗しました: DELETE $LATEST_URL (HTTP $code)"; exit 1 ;;
-              esac
-              upload "$JAR_FILE" "$LATEST_URL"
+              put_replace "$JAR_FILE" "$BASE_URL/${ARTIFACT_ID}-${FULL_VERSION}.jar"
+              put_replace "$JAR_FILE" "$LATEST_URL"
 
               # 反映されたことを確認する
               code=$(http_code "$LATEST_URL")
@@ -144,33 +141,11 @@ jobs:
               URL="$BASE_URL/${ARTIFACT_ID}-${FULL_VERSION}.jar"
               LATEST_URL="$BASE_URL/${ARTIFACT_ID}-latest.jar"   # このバージョンのフォルダ内の固定名
               echo "Releasing $JAR_FILE to releases/$ARTIFACT_ID/$FULL_VERSION/ ..."
-              code=$(http_code -X PUT "$URL" --upload-file "$JAR_FILE")
-              RELEASED=0
-              case "$code" in
-                2??) RELEASED=1 ;;
-                409) ;;   # リリースは上書きしない。既にあるので、次のバージョンに上げるまで何もしない
-                *)
-                  echo "::error::アップロードに失敗しました: PUT $URL (HTTP $code)"
-                  exit 1 ;;
-              esac
-
-              # <プラグイン名>-latest.jar が無ければ置く (既にあれば上書きしない)
-              code=$(http_code "$LATEST_URL")
-              if [ "$code" = "404" ]; then
-                upload "$JAR_FILE" "$LATEST_URL"
-                RELEASED=1
-              elif [ "$code" != "200" ]; then
-                echo "::error::$LATEST_URL の確認に失敗しました (HTTP $code)"
-                exit 1
-              fi
-
-              if [ "$RELEASED" -eq 1 ]; then
-                echo "Released: $URL (latest: $LATEST_URL)"
-                DEPLOYED=$((DEPLOYED + 1))
-              else
-                echo "::notice::$ARTIFACT_ID: バージョン $FULL_VERSION は既にリリース済みのため、何もしません (新しくリリースするには pom のバージョンを上げてください)"
-                SKIPPED=$((SKIPPED + 1))
-              fi
+              # 同じバージョンが既にあれば上書きする
+              put_replace "$JAR_FILE" "$URL"
+              put_replace "$JAR_FILE" "$LATEST_URL"
+              echo "Released: $URL (latest: $LATEST_URL)"
+              DEPLOYED=$((DEPLOYED + 1))
 
             else
               echo "::error::$ARTIFACT_ID: 想定外のバージョン形式です: $FULL_VERSION"
