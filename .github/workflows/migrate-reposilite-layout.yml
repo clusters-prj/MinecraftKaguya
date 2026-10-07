@@ -42,7 +42,9 @@ jobs:
           AUTH = "Basic " + base64.b64encode(f"{os.environ['REPO_USER']}:{os.environ['REPO_TOKEN']}".encode()).decode()
 
           def req(method, url, data=None):
-              r = urllib.request.Request(url, data=data, method=method, headers={"Authorization": AUTH})
+              # Cloudflare は既定の Python-urllib の User-Agent を弾く (403 error code: 1010) ので、明示する
+              r = urllib.request.Request(url, data=data, method=method,
+                                         headers={"Authorization": AUTH, "User-Agent": "MinecraftKaguya-reposilite-migrate/1.0 (GitHub Actions)"})
               try:
                   with urllib.request.urlopen(r, timeout=120) as resp:
                       return resp.status, resp.read()
