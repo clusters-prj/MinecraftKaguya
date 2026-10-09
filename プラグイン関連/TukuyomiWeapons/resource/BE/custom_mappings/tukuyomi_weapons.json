@@ -1,0 +1,196 @@
+{
+  "format_version": 2,
+  "items": {
+    "minecraft:diamond_sword": [
+      {
+        "type": "legacy",
+        "custom_model_data": 1001,
+        "bedrock_identifier": "tukuyomi:light_sword",
+        "display_name": "光の剣",
+        "bedrock_options": {
+          "icon": "tukuyomi_light_sword",
+          "display_handheld": true
+        }
+      }
+    ],
+    "minecraft:iron_sword": [
+      {
+        "type": "legacy",
+        "custom_model_data": 1002,
+        "bedrock_identifier": "tukuyomi:saw_cleaver",
+        "display_name": "ノコギリ鉈",
+        "bedrock_options": {
+          "icon": "tukuyomi_saw_cleaver",
+          "display_handheld": true
+        }
+      },
+      {
+        "type": "legacy",
+        "custom_model_data": 1017,
+        "bedrock_identifier": "tukuyomi:saw_cleaver_drawn",
+        "display_name": "ノコギリ鉈(変形後)",
+        "bedrock_options": {
+          "icon": "tukuyomi_saw_cleaver_drawn",
+          "display_handheld": true
+        }
+      }
+    ],
+    "minecraft:blaze_rod": [
+      {
+        "type": "legacy",
+        "custom_model_data": 1003,
+        "bedrock_identifier": "tukuyomi:rejection",
+        "display_name": "拒絶",
+        "bedrock_options": {
+          "icon": "tukuyomi_rejection",
+          "display_handheld": true
+        }
+      }
+    ],
+    "minecraft:iron_axe": [
+      {
+        "type": "legacy",
+        "custom_model_data": 1004,
+        "bedrock_identifier": "tukuyomi:beast_cleaver",
+        "display_name": "獣肉断ち",
+        "bedrock_options": {
+          "icon": "tukuyomi_beast_cleaver",
+          "display_handheld": true
+        }
+      }
+    ],
+    "minecraft:netherite_axe": [
+      {
+        "type": "legacy",
+        "custom_model_data": 1005,
+        "bedrock_identifier": "tukuyomi:pile_hammer",
+        "display_name": "パイルハンマー",
+        "bedrock_options": {
+          "icon": "tukuyomi_pile_hammer",
+          "display_handheld": true
+        }
+      }
+    ],
+    "minecraft:wooden_sword": [
+      {
+        "type": "legacy",
+        "custom_model_data": 1006,
+        "bedrock_identifier": "tukuyomi:cane_sheathed",
+        "display_name": "仕込み杖(変形前)",
+        "bedrock_options": {
+          "icon": "tukuyomi_cane_sheathed",
+          "display_handheld": true
+        }
+      }
+    ],
+    "minecraft:netherite_sword": [
+      {
+        "type": "legacy",
+        "custom_model_data": 1007,
+        "bedrock_identifier": "tukuyomi:cane_drawn",
+        "display_name": "仕込み杖(変形後)",
+        "bedrock_options": {
+          "icon": "tukuyomi_cane_drawn",
+          "display_handheld": true
+        }
+      }
+    ],
+    "minecraft:snowball": [
+      {
+        "type": "legacy",
+        "custom_model_data": 1008,
+        "bedrock_identifier": "tukuyomi:fushi_bomb",
+        "display_name": "FUSHI爆弾",
+        "bedrock_options": {
+          "icon": "tukuyomi_fushi_bomb"
+        }
+      },
+      {
+        "type": "legacy",
+        "custom_model_data": 1009,
+        "bedrock_identifier": "tukuyomi:timed_bomb",
+        "display_name": "もと光るダムダム弾",
+        "bedrock_options": {
+          "icon": "tukuyomi_timed_bomb"
+        }
+      },
+      {
+        "type": "legacy",
+        "custom_model_data": 1010,
+        "bedrock_identifier": "tukuyomi:tsukibito_bomb",
+        "display_name": "自律稼働無人爆弾(月人)",
+        "bedrock_options": {
+          "icon": "tukuyomi_tsukibito_bomb"
+        }
+      },
+      {
+        "type": "legacy",
+        "custom_model_data": 1011,
+        "bedrock_identifier": "tukuyomi:pancake",
+        "display_name": "彩葉特製、毒素マシマシ粉水パンケーキ",
+        "bedrock_options": {
+          "icon": "tukuyomi_pancake"
+        }
+      }
+    ],
+    "minecraft:paper": [
+      {
+        "type": "legacy",
+        "custom_model_data": 1012,
+        "bedrock_identifier": "tukuyomi:keychain",
+        "display_name": "キーホルダー",
+        "bedrock_options": {
+          "icon": "tukuyomi_keychain"
+        }
+      }
+    ],
+    "minecraft:stone_sword": [
+      {
+        "type": "legacy",
+        "custom_model_data": 1013,
+        "bedrock_identifier": "tukuyomi:hunting_horn",
+        "display_name": "狩猟笛",
+        "bedrock_options": {
+          "icon": "tukuyomi_hunting_horn",
+          "display_handheld": true
+        }
+      }
+    ],
+    "minecraft:diamond_axe": [
+      {
+        "type": "legacy",
+        "custom_model_data": 1014,
+        "bedrock_identifier": "tukuyomi:gunlance_mika_d0",
+        "display_name": "ガンランス「MIKA-D0」",
+        "bedrock_options": {
+          "icon": "tukuyomi_gunlance_mika_d0",
+          "display_handheld": true
+        }
+      }
+    ],
+    "minecraft:golden_sword": [
+      {
+        "type": "legacy",
+        "custom_model_data": 1015,
+        "bedrock_identifier": "tukuyomi:guitar_resonance",
+        "display_name": "ギター「共振波動」",
+        "bedrock_options": {
+          "icon": "tukuyomi_guitar_resonance",
+          "display_handheld": true
+        }
+      }
+    ],
+    "minecraft:stone_axe": [
+      {
+        "type": "legacy",
+        "custom_model_data": 1016,
+        "bedrock_identifier": "tukuyomi:beast_cleaver_drawn",
+        "display_name": "獣肉断ち(変形後)",
+        "bedrock_options": {
+          "icon": "tukuyomi_beast_cleaver_drawn",
+          "display_handheld": true
+        }
+      }
+    ]
+  }
+}
