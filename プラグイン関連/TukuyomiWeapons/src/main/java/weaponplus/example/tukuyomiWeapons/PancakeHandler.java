@@ -54,7 +54,7 @@ void pancakeBurst(TukuyomiWeapons plugin, Snowball ball) {
             plugin.giveEffect(le, new PotionEffect(PotionEffectType.NAUSEA, PANCAKE_EFFECT_TICKS, 0));
             plugin.giveEffect(le, new PotionEffect(PotionEffectType.BLINDNESS, PANCAKE_EFFECT_TICKS, 0));
             // 爆音は Player#playSound で、本人にだけ聞こえる
-            if (le instanceof Player victim) playExplosionLoop(victim);
+            if (le instanceof Player victim) playExplosionLoop(plugin, victim);
         });
     }
 }
