@@ -1,0 +1,13 @@
+name: TukuyomiWeapons
+version: 1.0
+main: trigger.tukuyomiWeapons.TukuyomiWeapons
+api-version: "26.2"
+commands:
+  weapon:
+    description: カスタム武器を入手します
+    usage: /weapon <武器ID> [プレイヤー]
+    permission: weapons.give
+permissions:
+  weapons.give:
+    description: 武器を入手する権限
+    default: op
