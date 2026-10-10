@@ -1,5 +1,5 @@
 name: TukuyomiWeapons
-version: 1.0
+version: ${project.version}
 main: trigger.tukuyomiWeapons.TukuyomiWeapons
 api-version: "26.2"
 commands:
