@@ -1,6 +1,7 @@
 name: TukuyomiWeapons
-version: 1.0
-main: weaponplus.example.tukuyomiWeapons.TukuyomiWeapons
+
+version: ${project.version}
+main: trigger.tukuyomiWeapons.TukuyomiWeapons
 api-version: "26.2"
 folia-supported: true
 commands:
