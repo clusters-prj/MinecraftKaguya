@@ -15,7 +15,6 @@ permissions:
   weapons.ultcharge:
     description: ウルトのチャージを加算する権限(コンソール専用・通常は誰にも付けない)
     default: op
-    permissions:
   weapons.give:
     description: 武器を入手する権限
     default: op
