@@ -25,6 +25,8 @@ public abstract class ChargeWeaponHandler implements WeaponHandler {
     protected abstract boolean pierceWalls();
     /** true なら防具を無視するダメージで当てる(耐性・プロテクションは効く) */
     protected boolean piercesArmor() { return false; }
+    /** 通常の近接攻撃ではウルトゲージを増やさない(衝撃波が当たったときだけ数える) */
+    @Override public boolean countsMeleeForUlt() { return false; }
     protected abstract float chargePitch();
     protected abstract float shockwavePitch();
     protected abstract void applyChargeEffect(TukuyomiWeapons plugin, Player player, int ticks);
@@ -113,19 +115,24 @@ public abstract class ChargeWeaponHandler implements WeaponHandler {
             byChunk.computeIfAbsent(key, k -> new ArrayList<>()).add(pt);
         }
         Set<UUID> hit = ConcurrentHashMap.newKeySet();
-        for (List<Location> group : byChunk.values()) {
-            plugin.atLocation(group.get(0), () -> {
-                for (Location pt : group) {
-                    for (LivingEntity le : plugin.nearbyLiving(pt, hitRadius())) {
-                        if (le.equals(p) || le instanceof ArmorStand) continue;
-                        if (hit.add(le.getUniqueId())) {
-                            if (piercesArmor()) plugin.damageByPierce(le, damage(), p, weapon());
-                            else plugin.damageBy(le, damage(), p, weapon());
+        try {
+            for (List<Location> group : byChunk.values()) {
+                plugin.atLocation(group.get(0), () -> {
+                    for (Location pt : group) {
+                        for (LivingEntity le : plugin.nearbyLiving(pt, hitRadius())) {
+                            if (le.equals(p) || le instanceof ArmorStand) continue;
+                            if (hit.add(le.getUniqueId())) {
+                                if (piercesArmor()) plugin.damageByPierce(le, damage(), p, weapon());
+                                else plugin.damageBy(le, damage(), p, weapon());
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
+        } catch (RuntimeException ex) {
+            plugin.getLogger().warning("衝撃波の判定中にエラーが出ました: " + ex);
+        } finally {
+            afterFire(plugin, p); // エラーが出ても、硬直とクールタイムは必ず始める
         }
-        afterFire(plugin, p);
     }
 }
