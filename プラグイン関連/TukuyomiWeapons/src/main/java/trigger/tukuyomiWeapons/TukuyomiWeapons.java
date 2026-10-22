@@ -614,9 +614,15 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
         onEntity(target, () -> {
             inSlash.set(true);
             try {
-                DamageSource ds = DamageSource.builder(DamageType.INDIRECT_MAGIC)
-                        .withCausingEntity(source).build();
-                target.damage(amount, ds);
+                try {
+                    // 攻撃元は「直接」と「原因」の両方を本人にする
+                    DamageSource ds = DamageSource.builder(DamageType.MAGIC)
+                            .withCausingEntity(source).withDirectEntity(source).build();
+                    target.damage(amount, ds);
+                } catch (RuntimeException ex) {
+                    getLogger().warning("貫通ダメージに失敗したため、通常のダメージで当てます: " + ex);
+                    target.damage(amount, source);
+                }
             } finally {
                 inSlash.set(false);
             }
