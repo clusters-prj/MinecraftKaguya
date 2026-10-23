@@ -38,7 +38,7 @@ public enum Weapon {
     BEAST_CLEAVER_DRAWN("beast_cleaver_drawn", "獣肉断ち(変形後)", Material.STONE_AXE, 1016, 12, 0.5, 7.0 / 3.0),
     // ノコギリ鉈(変形後): 剣ベース。ダメージ+2(10)・リーチ4.5ブロック・攻撃速度1。両形態とも、命中時に毒II(10秒)
     SAW_CLEAVER_DRAWN("saw_cleaver_drawn", "ノコギリ鉈(変形後)", Material.IRON_SWORD, 1017, 10, 1.0, 4.5 / 3.0),
-    // ===== ウルト(5キルでチャージ。ホットバーに持つと、経験値バーの位置にゲージが出る。右クリックで発動) =====
+    // ===== ウルト(プラグイン武器指定の％か、バニラ武器の見込みダメージの1/3ずつ増える。ホットバーに持つと、経験値バーの位置にゲージが出る。100％の時に右クリックで発動) =====
     // 古狩人の遺骨: 発動後16秒間、ジャンプと同時に進行方向へ突進
     OLD_HUNTER_BONE("old_hunter_bone", "古狩人の遺骨", Material.BONE, 1018, -1, -1, 1.0),
     // 神の怒り: 拒絶の範囲・吹き飛ばしを2倍にして、範囲内に10ダメージ
@@ -53,17 +53,17 @@ public enum Weapon {
     MOONLIGHT_HOLY_SWORD("moonlight_holy_sword", "月光の聖剣", Material.EMERALD, 1023, -1, -1, 1.0),
     // パイルバンカー: リーチ2ブロックの、最初から構えた近接武器。チャージ満タンのとき、攻撃が100ダメージ(チャージを消費)、攻撃後はスーパーノヴァと同じ硬直。チャージがないときの攻撃力は1
     PILE_BUNKER   ("pile_bunker",    "パイルバンカー", Material.NETHERITE_PICKAXE, 1024, 1, 1.0, 2.0 / 3.0),
-    // 大失態: 半径20ブロックのプレイヤーに毒30秒・吐き気50秒
+    // 大失態: 半径20ブロックのプレイヤーに毒15秒・吐き気10
     BIG_BLUNDER   ("big_blunder",    "大失態",       Material.FERMENTED_SPIDER_EYE, 1025, -1, -1, 1.0),
-    // 星界からの使者: 視線の先のブロックへ隕石を落とす(爆風半径15・中心200ダメージ)
+    // 星界からの使者: 視線の先のブロックへ隕石を落とす(爆風半径15・中心100ダメージ)
     ENVOY_FROM_STARS("envoy_from_stars", "星界からの使者", Material.MAGMA_CREAM, 1026, -1, -1, 1.0),
-    // 8000年の追憶「弱」: 半径30ブロックのプレイヤーに暗闇50秒
+    // 8000年の追憶「弱」: 半径30ブロックのプレイヤーに暗闇10秒
     REMINISCENCE_8000("reminiscence_8000_weak", "8000年の追憶「弱」", Material.ECHO_SHARD, 1027, -1, -1, 1.0),
     // 竜撃砲(ガンランス): 前方10ブロック・後方2ブロックに、各60度の円錐状の爆煙。70ダメージ
     DRAGON_CANNON ("dragon_cannon",  "竜撃砲",       Material.BLAZE_POWDER, 1028, -1, -1, 1.0),
-    // 音撃震(狩猟笛): 前方30度・10ブロックの円錐に、神の怒りの効果(吹き飛ばし2倍)と60ダメージ
+    // 音撃震(狩猟笛): 前方30度・10ブロックの円錐に、神の怒りの効果(吹き飛ばし2倍)と30ダメージ
     SONIC_QUAKE   ("sonic_quake",    "音撃震",       Material.AMETHYST_SHARD, 1029, -1, -1, 1.0),
-    // 共鳴震(ギター): 半径30ブロックの敵に、ウィザー状態15秒・吐き気15秒
+    // 共鳴震(ギター): 半径30ブロックの敵に、ウィザー状態15秒・吐き気10
     RESONANCE_QUAKE("resonance_quake", "共鳴震",     Material.PRISMARINE_CRYSTALS, 1030, -1, -1, 1.0);
 
     final String id, displayName;
