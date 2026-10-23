@@ -1,7 +1,7 @@
 package trigger.tukuyomiWeapons;
 
 import org.bukkit.Material;
-
+import java.util.EnumSet;
 /**
  * 武器定義。
  * material / modelData はリソースパック側の設定に合わせて変更してください。
@@ -82,9 +82,15 @@ public enum Weapon {
     }
 
     /** ウルトのアイテムか */
-    boolean isUltimate() {
-        return ordinal() >= OLD_HUNTER_BONE.ordinal(); // ウルトは enum の末尾にまとめてある
-    }
+boolean isUltimate() {
+    return ULTIMATES.contains(this);
+}
+
+/** ウルトの一覧。並び順(ordinal)ではなく、ここで明示する。ウルトを増やしたら、ここにも足す */
+private static final EnumSet<Weapon> ULTIMATES = EnumSet.of(
+        OLD_HUNTER_BONE, WRATH_OF_GOD, KARAKASA_SHELL, LIGHT_SWORD_ULT, CALL_TO_BEYOND,
+        MOONLIGHT_HOLY_SWORD, PILE_BUNKER, BIG_BLUNDER, ENVOY_FROM_STARS, REMINISCENCE_8000,
+        DRAGON_CANNON, SONIC_QUAKE, RESONANCE_QUAKE);
 
     static Weapon byId(String id) {
         for (Weapon w : values()) if (w.id.equalsIgnoreCase(id)) return w;
