@@ -32,7 +32,7 @@ void fushiBlast(TukuyomiWeapons plugin, Snowball ball) {
         if (le.getBoundingBox().getCenter().distance(center.toVector()) > FUSHI_RADIUS
                 && le.getLocation().distance(center) > FUSHI_RADIUS) continue;
 
-        plugin.damageBy(le, FUSHI_DAMAGE, shooter);
+        plugin.damageBy(le, FUSHI_DAMAGE, shooter, Weapon.FUSHI_BOMB);
         if (Math.random() < FUSHI_STUN_CHANCE) {
             plugin.onEntity(le, () -> {
                 if (plugin.canAffect(shooter, le)) plugin.freeze(le, FUSHI_STUN_TICKS); // PvP禁止区域などでは、停止させない

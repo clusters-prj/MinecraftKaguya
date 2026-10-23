@@ -23,12 +23,20 @@ public abstract class ChargeWeaponHandler implements WeaponHandler {
     protected abstract double damage();
     protected abstract int cooldownTicks();
     protected abstract boolean pierceWalls();
+    /** true なら防具を無視するダメージで当てる(耐性・プロテクションは効く) */
+    protected boolean piercesArmor() { return false; }
+    /** 通常の近接攻撃ではウルトゲージを増やさない(衝撃波が当たったときだけ数える) */
+    @Override public boolean countsMeleeForUlt() { return false; }
     protected abstract float chargePitch();
     protected abstract float shockwavePitch();
     protected abstract void applyChargeEffect(TukuyomiWeapons plugin, Player player, int ticks);
     protected abstract void removeChargeEffect(TukuyomiWeapons plugin, Player player);
     protected abstract void afterFire(TukuyomiWeapons plugin, Player player);
     protected void onChargeTick(TukuyomiWeapons plugin, Player player, int tick) {}
+    /** 衝撃波が当たる範囲の半径(ブロック) */
+    protected double hitRadius() { return 1.0; }
+    /** チャージを始めてよいか。ウルトは、ここでキルのチャージを消費する */
+    protected boolean tryActivate(TukuyomiWeapons plugin, Player player) { return true; }
 
     @Override
     public final void onRightClick(TukuyomiWeapons plugin, PlayerInteractEvent event) {
@@ -41,6 +49,7 @@ public abstract class ChargeWeaponHandler implements WeaponHandler {
         if (plugin.charging.contains(id)) return;
         Map<UUID, Long> cooldown = cooldownMap(plugin);
         if (plugin.onCooldown(p, cooldown)) return;
+        if (!tryActivate(plugin, p)) return;
         plugin.charging.add(id);
 
         p.getWorld().playSound(p.getLocation(), Sound.ENTITY_WARDEN_SONIC_CHARGE, 1.5f, chargePitch());
@@ -77,7 +86,7 @@ public abstract class ChargeWeaponHandler implements WeaponHandler {
         }, 1L, 1L);
     }
 
-    private Map<UUID, Long> cooldownMap(TukuyomiWeapons plugin) {
+    protected Map<UUID, Long> cooldownMap(TukuyomiWeapons plugin) {
         return weapon() == Weapon.GUITAR ? plugin.guitarCooldown : plugin.laserCooldown;
     }
 
@@ -106,16 +115,24 @@ public abstract class ChargeWeaponHandler implements WeaponHandler {
             byChunk.computeIfAbsent(key, k -> new ArrayList<>()).add(pt);
         }
         Set<UUID> hit = ConcurrentHashMap.newKeySet();
-        for (List<Location> group : byChunk.values()) {
-            plugin.atLocation(group.get(0), () -> {
-                for (Location pt : group) {
-                    for (LivingEntity le : plugin.nearbyLiving(pt, 1.0)) {
-                        if (le.equals(p) || le instanceof ArmorStand) continue;
-                        if (hit.add(le.getUniqueId())) plugin.damageBy(le, damage(), p);
+        try {
+            for (List<Location> group : byChunk.values()) {
+                plugin.atLocation(group.get(0), () -> {
+                    for (Location pt : group) {
+                        for (LivingEntity le : plugin.nearbyLiving(pt, hitRadius())) {
+                            if (le.equals(p) || le instanceof ArmorStand) continue;
+                            if (hit.add(le.getUniqueId())) {
+                                if (piercesArmor()) plugin.damageByPierce(le, damage(), p, weapon());
+                                else plugin.damageBy(le, damage(), p, weapon());
+                            }
+                        }
                     }
-                }
-            });
+                });
+            }
+        } catch (RuntimeException ex) {
+            plugin.getLogger().warning("衝撃波の判定中にエラーが出ました: " + ex);
+        } finally {
+            afterFire(plugin, p); // エラーが出ても、硬直とクールタイムは必ず始める
         }
-        afterFire(plugin, p);
     }
 }

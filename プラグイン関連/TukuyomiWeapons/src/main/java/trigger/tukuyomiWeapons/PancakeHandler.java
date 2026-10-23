@@ -51,6 +51,7 @@ void pancakeBurst(TukuyomiWeapons plugin, Snowball ball) {
             if (!plugin.canAffect(shooter, le)) return; // PvP禁止区域などでは、効果を与えない
             plugin.giveEffect(le, new PotionEffect(PotionEffectType.NAUSEA, PANCAKE_EFFECT_TICKS, 0));
             plugin.giveEffect(le, new PotionEffect(PotionEffectType.BLINDNESS, PANCAKE_EFFECT_TICKS, 0));
+            if (shooter instanceof Player thrower) plugin.ult.addCharge(thrower, Weapon.PANCAKE, le); // 効果を与えた相手ごとに数える
             // 爆音は Player#playSound で、本人にだけ聞こえる
             if (le instanceof Player victim) playExplosionLoop(plugin, victim);
         });

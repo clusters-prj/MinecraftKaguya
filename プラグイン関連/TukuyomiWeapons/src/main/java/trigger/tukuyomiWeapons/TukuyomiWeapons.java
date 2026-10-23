@@ -64,6 +64,9 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
     private final ThreadLocal<Boolean> inSlash = ThreadLocal.withInitial(() -> false);
     // 武器別ロジックは各 WeaponHandler クラスへ委譲。共通処理・スケジューラ・アイテム生成は本体に残す。
     private final Map<Weapon, WeaponHandler> weaponHandlers = new EnumMap<>(Weapon.class);
+    UltimateManager ult;                // ウルト(キルのチャージ・経験値バーのゲージ・効果中の状態)
+    private NamespacedKey karakasaArrowKey; // 唐傘弾の矢の印
+    final Map<UUID, Long> laserUltCooldown = new ConcurrentHashMap<>(); // 光の剣(ウルト)のクールタイム終了時刻(ms)
 
     @Override
     public void onEnable() {
@@ -72,6 +75,8 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
         stiffRemainKey = new NamespacedKey(this, "stiff_remaining_ms");
         offhandBackupKey = new NamespacedKey(this, "offhand_backup");
         keychainDataKey = new NamespacedKey(this, "keychain_stored_offhand");
+        ult = new UltimateManager(this);
+        karakasaArrowKey = new NamespacedKey(this, "karakasa_arrow");
         registerWeaponHandlers();
         getServer().getPluginManager().registerEvents(this, this);
 
@@ -82,6 +87,8 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
             cmd.setExecutor(this);
             cmd.setTabCompleter(this);
         }
+        var ultCmd = getCommand("ultcharge");
+        if (ultCmd != null) ultCmd.setExecutor(new UltChargeCommand(this));
     }
 
     private void registerWeaponHandlers() {
@@ -102,6 +109,19 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
         weaponHandlers.put(Weapon.HUNTING_HORN, new HuntingHornHandler());
         weaponHandlers.put(Weapon.GUNLANCE, new GunlanceHandler());
         weaponHandlers.put(Weapon.KEYCHAIN, new KeychainHandler());
+        weaponHandlers.put(Weapon.OLD_HUNTER_BONE, new OldHunterBoneHandler());
+        weaponHandlers.put(Weapon.WRATH_OF_GOD, new WrathOfGodHandler());
+        weaponHandlers.put(Weapon.KARAKASA_SHELL, new KarakasaHandler());
+        weaponHandlers.put(Weapon.LIGHT_SWORD_ULT, new LightSwordUltHandler());
+        weaponHandlers.put(Weapon.CALL_TO_BEYOND, new CallToBeyondHandler());
+        weaponHandlers.put(Weapon.MOONLIGHT_HOLY_SWORD, new MoonlightHolySwordHandler());
+        weaponHandlers.put(Weapon.PILE_BUNKER, new PileBunkerHandler());
+        weaponHandlers.put(Weapon.BIG_BLUNDER, new BigBlunderHandler());
+        weaponHandlers.put(Weapon.ENVOY_FROM_STARS, new EnvoyFromStarsHandler());
+        weaponHandlers.put(Weapon.REMINISCENCE_8000, new Reminiscence8000Handler());
+        weaponHandlers.put(Weapon.DRAGON_CANNON, new DragonCannonHandler());
+        weaponHandlers.put(Weapon.SONIC_QUAKE, new SonicQuakeHandler());
+        weaponHandlers.put(Weapon.RESONANCE_QUAKE, new ResonanceQuakeHandler());
     }
 
 
@@ -147,6 +167,17 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
     }
 
     /** プレイヤーごとの見回り(0.1秒ごと): キーホルダーと、狩猟笛のバフ(1秒ごと) */
+    /** バニラの飛び道具(矢・トライデントなど)が当たったぶんの、ウルトのチャージを増やす */
+    private void countProjectileForUlt(EntityDamageByEntityEvent e, Projectile proj, Player shooter) {
+        if (inSlash.get()) return; // このプラグイン自身が与えたダメージは、武器ごとの処理で数える
+        if (!(e.getEntity() instanceof LivingEntity victim)) return;
+        if (proj instanceof Snowball ball && getWeapon(ball.getItem()) != null) return; // このプラグインの武器の雪玉は、別に数える
+        if (proj.getPersistentDataContainer().has(karakasaArrowKey, PersistentDataType.BYTE)) return; // 唐傘弾(ウルト)の矢
+        double charge = e.getDamage() * UltimateManager.VANILLA_DAMAGE_CHARGE_RATIO;
+        if (charge <= 0) return; // ダメージのない雪玉・卵などは増えない
+        ult.addChargeFor(shooter, charge, victim);
+    }
+
     private void startPlayerTask(Player p) {
         AtomicInteger n = new AtomicInteger(0);
         p.getScheduler().runAtFixedRate(this, task -> {
@@ -158,8 +189,18 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
             if (p.getGameMode() == GameMode.SPECTATOR) return;
             WeaponHandler keychain = weaponHandlers.get(Weapon.KEYCHAIN);
             if (keychain != null) keychain.onPlayerTick(this, p);
+            ult.onTick(p, t);
             if (t % 10 == 0) { WeaponHandler horn = weaponHandlers.get(Weapon.HUNTING_HORN); if (horn != null) horn.onTick(this, p); }
         }, null, 1L, 2L);
+
+        // ウルトのゲージの送り直し(毎tick)。ゲージを出している人だけ、数バイトのパケットを1つ送る
+        p.getScheduler().runAtFixedRate(this, task -> {
+            if (!p.isOnline()) {
+                task.cancel();
+                return;
+            }
+            ult.onFastTick(p);
+        }, null, 1L, 1L);
     }
 
     // ===== アイテム生成・判定 =====
@@ -251,6 +292,24 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
         }
     }
 
+    /**
+     * 毒・ウィザーのように「ダメージを与え続ける効果」を付けるとき用。
+     * かけた人をSkript(PvPのキル判定)へ伝える。後からかけた人で上書きされる。
+     */
+    void giveEffect(LivingEntity le, PotionEffect effect, Player source) {
+        giveEffect(le, effect);
+        if (source == null || !(le instanceof Player victim) || victim.equals(source)) return;
+        PotionEffectType type = effect.getType();
+        if (type != PotionEffectType.POISON && type != PotionEffectType.WITHER) return;
+        double seconds = effect.getDuration() / 20.0;
+        String cmd = "pvpdebuff " + victim.getUniqueId() + " " + source.getUniqueId() + " " + seconds;
+        Bukkit.getGlobalRegionScheduler().run(this, task -> {
+            // Skript側のコマンドが無い環境(PvP用Skript未導入)では何もしない
+            if (Bukkit.getCommandMap().getCommand("pvpdebuff") == null) return;
+            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+        });
+    }
+
     /** このプラグインが付けた効果のうち、まだ続いているものをすべて消す */
     private void clearPluginEffects(Player p) {
         Map<PotionEffectType, Long> recorded = pluginEffects.remove(p.getUniqueId());
@@ -266,6 +325,7 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
         resetStiffness(p);                     // 硬直(記録・移動速度低下・ジャンプ封じ)
         clearPluginEffects(p);                 // 付けた効果すべて(狩猟笛、停止・盲目・発光、毒、パンケーキ、チャージ中の鈍足など)
         hornHolders.remove(p.getUniqueId());   // 狩猟笛のバフの管理
+        ult.reset(p);                          // ウルト(チャージ・効果中の状態)をリセット
         WeaponHandler keychain = weaponHandlers.get(Weapon.KEYCHAIN);
         if (keychain instanceof KeychainHandler handler) handler.restoreOnSpectator(this, p);
     }
@@ -417,6 +477,11 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamage(EntityDamageByEntityEvent e) {
+        // 弓矢・投げ物(バニラ)が当たったときも、見込みダメージの1/3 %のチャージを増やす
+        if (e.getDamager() instanceof Projectile proj && proj.getShooter() instanceof Player shooter) {
+            countProjectileForUlt(e, proj, shooter);
+            return;
+        }
         if (!(e.getDamager() instanceof Player p)) return;
 
         // 斬撃・爆風など、プラグイン自身が与えたダメージには武器の追加効果を連鎖させない
@@ -434,6 +499,18 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
             Weapon held = getWeapon(p.getInventory().getItemInMainHand());
             WeaponHandler handler = held == null ? null : weaponHandlers.get(held);
             if (handler != null) handler.onMeleeDamage(this, e, p);
+            // 近接攻撃が当たったぶん、ウルトのチャージを増やす
+            if (held != null && (handler == null || handler.countsMeleeForUlt()) && e.getEntity() instanceof LivingEntity victim) {
+                ult.addCharge(p, held, victim);
+            }
+            // このプラグインの武器以外で殴ったとき: 素手(拳)なら 0.1%、バニラの武器なら見込みダメージの1/3 %
+            if (held == null && e.getEntity() instanceof LivingEntity otherVictim) {
+                if (p.getInventory().getItemInMainHand().getType().isAir()) {
+                    ult.addChargeFor(p, UltimateManager.FIST_CHARGE, otherVictim);
+                } else {
+                    ult.addChargeFor(p, e.getDamage() * UltimateManager.VANILLA_DAMAGE_CHARGE_RATIO, otherVictim);
+                }
+            }
         }
     }
 
@@ -467,6 +544,11 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
             e.setCancelled(true);
             return;
         }
+        // 唐傘弾: 発動後に最初に放った矢に印を付ける
+        if (e.getEntity() instanceof AbstractArrow arrow && !(arrow instanceof Trident)
+                && arrow.getShooter() instanceof Player shooter && ult.consumeKarakasa(shooter)) {
+            arrow.getPersistentDataContainer().set(karakasaArrowKey, PersistentDataType.BYTE, (byte) 1);
+        }
         if (e.getEntity() instanceof Snowball ball) {
             Weapon w = getWeapon(ball.getItem());
             WeaponHandler handler = w == null ? null : weaponHandlers.get(w);
@@ -478,6 +560,18 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
     // 投擲武器(雪玉ベース)の着弾
     @EventHandler(ignoreCancelled = true)
     public void onProjectileHit(ProjectileHitEvent e) {
+        // 唐傘弾の矢の着弾: 爆発して、矢は消える
+        if (e.getEntity() instanceof AbstractArrow arrow) {
+            Byte mark = arrow.getPersistentDataContainer().get(karakasaArrowKey, PersistentDataType.BYTE);
+            if (mark != null) {
+                if (mark == 1) { // 1=装填済み。爆発は1回だけ。2=使用済み(印は残して、チャージの加算から除外する)
+                    arrow.getPersistentDataContainer().set(karakasaArrowKey, PersistentDataType.BYTE, (byte) 2);
+                    KarakasaHandler.blast(this, arrow);
+                    arrow.remove();
+                }
+                return;
+            }
+        }
         if (!(e.getEntity() instanceof Snowball ball)) return;
         Weapon w = getWeapon(ball.getItem());
         WeaponHandler handler = w == null ? null : weaponHandlers.get(w);
@@ -495,6 +589,11 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
      * 相手を扱うスレッドで実行する(Folia 対応。Paper ではそのまま直ちに実行される)。
      */
     void damageBy(LivingEntity target, double amount, Object source) {
+        damageBy(target, amount, source, null);
+    }
+
+    /** weapon を渡すと、ダメージを与えたあとに、その武器のぶんウルトのチャージが増える(攻撃したのがプレイヤーのとき) */
+    void damageBy(LivingEntity target, double amount, Object source, Weapon weapon) {
         onEntity(target, () -> {
             inSlash.set(true);
             try {
@@ -503,6 +602,31 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
             } finally {
                 inSlash.set(false);
             }
+            if (weapon != null && source instanceof Player attacker) ult.addCharge(attacker, weapon, target);
+        });
+    }
+
+    /**
+     * 防具を無視するダメージ(魔法ダメージ扱い)で当てる。防具値・防具強度は無視される。
+     * 耐性ポーションやプロテクションは、そのまま効く。攻撃者は source として記録される。
+     */
+    void damageByPierce(LivingEntity target, double amount, Player source, Weapon weapon) {
+        onEntity(target, () -> {
+            inSlash.set(true);
+            try {
+                try {
+                    // 攻撃元は「直接」と「原因」の両方を本人にする
+                    DamageSource ds = DamageSource.builder(DamageType.MAGIC)
+                            .withCausingEntity(source).withDirectEntity(source).build();
+                    target.damage(amount, ds);
+                } catch (RuntimeException ex) {
+                    getLogger().warning("貫通ダメージに失敗したため、通常のダメージで当てます: " + ex);
+                    target.damage(amount, source);
+                }
+            } finally {
+                inSlash.set(false);
+            }
+            if (weapon != null) ult.addCharge(source, weapon, target);
         });
     }
 
@@ -522,6 +646,20 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
         }
     }
 
+    // ===== ウルト =====
+
+    // 古狩人の遺骨: ジャンプの検知(ジャンプの統計が増えたとき)
+    @EventHandler(ignoreCancelled = true)
+    public void onJumpStat(PlayerStatisticIncrementEvent e) {
+        if (e.getStatistic() == Statistic.JUMP) ult.onJump(e.getPlayer());
+    }
+
+    // 古狩人の遺骨: パッドなどでキー入力が取れないときのために、直近の移動の向きを覚える
+    @EventHandler(ignoreCancelled = true)
+    public void onMove(PlayerMoveEvent e) {
+        ult.onMove(e.getPlayer(), e.getFrom(), e.getTo());
+    }
+
     @EventHandler
     public void onQuit(PlayerQuitEvent e) {
         charging.remove(e.getPlayer().getUniqueId());
@@ -539,6 +677,7 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
         pancakeCooldown.remove(e.getPlayer().getUniqueId());
         guitarCooldown.remove(e.getPlayer().getUniqueId());
         hornHolders.remove(e.getPlayer().getUniqueId());
+        ult.clearActive(e.getPlayer().getUniqueId());
         pluginEffects.remove(e.getPlayer().getUniqueId());
     }
 
@@ -577,6 +716,7 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
         resetStiffness(dead);       // 死んだら、硬直は解除(リスポーンしても硬直が残らない)
         clearPluginEffects(dead);   // 効果の記録も消す
         hornHolders.remove(dead.getUniqueId());
+        ult.reset(dead);            // ウルトのチャージと効果中の状態をリセット
         WeaponHandler keychain = weaponHandlers.get(Weapon.KEYCHAIN);
         if (keychain != null) keychain.onDeath(this, e);
     }
@@ -665,7 +805,8 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
             if (blocked) continue;
             targets.add(le);
         }
-        for (LivingEntity le : targets) damageBy(le, damage, p);
+        Weapon held = getWeapon(p.getInventory().getItemInMainHand()); // 斬撃は、持っている武器のぶんチャージが増える
+        for (LivingEntity le : targets) damageBy(le, damage, p, held);
     }
 
     // ===== コマンド: /weapon <id> [player] =====
@@ -673,7 +814,7 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length < 1) {
-            sender.sendMessage("使い方: /weapon <武器ID> [プレイヤー] [個数]");
+            sender.sendMessage("使い方: /weapon <武器ID> [プレイヤー] [個数] [所持上限]");
             return true;
         }
         Weapon w = Weapon.byId(args[0]);
@@ -682,7 +823,7 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
             return true;
         }
         if (w == Weapon.KEYCHAIN) {
-            sender.sendMessage("キーホルダーは、光の剣を持つと自動で付与されるアイテムです。");
+            sender.sendMessage("キーホルダーは、スーパーノヴァを持つと自動で付与されるアイテムです。");
             return true;
         }
         Player target;
@@ -705,6 +846,27 @@ public class TukuyomiWeapons extends JavaPlugin implements Listener, TabExecutor
             } catch (NumberFormatException ex) {
                 sender.sendMessage("個数は数字で指定してください。");
                 return true;
+            }
+        }
+        // 4つ目の引数: 所持上限。この武器をすでに持っている数を数え、上限に届くぶんだけ渡す(補給用)
+        if (args.length >= 4) {
+            int max;
+            try {
+                max = Integer.parseInt(args[3]);
+            } catch (NumberFormatException ex) {
+                sender.sendMessage("所持上限は数字で指定してください。");
+                return true;
+            }
+            if (max > 0) {
+                int have = 0;
+                for (ItemStack it : target.getInventory().getContents()) {
+                    if (it != null && getWeapon(it) == w) have += it.getAmount();
+                }
+                amount = Math.min(amount, max - have);
+                if (amount <= 0) {
+                    sender.sendMessage(w.displayName + " は上限(" + max + "個)まで所持済みです。");
+                    return true;
+                }
             }
         }
         ItemStack item = createItem(w);

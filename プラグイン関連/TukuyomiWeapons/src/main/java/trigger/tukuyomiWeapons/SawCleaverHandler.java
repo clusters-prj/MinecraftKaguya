@@ -11,6 +11,6 @@ public final class SawCleaverHandler implements WeaponHandler {
 
  @Override public void onRightClick(TukuyomiWeapons plugin, PlayerInteractEvent event) { plugin.transformWeapon(event.getPlayer(), Weapon.SAW_CLEAVER_DRAWN); }
  @Override public void onMeleeDamage(TukuyomiWeapons plugin, EntityDamageByEntityEvent event, Player attacker) {
-  if (event.getEntity() instanceof LivingEntity victim) plugin.giveEffect(victim, new PotionEffect(PotionEffectType.POISON, SAW_POISON_TICKS, SAW_POISON_AMPLIFIER));
+  if (event.getEntity() instanceof LivingEntity victim) plugin.giveEffect(victim, new PotionEffect(PotionEffectType.POISON, SAW_POISON_TICKS, SAW_POISON_AMPLIFIER), attacker);
  }
 }

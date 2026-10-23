@@ -110,7 +110,7 @@ void moonExplode(TukuyomiWeapons plugin, Location center, Object shooter, double
         double dist = le.getBoundingBox().getCenter().distance(center.toVector());
         double ratio = 1.0 - dist / MOON_RADIUS;
         if (ratio <= 0) continue;
-        plugin.damageBy(le, centerDamage * ratio, shooter);
+        plugin.damageBy(le, centerDamage * ratio, shooter, Weapon.TSUKIBITO);
     }
 }
 }

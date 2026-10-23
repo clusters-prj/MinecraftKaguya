@@ -11,6 +11,8 @@ import org.bukkit.event.player.PlayerInteractEvent;
 interface WeaponHandler {
     default void onRightClick(TukuyomiWeapons plugin, PlayerInteractEvent event) {}
     default void onMeleeDamage(TukuyomiWeapons plugin, EntityDamageByEntityEvent event, Player attacker) {}
+    /** 近接攻撃が当たるたびに、ウルトのチャージを増やすか。パイルハンマーのように自分で数える武器は false */
+    default boolean countsMeleeForUlt() { return true; }
     default void onProjectileLaunch(TukuyomiWeapons plugin, ProjectileLaunchEvent event, Snowball projectile) {}
     default void onProjectileHit(TukuyomiWeapons plugin, ProjectileHitEvent event, Snowball projectile) {}
     default void onLeftClick(TukuyomiWeapons plugin, Player player, org.bukkit.entity.Entity exclude) {}

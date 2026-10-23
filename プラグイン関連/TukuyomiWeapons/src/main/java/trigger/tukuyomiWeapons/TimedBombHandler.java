@@ -23,7 +23,7 @@ void timedBomb(TukuyomiWeapons plugin, ProjectileHitEvent e, Snowball ball) {
     Object shooter = ball.getShooter();
 
     if (e.getHitEntity() instanceof LivingEntity hit && !(hit instanceof ArmorStand)) {
-        plugin.damageBy(hit, TIMED_IMPACT_DAMAGE, shooter);
+        plugin.damageBy(hit, TIMED_IMPACT_DAMAGE, shooter, Weapon.TIMED_BOMB);
     }
 
     world.playSound(center, Sound.ENTITY_CREEPER_PRIMED, 1.5f, 1f);
@@ -44,7 +44,7 @@ void timedBomb(TukuyomiWeapons plugin, ProjectileHitEvent e, Snowball ball) {
         for (LivingEntity le : plugin.nearbyLiving(center, TIMED_RADIUS)) {
             if (le instanceof ArmorStand) continue;
             if (!TIMED_HITS_THROWER && le.equals(shooter)) continue;
-            plugin.damageBy(le, TIMED_DAMAGE, shooter);
+            plugin.damageBy(le, TIMED_DAMAGE, shooter, Weapon.TIMED_BOMB);
         }
     }, 1L, 1L);
 }

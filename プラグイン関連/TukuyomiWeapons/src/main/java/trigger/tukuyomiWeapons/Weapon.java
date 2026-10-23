@@ -1,7 +1,7 @@
 package trigger.tukuyomiWeapons;
 
 import org.bukkit.Material;
-
+import java.util.EnumSet;
 /**
  * 武器定義。
  * material / modelData はリソースパック側の設定に合わせて変更してください。
@@ -10,7 +10,7 @@ import org.bukkit.Material;
  */
 public enum Weapon {
     //            id              表示名           素材                    CMD   ダメージ 攻撃速度 リーチ
-    LIGHT_SWORD  ("light_sword",   "光の剣",        Material.DIAMOND_SWORD, 1001, -1,    -1,     1.0),
+    LIGHT_SWORD  ("light_sword",   "スーパーノヴァ",        Material.DIAMOND_SWORD, 1001, -1,    -1,     1.0),
     SAW_CLEAVER  ("saw_cleaver",   "ノコギリ鉈",    Material.IRON_SWORD,    1002, 8,     2.0,    1.0),
     REJECTION    ("rejection",     "拒絶",          Material.BLAZE_ROD,     1003, -1,    -1,     1.0),
     BEAST_CLEAVER("beast_cleaver", "獣肉断ち",      Material.IRON_AXE,      1004, 16,    1.5,    1.5),
@@ -37,7 +37,34 @@ public enum Weapon {
     // 獣肉断ち(変形後): 斧ベース。ダメージ12・リーチ7ブロック・攻撃速度0.5。右クリックで獣肉断ち(変形前)に戻る
     BEAST_CLEAVER_DRAWN("beast_cleaver_drawn", "獣肉断ち(変形後)", Material.STONE_AXE, 1016, 12, 0.5, 7.0 / 3.0),
     // ノコギリ鉈(変形後): 剣ベース。ダメージ+2(10)・リーチ4.5ブロック・攻撃速度1。両形態とも、命中時に毒II(10秒)
-    SAW_CLEAVER_DRAWN("saw_cleaver_drawn", "ノコギリ鉈(変形後)", Material.IRON_SWORD, 1017, 10, 1.0, 4.5 / 3.0);
+    SAW_CLEAVER_DRAWN("saw_cleaver_drawn", "ノコギリ鉈(変形後)", Material.IRON_SWORD, 1017, 10, 1.0, 4.5 / 3.0),
+    // ===== ウルト(プラグイン武器指定の％か、バニラ武器の見込みダメージの1/3ずつ増える。ホットバーに持つと、経験値バーの位置にゲージが出る。100％の時に右クリックで発動) =====
+    // 古狩人の遺骨: 発動後16秒間、ジャンプと同時に進行方向へ突進
+    OLD_HUNTER_BONE("old_hunter_bone", "古狩人の遺骨", Material.BONE, 1018, -1, -1, 1.0),
+    // 神の怒り: 拒絶の範囲・吹き飛ばしを2倍にして、範囲内に10ダメージ
+    WRATH_OF_GOD  ("wrath_of_god",   "神の怒り",     Material.NETHER_STAR, 1019, -1, -1, 1.0),
+    // 唐傘弾: 発動後に最初に放つ矢が、半径20ブロック・30ダメージの爆発を起こす
+    KARAKASA_SHELL("karakasa_shell", "唐傘弾",       Material.FEATHER, 1020, -1, -1, 1.0),
+    // 光の剣(ウルト): スーパーノヴァの射程・衝撃波の半径が2倍、チャージ・クールタイムが1.5倍
+    LIGHT_SWORD_ULT("light_sword_ult", "光の剣",     Material.GLOWSTONE_DUST, 1021, -1, -1, 1.0),
+    // 彼方への呼びかけ: 頭上から追尾する雪玉を放射状に12発(各20ダメージ、爆風なし)
+    CALL_TO_BEYOND("call_to_beyond", "彼方への呼びかけ", Material.HEART_OF_THE_SEA, 1022, -1, -1, 1.0),
+    // 月光の聖剣: 緑色の斬撃が50ブロック飛び、だんだん大きくなる
+    MOONLIGHT_HOLY_SWORD("moonlight_holy_sword", "月光の聖剣", Material.EMERALD, 1023, -1, -1, 1.0),
+    // パイルバンカー: リーチ2ブロックの、最初から構えた近接武器。チャージ満タンのとき、攻撃が100ダメージ(チャージを消費)、攻撃後はスーパーノヴァと同じ硬直。チャージがないときの攻撃力は1
+    PILE_BUNKER   ("pile_bunker",    "パイルバンカー", Material.NETHERITE_PICKAXE, 1024, 1, 1.0, 2.0 / 3.0),
+    // 大失態: 半径20ブロックのプレイヤーに毒15秒・吐き気10
+    BIG_BLUNDER   ("big_blunder",    "大失態",       Material.FERMENTED_SPIDER_EYE, 1025, -1, -1, 1.0),
+    // 星界からの使者: 視線の先のブロックへ隕石を落とす(爆風半径15・中心100ダメージ)
+    ENVOY_FROM_STARS("envoy_from_stars", "星界からの使者", Material.MAGMA_CREAM, 1026, -1, -1, 1.0),
+    // 8000年の追憶「弱」: 半径30ブロックのプレイヤーに暗闇10秒
+    REMINISCENCE_8000("reminiscence_8000_weak", "8000年の追憶「弱」", Material.ECHO_SHARD, 1027, -1, -1, 1.0),
+    // 竜撃砲(ガンランス): 前方10ブロック・後方2ブロックに、各60度の円錐状の爆煙。70ダメージ
+    DRAGON_CANNON ("dragon_cannon",  "竜撃砲",       Material.BLAZE_POWDER, 1028, -1, -1, 1.0),
+    // 音撃震(狩猟笛): 前方30度・10ブロックの円錐に、神の怒りの効果(吹き飛ばし2倍)と30ダメージ
+    SONIC_QUAKE   ("sonic_quake",    "音撃震",       Material.AMETHYST_SHARD, 1029, -1, -1, 1.0),
+    // 共鳴震(ギター): 半径30ブロックの敵に、ウィザー状態15秒・吐き気10
+    RESONANCE_QUAKE("resonance_quake", "共鳴震",     Material.PRISMARINE_CRYSTALS, 1030, -1, -1, 1.0);
 
     final String id, displayName;
     final Material material;
@@ -53,6 +80,17 @@ public enum Weapon {
         this.speed = speed;
         this.reach = reach;
     }
+
+    /** ウルトのアイテムか */
+boolean isUltimate() {
+    return ULTIMATES.contains(this);
+}
+
+/** ウルトの一覧。並び順(ordinal)ではなく、ここで明示する。ウルトを増やしたら、ここにも足す */
+private static final EnumSet<Weapon> ULTIMATES = EnumSet.of(
+        OLD_HUNTER_BONE, WRATH_OF_GOD, KARAKASA_SHELL, LIGHT_SWORD_ULT, CALL_TO_BEYOND,
+        MOONLIGHT_HOLY_SWORD, PILE_BUNKER, BIG_BLUNDER, ENVOY_FROM_STARS, REMINISCENCE_8000,
+        DRAGON_CANNON, SONIC_QUAKE, RESONANCE_QUAKE);
 
     static Weapon byId(String id) {
         for (Weapon w : values()) if (w.id.equalsIgnoreCase(id)) return w;

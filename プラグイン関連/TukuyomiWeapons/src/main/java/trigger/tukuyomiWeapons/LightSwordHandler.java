@@ -15,7 +15,7 @@ import java.util.Set;
 /** 光の剣：3秒チャージ後に射程70ブロックの貫通衝撃波を発射。 */
 public final class LightSwordHandler extends ChargeWeaponHandler {
     private static final int CHARGE_TICKS = 60;
-    private static final int STIFF_TICKS = 100;
+    static final int STIFF_TICKS = 100;
     private static final double RANGE = 70;
     private static final double DAMAGE = 50;
     private static final int COOLDOWN_TICKS = 400;
@@ -34,6 +34,7 @@ public final class LightSwordHandler extends ChargeWeaponHandler {
     @Override protected double damage() { return DAMAGE; }
     @Override protected int cooldownTicks() { return COOLDOWN_TICKS; }
     @Override protected boolean pierceWalls() { return true; }
+    @Override protected boolean piercesArmor() { return true; }
     @Override protected float chargePitch() { return 1f; }
     @Override protected float shockwavePitch() { return 1f; }
 
@@ -54,16 +55,23 @@ public final class LightSwordHandler extends ChargeWeaponHandler {
     }
 
     private void sendRailgunSequence(TukuyomiWeapons plugin, Player p, int tick) {
+        if (tick == 1) broadcastSequence(plugin, p, 0, "光の剣コピー起動、発射シーケンスへ移行します");
+        else if (tick == 21) broadcastSequence(plugin, p, 1, null);
+        else if (tick == 41) broadcastSequence(plugin, p, 2, null);
+    }
+
+    /** 発射シーケンスのチャットメッセージを、周囲のプレイヤーに送る。stage: 0=起動 1=警告 2=発射直前 */
+    static void broadcastSequence(TukuyomiWeapons plugin, Player p, int stage, String startText) {
         Component msg;
-        if (tick == 1) {
-            msg = Component.text("光の剣コピー起動、発射シーケンスへ移行します", NamedTextColor.AQUA);
-        } else if (tick == 21) {
+        if (stage == 0) {
+            msg = Component.text(startText, NamedTextColor.AQUA);
+        } else if (stage == 1) {
             Component warning = Component.text("[RAILGUN WARNING]", NamedTextColor.RED, TextDecoration.BOLD);
             for (String line : WARNING_LINES) warning = warning.append(Component.newline()).append(Component.text(line, NamedTextColor.RED));
             msg = warning;
-        } else if (tick == 41) {
+        } else {
             msg = Component.text("光よ！", NamedTextColor.YELLOW);
-        } else return;
+        }
 
         Set<Player> receivers = new HashSet<>();
         receivers.add(p);
