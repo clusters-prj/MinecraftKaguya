@@ -1,0 +1,41 @@
+on right click holding heart of the sea:
+    if name of player's tool is "&b&l TP Portal&7(右クリック)":
+        cancel event
+        set {_gui} to a new chest inventory with 6 rows named "テレポート先を選択"
+        set {_slot} to 0
+        loop all players:
+            if loop-player is not player:
+                set slot {_slot} of {_gui} to skull of loop-player named "&b&l%name of loop-player%" with lore "&7クリックしてテレポート"
+                add 1 to {_slot}
+        
+        loop 3 times:
+            set {_n} to loop-value
+            set {_s} to 47 + {_n}
+            if {bm::%player%::%{_n}%} is set:
+                set slot {_s} of {_gui} to paper named "&e&lBookmark %{_n}%" with lore "&fクリックしてこの地点へワープ"
+            else:
+                set slot {_s} of {_gui} to gray stained glass pane named "&8空きスロット %{_n}%"
+        open {_gui} to player
+
+on inventory click:
+    if name of event-inventory is "テレポート先を選択":
+        cancel event
+        if event-item is player head:
+            set {_target} to (uncolored name of event-item) parsed as player
+            if {_target} is online:
+                close player's inventory
+                teleport player to {_target}
+                send "&b&l[Portal] &f%name of {_target}% &7の元へ移動しました。" to player
+
+        if event-item is paper:
+            set {_name} to uncolored name of event-item
+            replace "Bookmark " with "" in {_name}
+            set {_num} to {_name} parsed as integer
+            if {bm::%player%::%{_num}%} is set:
+                close player's inventory
+                teleport player to {bm::%player%::%{_num}%}
+                send "&e&l[Portal] &fBookmark %{_num}% へ移動しました。" to player
+
+command /getportal:
+    trigger:
+        give 1 of heart of the sea named "&b&lTP Portal&7(右クリック)" with lore "&fクリックで指定のプレイヤーへTPします" to player

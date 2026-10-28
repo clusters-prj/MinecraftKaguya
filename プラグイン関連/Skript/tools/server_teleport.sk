@@ -1,0 +1,15 @@
+# サーバー参加時にリカバリーコンパスを渡す
+#on join:
+#    set slot 8 of player to recovery compass named "&b&lサーバー移動 &7(右クリック)" with lore "&fクリックでサバイバルサーバーへ移動します"
+
+on right click:
+    if player is holding a recovery compass:
+        cancel event
+        send "§a§l✔ §fサーバー移動信号を送信しました" to player
+        # コマンドではなく「BungeeCord（Velocity）への接続」として処理
+        connect player to "live"
+
+# アイテムを捨てられないようにする
+on drop:
+    if name of item is "&b&lサーバー移動 &7(右クリック)":
+        cancel event

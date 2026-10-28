@@ -1,0 +1,43 @@
+# ============================================================
+#  NightVision.sk (エラー完全修正・パーティクル非表示版)
+# ============================================================
+
+on right click:
+    # 手に持っているアイテムが「黒色の染料」であり、名前が一致するか確認
+    if player's tool is black dye:
+        if name of player's tool is "&b&lNightvision&7(右クリック)":
+            cancel event
+
+            set {_name} to name of player
+
+            # 暗視の状態（フラグ）をチェック
+            if {nv::%player's uuid%} is true:
+                # --- OFFにする処理 ---
+                set {nv::%player's uuid%} to false
+                execute console command "effect clear %{_name}% minecraft:night_vision"
+                
+                # 自分にのみ通知を送信
+                send "&7&l[NV] &f暗視を &cOFF &fにしました。" to player
+                play sound "block.iron_trapdoor.close" with volume 1 and pitch 1 to player
+
+            else:
+                # --- ONにする処理 ---
+                set {nv::%player's uuid%} to true
+                
+                # コンソールからパーティクル非表示(true)で暗視を付与
+                execute console command "effect give %{_name}% minecraft:night_vision infinite 1 true"
+                
+                # 自分にのみ通知を送信
+                send "&3&l[NV] &f暗視を &bON &fにしました。" to player
+                play sound "block.iron_trapdoor.open" with volume 1 and pitch 1 to player
+
+# 退出時にデータをリセット
+on quit:
+    delete {nv::%player's uuid%}
+
+# 専用アイテムを取得するコマンド
+command /getnv:
+    permission: op
+    trigger:
+        # 名前と説明欄（Lore）を指定して自分に付与
+        give 1 of black dye named "&b&lNightvision&7(右クリック)" with lore "&fクリックで暗視をon•offします" to player

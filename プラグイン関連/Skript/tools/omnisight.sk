@@ -1,0 +1,21 @@
+command /api:trace:
+    permission: op
+    permission message: &cUnknown command.
+    trigger:
+        give 1 of echo shard named "&3&lOmniSight &8- &bTrace" with lore "&f右クリックで10秒間" and "&f全プレイヤーを発光させ位置を特定します。" to player
+        send "&b[System] &fOmniSightモジュールをオンラインにしました。" to player
+
+on right click holding echo shard:
+    if name of player's tool is "&3&lOmniSight &8- &bTrace":
+        cancel event
+        
+        play sound "block.conduit.activate" with volume 1 and pitch 1.2 to player
+        send "&3&l[OmniSight] &b全プレイヤーをスキャン中..." to player
+        
+        loop all players:
+            if loop-player is not player:
+                # ターゲットを10秒間発光させる
+                apply glowing 1 to loop-player for 10 seconds
+        
+        wait 10 seconds
+        send "&7[OmniSight] スキャンデータが消失しました。" to player

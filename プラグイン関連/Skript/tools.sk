@@ -1,0 +1,115 @@
+# -------------------------------------------------------
+# 設定エリア：ツールと空き枠の挙動
+# -------------------------------------------------------
+function giveFixedTools(p: player):
+    # スロット0〜7を一旦リセット（上書き漏れ防止）
+    loop 8 times:
+        set slot (loop-number - 1) of {_p} to air
+
+    # ツールをセット
+    set slot 0 of {_p} to recovery compass named "&b&lサーバー移動 &7(右クリック)" with lore "&fクリックでサバイバルサーバーへ移動します"
+
+    set slot 1 of {_p} to feather named "&b&lFlySpeed&7(右クリック)" with lore "&fクリックで飛行速度を変更します"
+
+    set slot 2 of {_p} to heart of the sea named "&b&l TP Portal&7(右クリック)" with lore "&fクリックで指定のプレイヤーや登録地点へTPします"
+
+    set slot 3 of {_p} to book named "&b&lBookmark Manager&7(右クリック)" with lore "&fクリックでtp先を登録・削除します"
+
+    set slot 4 of {_p} to wooden axe
+
+    set slot 5 of {_p} to diamond named "&b&lWorldEdit command&7(右クリック)" with lore "&fクリックでWEの主要コマンドを選択し使用します"
+
+    set slot 6 of {_p} to iron ingot named "&b&lBlockSwitcher&7(右クリック)" with lore "&fクリックで同材質ブロックの持ち替えをon•offします"
+
+    set slot 7 of {_p} to black dye named "&b&lNightvision&7(右クリック)" with lore "&fクリックで暗視をon•offします"
+
+    # 空いているスロット（7〜7）をバリアブロックで埋める
+    loop 8 times:
+        set {_s} to loop-number - 1
+        if slot {_s} of {_p} is air:
+            set slot {_s} of {_p} to barrier named "&c(使用不可)"
+
+on place of barrier:
+    if name of player's tool is "&c(使用不可)":
+        cancel event
+
+# -------------------------------------------------------
+# 常時固定スロットのセット
+#   slot0: 購入アイテム(通常モード時のみ。ツールモード中はrecovery compassに上書きされる)
+#   slot8: ツール切替(既存。常に固定)
+# -------------------------------------------------------
+function giveNormalModeFixedSlots(p: player):
+    set slot 0 of {_p} to barrier named "&b&l購入アイテム &7(右クリックで開く)" with lore "&fクリックでマーケットプレイス購入済みアイテム一覧を開きます"
+    set slot 8 of {_p} to barrier named "&b&lツール切替 &7(選択して発動)" with lore "&fここを選択するたびにモードが切り替わります"
+
+on join:
+    giveNormalModeFixedSlots(player)
+
+# -------------------------------------------------------
+# メイン処理
+# -------------------------------------------------------
+on held item change:
+    # event-number ではなく new hotbar slot を直接使います
+    if new hotbar slot is 8:
+
+        # モード判定と切り替え
+        if {hotbar.mode::%player's uuid%} is not "tools":
+
+            # --- ツールモード開始 ---
+            # slot0は「購入アイテム」専用の固定スロットなので退避・復元の対象から外す(1〜7のみ退避)
+            loop 7 times:
+                set {hotbar.save.normal::%player's uuid%::%loop-number%} to slot loop-number of player
+
+            giveFixedTools(player)
+            set {hotbar.mode::%player's uuid%} to "tools"
+            send action bar "&lツールモード" to player
+
+        else:
+            # --- 通常モード復帰 ---
+            loop 7 times:
+                set slot loop-number of player to {hotbar.save.normal::%player's uuid%::%loop-number%}
+                delete {hotbar.save.normal::%player's uuid%::%loop-number%}
+
+            # slot0は退避対象外なので、常に「購入アイテム」を再設置する
+            set slot 0 of player to barrier named "&b&l購入アイテム &7(右クリックで開く)" with lore "&fクリックでマーケットプレイス購入済みアイテム一覧を開きます"
+
+            set {hotbar.mode::%player's uuid%} to "normal"
+            send action bar "&l通常モード" to player
+
+        # 最後にスロットを戻す（wait 1 tick を入れるのが統合版では安全です）
+        wait 1 tick
+        set player's current hotbar slot to 0
+
+# -------------------------------------------------------
+# 購入アイテムGUI（slot0固定アイテムを右クリックした際にFJEconomy側の /tools を実行してGUIを開く）
+# ツールモード中はslot0がrecovery compassに変わるため、通常モード時のみ反応させる。
+# 誤ってブロックとして設置されるのも防ぐため、必ずイベントをキャンセルする。
+# ※ "on right click holding" の構文・"make ... execute command" の構文は
+#   お使いのSkriptバージョン/アドオンによって書き方が異なる場合があります。
+#   反映後は必ず実機で動作確認してください。
+# -------------------------------------------------------
+on right click holding barrier:
+    if name of player's tool is "&b&l購入アイテム &7(右クリックで開く)":
+        if {hotbar.mode::%player's uuid%} is not "tools":
+            cancel event
+            make player execute command "tools"
+
+# -------------------------------------------------------
+# バリアブロックを投げたり、中身を入れ替えたりするのを禁止
+# -------------------------------------------------------
+on drop:
+    if name of event-item is "&c(使用不可)":
+        cancel event
+    if name of event-item is "&b&l購入アイテム &7(右クリックで開く)":
+        cancel event
+    if name of event-item is "&b&lツール切替 &7(選択して発動)":
+        cancel event
+
+on inventory click:
+    if {hotbar.mode::%player's uuid%} is "tools":
+        if name of event-item is "&c(使用不可)":
+            cancel event
+    if name of event-item is "&b&l購入アイテム &7(右クリックで開く)":
+        cancel event
+    if name of event-item is "&b&lツール切替 &7(選択して発動)":
+        cancel event

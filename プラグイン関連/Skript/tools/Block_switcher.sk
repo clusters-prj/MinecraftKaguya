@@ -1,0 +1,476 @@
+# ==========================================
+# Block Switcher System
+# ==========================================
+
+# 1. 鉄インゴットによるトグル機能 (ON/OFF)
+on right click holding iron ingot:
+    if name of player's tool is "&b&lBlockSwitcher&7(右クリック)":
+        cancel event
+        
+        # 初期値の設定
+        if {blockswitch::%player's uuid%} is not set:
+            set {blockswitch::%player's uuid%} to false
+        
+        # トグル処理
+        if {blockswitch::%player's uuid%} is true:
+            set {blockswitch::%player's uuid%} to false
+            play sound "block.iron_trapdoor.close" to player
+        else:
+            set {blockswitch::%player's uuid%} to true
+            play sound "block.iron_trapdoor.open" to player
+
+# 手に持っている間のアクションバー表示通知
+every 10 ticks:
+    loop all players:
+        if loop-player's tool is iron ingot:
+            if name of loop-player's tool is "&b&lBlockSwitcher&7(右クリック)":
+                if {blockswitch::%loop-player's uuid%} is true:
+                    send action bar "&6&l✔ ブロック持ち替え機能: ON" to loop-player
+                else:
+                    send action bar "&7&l✖ ブロック持ち替え機能: OFF" to loop-player
+
+# 2. 空中右クリック時のブロック変換機能
+on right click:
+    if {blockswitch::%player's uuid%} is true:
+        if targeted block is not set:
+            set {_item} to player's tool
+            set {_type} to type of {_item}
+            
+            # --- 石系（フル -> 階段 -> ハーフ -> 塀 -> フル） ---
+            
+            # 石 (Stone)
+            if {_type} is stone:
+                set player's tool to stone stairs
+            else if {_type} is stone stairs:
+                set player's tool to stone slab
+            else if {_type} is stone slab:
+                set player's tool to stone brick wall
+            else if {_type} is stone brick wall:
+                set player's tool to stone
+
+            # 石レンガ (Stone Bricks)
+            else if {_type} is stone bricks:
+                set player's tool to stone brick stairs
+            else if {_type} is stone brick stairs:
+                set player's tool to stone brick slab
+            else if {_type} is stone brick slab:
+                set player's tool to stone brick wall
+            else if {_type} is stone brick wall:
+                set player's tool to stone bricks
+
+            # 丸石 (Cobblestone)
+            else if {_type} is cobblestone:
+                set player's tool to cobblestone stairs
+            else if {_type} is cobblestone stairs:
+                set player's tool to cobblestone slab
+            else if {_type} is cobblestone slab:
+                set player's tool to cobblestone wall
+            else if {_type} is cobblestone wall:
+                set player's tool to cobblestone
+
+            # 苔むした丸石 (Mossy Cobblestone)
+            else if {_type} is mossy cobblestone:
+                set player's tool to mossy cobblestone stairs
+            else if {_type} is mossy cobblestone stairs:
+                set player's tool to mossy cobblestone slab
+            else if {_type} is mossy cobblestone slab:
+                set player's tool to mossy cobblestone wall
+            else if {_type} is mossy cobblestone wall:
+                set player's tool to mossy cobblestone
+
+            # 花崗岩 (Granite)
+            else if {_type} is granite:
+                set player's tool to granite stairs
+            else if {_type} is granite stairs:
+                set player's tool to granite slab
+            else if {_type} is granite slab:
+                set player's tool to granite wall
+            else if {_type} is granite wall:
+                set player's tool to granite
+
+            # 磨かれた花崗岩 (Polished Granite)
+            else if {_type} is polished granite:
+                set player's tool to polished granite stairs
+            else if {_type} is polished granite stairs:
+                set player's tool to polished granite slab
+            else if {_type} is polished granite slab:
+                set player's tool to polished granite
+
+            # 安山岩 (Andesite)
+            else if {_type} is andesite:
+                set player's tool to andesite stairs
+            else if {_type} is andesite stairs:
+                set player's tool to andesite slab
+            else if {_type} is andesite slab:
+                set player's tool to andesite wall
+            else if {_type} is andesite wall:
+                set player's tool to andesite
+
+            # 閃緑岩 (Diorite)
+            else if {_type} is diorite:
+                set player's tool to diorite stairs
+            else if {_type} is diorite stairs:
+                set player's tool to diorite slab
+            else if {_type} is diorite slab:
+                set player's tool to diorite wall
+            else if {_type} is diorite wall:
+                set player's tool to diorite
+
+            # 深層岩の丸石 (Cobbled Deepslate)
+            else if {_type} is cobbled deepslate:
+                set player's tool to cobbled deepslate stairs
+            else if {_type} is cobbled deepslate stairs:
+                set player's tool to cobbled deepslate slab
+            else if {_type} is cobbled deepslate slab:
+                set player's tool to cobbled deepslate wall
+            else if {_type} is cobbled deepslate wall:
+                set player's tool to cobbled deepslate
+
+            # 磨かれた深層岩 (Polished Deepslate)
+            else if {_type} is polished deepslate:
+                set player's tool to polished deepslate stairs
+            else if {_type} is polished deepslate stairs:
+                set player's tool to polished deepslate slab
+            else if {_type} is polished deepslate slab:
+                set player's tool to polished deepslate wall
+            else if {_type} is polished deepslate wall:
+                set player's tool to polished deepslate
+
+            # 深層岩タイル (Deepslate Tiles)
+            else if {_type} is deepslate tiles:
+                set player's tool to deepslate tile stairs
+            else if {_type} is deepslate tile stairs:
+                set player's tool to deepslate tile slab
+            else if {_type} is deepslate tile slab:
+                set player's tool to deepslate tile wall
+            else if {_type} is deepslate tile wall:
+                set player's tool to deepslate tiles
+
+            # 深層岩レンガ (Deepslate Bricks)
+            else if {_type} is deepslate bricks:
+                set player's tool to deepslate brick stairs
+            else if {_type} is deepslate brick stairs:
+                set player's tool to deepslate brick slab
+            else if {_type} is deepslate brick slab:
+                set player's tool to deepslate brick wall
+            else if {_type} is deepslate brick wall:
+                set player's tool to deepslate bricks
+
+            # 泥レンガ (Mud Bricks)
+            else if {_type} is mud bricks:
+                set player's tool to mud brick stairs
+            else if {_type} is mud brick stairs:
+                set player's tool to mud brick slab
+            else if {_type} is mud brick slab:
+                set player's tool to mud brick wall
+            else if {_type} is mud brick wall:
+                set player's tool to mud bricks
+
+            # 砂岩 (Sandstone)
+            else if {_type} is sandstone:
+                set player's tool to sandstone stairs
+            else if {_type} is sandstone stairs:
+                set player's tool to sandstone slab
+            else if {_type} is sandstone slab:
+                set player's tool to sandstone wall
+            else if {_type} is sandstone wall:
+                set player's tool to sandstone
+
+            # 赤い砂岩 (Red Sandstone)
+            else if {_type} is red sandstone:
+                set player's tool to red sandstone stairs
+            else if {_type} is red sandstone stairs:
+                set player's tool to red sandstone slab
+            else if {_type} is red sandstone slab:
+                set player's tool to red sandstone wall
+            else if {_type} is red sandstone wall:
+                set player's tool to red sandstone
+
+            # プリズマリン (Prismarine)
+            else if {_type} is prismarine:
+                set player's tool to prismarine stairs
+            else if {_type} is prismarine stairs:
+                set player's tool to prismarine slab
+            else if {_type} is prismarine slab:
+                set player's tool to prismarine wall
+            else if {_type} is prismarine wall:
+                set player's tool to prismarine
+
+            # ネザーレンガ (Nether Bricks)
+            else if {_type} is nether bricks:
+                set player's tool to nether brick stairs
+            else if {_type} is nether brick stairs:
+                set player's tool to nether brick slab
+            else if {_type} is nether brick slab:
+                set player's tool to nether brick wall
+            else if {_type} is nether brick wall:
+                set player's tool to nether bricks
+
+            # エンドストーンレンガ (End Stone Bricks)
+            else if {_type} is end stone bricks:
+                set player's tool to end stone brick stairs
+            else if {_type} is end stone brick stairs:
+                set player's tool to end stone brick slab
+            else if {_type} is end stone brick slab:
+                set player's tool to end stone brick wall
+            else if {_type} is end stone brick wall:
+                set player's tool to end stone bricks
+
+            # ブラックストーン (Blackstone)
+            else if {_type} is blackstone:
+                set player's tool to blackstone stairs
+            else if {_type} is blackstone stairs:
+                set player's tool to blackstone slab
+            else if {_type} is blackstone slab:
+                set player's tool to blackstone wall
+            else if {_type} is blackstone wall:
+                set player's tool to blackstone
+
+            # 磨かれたブラックストーン (Polished Blackstone)
+            else if {_type} is polished blackstone:
+                set player's tool to polished blackstone stairs
+            else if {_type} is polished blackstone stairs:
+                set player's tool to polished blackstone slab
+            else if {_type} is polished blackstone slab:
+                set player's tool to polished blackstone wall
+            else if {_type} is polished blackstone wall:
+                set player's tool to polished blackstone
+
+            # 磨かれたブラックストーンレンガ (Polished Blackstone Bricks)
+            else if {_type} is polished blackstone bricks:
+                set player's tool to polished blackstone brick stairs
+            else if {_type} is polished blackstone brick stairs:
+                set player's tool to polished blackstone brick slab
+            else if {_type} is polished blackstone brick slab:
+                set player's tool to polished blackstone brick wall
+            else if {_type} is polished blackstone brick wall:
+                set player's tool to polished blackstone bricks
+
+            # 凝灰岩 (Tuff)
+            else if {_type} is tuff:
+                set player's tool to tuff stairs
+            else if {_type} is tuff stairs:
+                set player's tool to tuff slab
+            else if {_type} is tuff slab:
+                set player's tool to tuff wall
+            else if {_type} is tuff wall:
+                set player's tool to tuff
+
+            # 磨かれた凝灰岩 (Polished Tuff)
+            else if {_type} is polished tuff:
+                set player's tool to polished tuff stairs
+            else if {_type} is polished tuff stairs:
+                set player's tool to polished tuff slab
+            else if {_type} is polished tuff slab:
+                set player's tool to polished tuff wall
+            else if {_type} is polished tuff wall:
+                set player's tool to polished tuff
+
+            # 凝灰岩レンガ (Tuff Bricks)
+            else if {_type} is tuff bricks:
+                set player's tool to tuff brick stairs
+            else if {_type} is tuff brick stairs:
+                set player's tool to tuff brick slab
+            else if {_type} is tuff brick slab:
+                set player's tool to tuff brick wall
+            else if {_type} is tuff brick wall:
+                set player's tool to tuff bricks
+
+
+            # --- 木材系（フル -> 階段 -> ハーフ -> フェンス -> ゲート -> ドア -> トラップドア -> フル） ---
+
+            # オーク (Oak)
+            else if {_type} is oak planks:
+                set player's tool to oak stairs
+            else if {_type} is oak stairs:
+                set player's tool to oak slab
+            else if {_type} is oak slab:
+                set player's tool to oak fence
+            else if {_type} is oak fence:
+                set player's tool to oak fence gate
+            else if {_type} is oak fence gate:
+                set player's tool to oak door
+            else if {_type} is oak door:
+                set player's tool to oak trapdoor
+            else if {_type} is oak trapdoor:
+                set player's tool to oak planks
+
+            # スプルース (Spruce)
+            else if {_type} is spruce planks:
+                set player's tool to spruce stairs
+            else if {_type} is spruce stairs:
+                set player's tool to spruce slab
+            else if {_type} is spruce slab:
+                set player's tool to spruce fence
+            else if {_type} is spruce fence:
+                set player's tool to spruce fence gate
+            else if {_type} is spruce fence gate:
+                set player's tool to spruce door
+            else if {_type} is spruce door:
+                set player's tool to spruce trapdoor
+            else if {_type} is spruce trapdoor:
+                set player's tool to spruce planks
+
+            # シラカバ (Birch)
+            else if {_type} is birch planks:
+                set player's tool to birch stairs
+            else if {_type} is birch stairs:
+                set player's tool to birch slab
+            else if {_type} is birch slab:
+                set player's tool to birch fence
+            else if {_type} is birch fence:
+                set player's tool to birch fence gate
+            else if {_type} is birch fence gate:
+                set player's tool to birch door
+            else if {_type} is birch door:
+                set player's tool to birch trapdoor
+            else if {_type} is birch trapdoor:
+                set player's tool to birch planks
+
+            # ジャングル (Jungle)
+            else if {_type} is jungle planks:
+                set player's tool to jungle stairs
+            else if {_type} is jungle stairs:
+                set player's tool to jungle slab
+            else if {_type} is jungle slab:
+                set player's tool to jungle fence
+            else if {_type} is jungle fence:
+                set player's tool to jungle fence gate
+            else if {_type} is jungle fence gate:
+                set player's tool to jungle door
+            else if {_type} is jungle door:
+                set player's tool to jungle trapdoor
+            else if {_type} is jungle trapdoor:
+                set player's tool to jungle planks
+
+            # ダークオーク (Dark Oak)
+            else if {_type} is dark oak planks:
+                set player's tool to dark oak stairs
+            else if {_type} is dark oak stairs:
+                set player's tool to dark oak slab
+            else if {_type} is dark oak slab:
+                set player's tool to dark oak fence
+            else if {_type} is dark oak fence:
+                set player's tool to dark oak fence gate
+            else if {_type} is dark oak fence gate:
+                set player's tool to dark oak door
+            else if {_type} is dark oak door:
+                set player's tool to dark oak trapdoor
+            else if {_type} is dark oak trapdoor:
+                set player's tool to dark oak planks
+
+            # アカシア (Acacia)
+            else if {_type} is acacia planks:
+                set player's tool to acacia stairs
+            else if {_type} is acacia stairs:
+                set player's tool to acacia slab
+            else if {_type} is acacia slab:
+                set player's tool to acacia fence
+            else if {_type} is acacia fence:
+                set player's tool to acacia fence gate
+            else if {_type} is acacia fence gate:
+                set player's tool to acacia door
+            else if {_type} is acacia door:
+                set player's tool to acacia trapdoor
+            else if {_type} is acacia trapdoor:
+                set player's tool to acacia planks
+
+            # マングローブ (Mangrove)
+            else if {_type} is mangrove planks:
+                set player's tool to mangrove stairs
+            else if {_type} is mangrove stairs:
+                set player's tool to mangrove slab
+            else if {_type} is mangrove slab:
+                set player's tool to mangrove fence
+            else if {_type} is mangrove fence:
+                set player's tool to mangrove fence gate
+            else if {_type} is mangrove fence gate:
+                set player's tool to mangrove door
+            else if {_type} is mangrove door:
+                set player's tool to mangrove trapdoor
+            else if {_type} is mangrove trapdoor:
+                set player's tool to mangrove planks
+
+            # サクラ (Cherry)
+            else if {_type} is cherry planks:
+                set player's tool to cherry stairs
+            else if {_type} is cherry stairs:
+                set player's tool to cherry slab
+            else if {_type} is cherry slab:
+                set player's tool to cherry fence
+            else if {_type} is cherry fence:
+                set player's tool to cherry fence gate
+            else if {_type} is cherry fence gate:
+                set player's tool to cherry door
+            else if {_type} is cherry door:
+                set player's tool to cherry trapdoor
+            else if {_type} is cherry trapdoor:
+                set player's tool to cherry planks
+
+            # 竹 (Bamboo)
+            else if {_type} is bamboo planks:
+                set player's tool to bamboo stairs
+            else if {_type} is bamboo stairs:
+                set player's tool to bamboo slab
+            else if {_type} is bamboo slab:
+                set player's tool to bamboo fence
+            else if {_type} is bamboo fence:
+                set player's tool to bamboo fence gate
+            else if {_type} is bamboo fence gate:
+                set player's tool to bamboo door
+            else if {_type} is bamboo door:
+                set player's tool to bamboo trapdoor
+            else if {_type} is bamboo trapdoor:
+                set player's tool to bamboo planks
+
+            # 真紅 (Crimson)
+            else if {_type} is crimson planks:
+                set player's tool to crimson stairs
+            else if {_type} is crimson stairs:
+                set player's tool to crimson slab
+            else if {_type} is crimson slab:
+                set player's tool to crimson fence
+            else if {_type} is crimson fence:
+                set player's tool to crimson fence gate
+            else if {_type} is crimson fence gate:
+                set player's tool to crimson door
+            else if {_type} is crimson door:
+                set player's tool to crimson trapdoor
+            else if {_type} is crimson trapdoor:
+                set player's tool to crimson planks
+
+            # 歪んだ (Warped)
+            else if {_type} is warped planks:
+                set player's tool to warped stairs
+            else if {_type} is warped stairs:
+                set player's tool to warped slab
+            else if {_type} is warped slab:
+                set player's tool to warped fence
+            else if {_type} is warped fence:
+                set player's tool to warped fence gate
+            else if {_type} is warped fence gate:
+                set player's tool to warped door
+            else if {_type} is warped door:
+                set player's tool to warped trapdoor
+            else if {_type} is warped trapdoor:
+                set player's tool to warped planks
+
+            # ペールオーク (Pale Oak)
+            else if {_type} is pale oak planks:
+                set player's tool to pale oak stairs
+            else if {_type} is pale oak stairs:
+                set player's tool to pale oak slab
+            else if {_type} is pale oak slab:
+                set player's tool to pale oak fence
+            else if {_type} is pale oak fence:
+                set player's tool to pale oak fence gate
+            else if {_type} is pale oak fence gate:
+                set player's tool to pale oak door
+            else if {_type} is pale oak door:
+                set player's tool to pale oak trapdoor
+            else if {_type} is pale oak trapdoor:
+                set player's tool to pale oak planks
+
+            # 持ち替え成功時の音
+            if player's tool is not {_item}:
+                play sound "block.dispenser.dispense" with volume 0.5 and pitch 1.5 to player

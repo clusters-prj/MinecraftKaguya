@@ -1,0 +1,40 @@
+# ==========================================
+# ギター型武器 (Guitar) - 角笛ベース(狩猟笛と同系統だが別武器・別性能)
+# 見た目: custom_model_data 2004(リソースパック weapons.zip / CustomWeaponsPack.mcpack と対応)
+# 仕様: 発動中は鈍足、発動から0.5秒後に攻撃(ソニックブーム)、クールタイム6秒、ダメージ1発24
+# ==========================================
+
+command /getguitar:
+    permission: op
+    trigger:
+        set {_item} to 1 of netherite sword
+        set name of {_item} to "&d&lギター&7(右クリック)"
+        set lore of {_item} to "&f右クリックでソニックブームを放ちます" and "&8構え中は鈍足になります"
+        set custom model data of {_item} to 2004
+        give {_item} to player
+        send "&d[Weapon] &fギターを配布しました。" to player
+
+on right click holding netherite sword:
+    if name of player's tool is "&d&lギター&7(右クリック)":
+        cancel event
+
+        if {weapon.cooldown.guitar::%player's uuid%} is set:
+            send action bar "&cクールタイム中..." to player
+            stop
+
+        set {weapon.cooldown.guitar::%player's uuid%} to true
+
+        # 構え中は鈍足
+        apply slowness 2 to player for 1 second
+        play sound "block.note_block.guitar" with volume 1 and pitch 0.7 to player
+        send action bar "&d&l構え中..." to player
+
+        wait 0.5 seconds
+
+        play sound "entity.warden.sonic_boom" with volume 1 and pitch 1 to player
+        loop all entities within 4 blocks of player:
+            if loop-entity is not player:
+                damage loop-entity by 24
+
+        wait 5.5 seconds
+        delete {weapon.cooldown.guitar::%player's uuid%}

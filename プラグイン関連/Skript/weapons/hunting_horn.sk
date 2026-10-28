@@ -1,0 +1,41 @@
+# ==========================================
+# 狩猟笛 (Hunting Horn) - 剣ベース
+# 見た目: custom_model_data 2002(リソースパック weapons.zip / CustomWeaponsPack.mcpack と対応)
+# 仕様: 剣と同じ速度、バフ(攻撃力1・速度1)、ダメージ1発10
+# バフは自分+周囲のプレイヤーにもかける(狩猟笛らしいパーティー支援を想定)。要実験。
+# ==========================================
+
+command /gethuntinghorn:
+    permission: op
+    trigger:
+        set {_item} to 1 of golden sword
+        set name of {_item} to "&e&l狩猟笛&7(右クリック)"
+        set lore of {_item} to "&f右クリックで演奏し、自分と周囲を強化します"
+        set custom model data of {_item} to 2002
+        give {_item} to player
+        send "&e[Weapon] &f狩猟笛を配布しました。" to player
+
+on right click holding golden sword:
+    if name of player's tool is "&e&l狩猟笛&7(右クリック)":
+        cancel event
+
+        if {weapon.cooldown.huntinghorn::%player's uuid%} is set:
+            stop
+
+        set {weapon.cooldown.huntinghorn::%player's uuid%} to true
+
+        play sound "block.note_block.pling" with volume 1 and pitch 1 to player
+
+        apply strength 1 to player for 20 seconds
+        apply speed 1 to player for 20 seconds
+
+        loop all entities within 3 blocks of player:
+            if loop-entity is a player:
+                if loop-entity is not player:
+                    apply strength 1 to loop-entity for 20 seconds
+                    apply speed 1 to loop-entity for 20 seconds
+            else:
+                damage loop-entity by 10
+
+        wait 0.5 seconds
+        delete {weapon.cooldown.huntinghorn::%player's uuid%}

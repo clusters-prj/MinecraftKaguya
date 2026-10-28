@@ -1,0 +1,230 @@
+# ============================================================
+#  ツクヨミPvP ルート配置スクリプト   (Skript 2.15.2)
+#  plugins/Skript/scripts/tukuyomi_loot.sk に置いて /sk reload tukuyomi_loot
+#
+#  /lootpos 1        今いる位置を範囲の角1にする
+#  /lootpos 2        今いる位置を範囲の角2にする(角1と角2を対角とする直方体)
+#  /lootfill         範囲内の 樽・チェスト・トラップチェスト に抽選でアイテムを配置
+#  /lootclear        範囲内の 樽・チェスト・トラップチェスト の中身を全て消す
+#
+#  ■抽選(1つの入れ物につき {@sets} セット。1セットごとに下記を独立して判定)
+#    各種インゴット(鉄/金/銅/ネザライト) … 各30%
+#    金のリンゴ 5% / エンチャント金のリンゴ 2%
+#    ポーション(即時回復II / 俊敏II / 攻撃力増加II) … 各3%
+#    エンチャント本 … 本ごとに各1%(呪いは除く)。当たったらレベルは1〜最大からランダム
+#  ■配置先スロットは27個の中からランダム。
+#    同じ種類のインゴット・リンゴは1スロットにまとめて重ねる。
+#    ポーションとエンチャント本は重ねられないので1個ずつ別スロット。
+# ============================================================
+
+options:
+    prefix: &8[&6Loot&8]&r 
+    sets: 10
+    # 1つの入れ物あたりの抽選セット数
+    reset-containers: true
+    # true: 配置前に中身を空にする(上書き) / false: 配置するスロットだけ上書き
+    max-volume: 500000
+    # 指定できる範囲の最大ブロック数
+    chance-ingot: 30
+    chance-gapple: 5
+    chance-egapple: 2
+    chance-potion: 3
+    chance-book: 1
+
+# ------------------------------------------------------------
+#  抽選(1セット分)。ループが入れ子にならないよう関数に分けている
+# ------------------------------------------------------------
+function tkbLootIngots() :: strings:
+    set {_ingots::*} to "iron_ingot", "gold_ingot", "copper_ingot" and "netherite_ingot"
+    loop {_ingots::*}:
+        if chance of {@chance-ingot}%:
+            add loop-value to {_out::*}
+    return {_out::*}
+
+function tkbLootPotions() :: strings:
+    set {_potions::*} to "potion[potion_contents={potion:strong_healing}]", "potion[potion_contents={potion:strong_swiftness}]" and "potion[potion_contents={potion:strong_strength}]"
+    loop {_potions::*}:
+        if chance of {@chance-potion}%:
+            add loop-value to {_out::*}
+    return {_out::*}
+
+function tkbLootBooks() :: strings:
+    # 名前:最大レベル (呪いは除外)
+    set {_books::*} to "protection:4", "fire_protection:4", "feather_falling:4", "blast_protection:4", "projectile_protection:4", "respiration:3", "aqua_affinity:1", "thorns:3", "depth_strider:3", "frost_walker:2", "soul_speed:3", "swift_sneak:3", "sharpness:5", "smite:5", "bane_of_arthropods:5", "knockback:2", "fire_aspect:2", "looting:3", "sweeping_edge:3", "density:5", "breach:4", "wind_burst:3", "efficiency:5", "silk_touch:1", "unbreaking:3", "fortune:3", "power:5", "punch:2", "flame:1", "infinity:1", "luck_of_the_sea:3", "lure:3", "loyalty:3", "impaling:5", "riptide:3", "channeling:1", "multishot:1", "quick_charge:3", "piercing:4" and "mending:1"
+    loop {_books::*}:
+        if chance of {@chance-book}%:
+            set {_parts::*} to split loop-value at ":"
+            set {_max} to {_parts::2} parsed as integer
+            set {_lv} to a random integer between 1 and {_max}
+            add "enchanted_book[stored_enchantments={%{_parts::1}%:%{_lv}%}]" to {_out::*}
+    return {_out::*}
+
+# ------------------------------------------------------------
+#  1つの入れ物にルートを配置する
+#  p: 実行者(コマンドの実行元/ワールド判定に使う)
+# ------------------------------------------------------------
+function tkbLootFill(p: player, b: block):
+    set {_x} to floor(x-coordinate of {_b})
+    set {_y} to floor(y-coordinate of {_b})
+    set {_z} to floor(z-coordinate of {_b})
+
+    # ---- 抽選 ----
+    loop {@sets} times:
+        add tkbLootIngots() to {_ing::*}
+        if chance of {@chance-gapple}%:
+            add 1 to {_cnt::golden_apple}
+        if chance of {@chance-egapple}%:
+            add 1 to {_cnt::enchanted_golden_apple}
+        add tkbLootPotions() to {_single::*}
+        add tkbLootBooks() to {_single::*}
+
+    # インゴットは種類ごとに数える
+    loop {_ing::*}:
+        add 1 to {_cnt::%loop-value%}
+
+    # 重ねられるもの(インゴット・リンゴ)を先に並べ、その後ろにポーション・本をランダム順で並べる
+    # (27スロットを超えた分は切り捨て。切り捨てられるのは後ろ=ポーション・本のうちランダムな分)
+    loop {_cnt::*}:
+        add "%loop-index% %loop-value%" to {_place::*}
+    add shuffled {_single::*} to {_place::*}
+
+    # ---- 中身をリセット ----
+    if {@reset-containers} is true:
+        loop integers from 0 to 26:
+            execute console command "execute as %uuid of {_p}% at @s run item replace block %{_x}% %{_y}% %{_z}% container.%loop-value% with air"
+
+    # ---- ランダムなスロットへ配置 ----
+    set {_slots::*} to shuffled (integers from 0 to 26)
+    set {_i} to 0
+    loop {_place::*}:
+        add 1 to {_i}
+        if {_i} > 27:
+            exit loop
+        execute console command "execute as %uuid of {_p}% at @s run item replace block %{_x}% %{_y}% %{_z}% container.%{_slots::%{_i}%}% with minecraft:%loop-value%"
+
+# ------------------------------------------------------------
+#  1つの入れ物の中身を全て消す
+# ------------------------------------------------------------
+function tkbLootClear(p: player, b: block):
+    set {_x} to floor(x-coordinate of {_b})
+    set {_y} to floor(y-coordinate of {_b})
+    set {_z} to floor(z-coordinate of {_b})
+    loop integers from 0 to 26:
+        execute console command "execute as %uuid of {_p}% at @s run item replace block %{_x}% %{_y}% %{_z}% container.%loop-value% with air"
+
+# ------------------------------------------------------------
+#  コマンド
+# ------------------------------------------------------------
+command /lootpos <integer>:
+    description: ルート配置の範囲の角(1または2)を、今いる位置に設定する
+    usage: /lootpos <1|2>
+    permission: tukuyomi.loot.admin
+    executable by: players
+    trigger:
+        if arg-1 is not between 1 and 2:
+            send "{@prefix}&c1 か 2 を指定してください。"
+            stop
+        set {tkb::loot::pos%arg-1%::%uuid of player%} to location of player
+        send "{@prefix}&a角%arg-1% を設定しました: %floor(x-coordinate of player)%, %floor(y-coordinate of player)%, %floor(z-coordinate of player)%"
+
+command /lootfill:
+    description: 設定した範囲内の樽・チェスト・トラップチェストにルートを配置する
+    permission: tukuyomi.loot.admin
+    executable by: players
+    trigger:
+        set {_pa} to {tkb::loot::pos1::%uuid of player%}
+        set {_pb} to {tkb::loot::pos2::%uuid of player%}
+        if {_pa} is not set:
+            send "{@prefix}&c先に /lootpos 1 と /lootpos 2 で範囲を設定してください。"
+            stop
+        if {_pb} is not set:
+            send "{@prefix}&c先に /lootpos 1 と /lootpos 2 で範囲を設定してください。"
+            stop
+        if world of {_pa} is not world of {_pb}:
+            send "{@prefix}&c角1と角2が別のワールドです。"
+            stop
+        if world of player is not world of {_pa}:
+            send "{@prefix}&c範囲と同じワールドで実行してください。"
+            stop
+
+        set {_w} to world of {_pa}
+        set {_x1} to floor(min(x-coordinate of {_pa}, x-coordinate of {_pb}))
+        set {_x2} to floor(max(x-coordinate of {_pa}, x-coordinate of {_pb}))
+        set {_y1} to floor(min(y-coordinate of {_pa}, y-coordinate of {_pb}))
+        set {_y2} to floor(max(y-coordinate of {_pa}, y-coordinate of {_pb}))
+        set {_z1} to floor(min(z-coordinate of {_pa}, z-coordinate of {_pb}))
+        set {_z2} to floor(max(z-coordinate of {_pa}, z-coordinate of {_pb}))
+
+        set {_vol} to ({_x2} - {_x1} + 1) * ({_y2} - {_y1} + 1) * ({_z2} - {_z1} + 1)
+        if {_vol} > {@max-volume}:
+            send "{@prefix}&c範囲が広すぎます(%{_vol}% ブロック / 上限 {@max-volume})。"
+            stop
+
+        send "{@prefix}&e配置を開始します(%{_vol}% ブロックを走査)..."
+        set {_count} to 0
+        set {_x} to {_x1}
+        while {_x} <= {_x2}:
+            set {_y} to {_y1}
+            while {_y} <= {_y2}:
+                set {_z} to {_z1}
+                while {_z} <= {_z2}:
+                    set {_blk} to block at location({_x}, {_y}, {_z}, {_w})
+                    if {_blk} is a chest, a trapped chest or a barrel:
+                        tkbLootFill(player, {_blk})
+                        add 1 to {_count}
+                    add 1 to {_z}
+                add 1 to {_y}
+            add 1 to {_x}
+            wait 1 tick
+        send "{@prefix}&a完了: %{_count}% 個の入れ物にルートを配置しました。"
+
+command /lootclear:
+    description: 設定した範囲内の樽・チェスト・トラップチェストの中身を全て消す
+    permission: tukuyomi.loot.admin
+    executable by: players
+    trigger:
+        set {_pa} to {tkb::loot::pos1::%uuid of player%}
+        set {_pb} to {tkb::loot::pos2::%uuid of player%}
+        if {_pa} is not set:
+            send "{@prefix}&c先に /lootpos 1 と /lootpos 2 で範囲を設定してください。"
+            stop
+        if {_pb} is not set:
+            send "{@prefix}&c先に /lootpos 1 と /lootpos 2 で範囲を設定してください。"
+            stop
+        if world of {_pa} is not world of {_pb}:
+            send "{@prefix}&c角1と角2が別のワールドです。"
+            stop
+        if world of player is not world of {_pa}:
+            send "{@prefix}&c範囲と同じワールドで実行してください。"
+            stop
+
+        set {_w} to world of {_pa}
+        set {_x1} to floor(min(x-coordinate of {_pa}, x-coordinate of {_pb}))
+        set {_x2} to floor(max(x-coordinate of {_pa}, x-coordinate of {_pb}))
+        set {_y1} to floor(min(y-coordinate of {_pa}, y-coordinate of {_pb}))
+        set {_y2} to floor(max(y-coordinate of {_pa}, y-coordinate of {_pb}))
+        set {_z1} to floor(min(z-coordinate of {_pa}, z-coordinate of {_pb}))
+        set {_z2} to floor(max(z-coordinate of {_pa}, z-coordinate of {_pb}))
+
+        set {_vol} to ({_x2} - {_x1} + 1) * ({_y2} - {_y1} + 1) * ({_z2} - {_z1} + 1)
+        if {_vol} > {@max-volume}:
+            send "{@prefix}&c範囲が広すぎます(%{_vol}% ブロック / 上限 {@max-volume})。"
+            stop
+
+        send "{@prefix}&e中身の消去を開始します(%{_vol}% ブロックを走査)..."
+        set {_count} to 0
+        set {_x} to {_x1}
+        while {_x} <= {_x2}:
+            set {_y} to {_y1}
+            while {_y} <= {_y2}:
+                set {_z} to {_z1}
+                while {_z} <= {_z2}:
+                    set {_blk} to block at location({_x}, {_y}, {_z}, {_w})
+                    if {_blk} is a chest, a trapped chest or a barrel:
+                        tkbLootClear(player, {_blk})
+                        add 1 to {_count}
+                    add 1 to {_z}
+                add 1 to {_y}
+            add 1 to {_x}
+            wait 1 tick
+        send "{@prefix}&a完了: %{_count}% 個の入れ物の中身を消しました。"

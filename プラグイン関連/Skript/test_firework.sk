@@ -1,0 +1,15 @@
+# -------------------------------------------------------
+# test_firework: 動作確認用のテストツール
+# 対になっているカタログ定義: plugins/FJEconomy/tools/test_firework.yml
+# 既存の無料固定ツール(giveFixedTools)とは material/display_name が被らないもので用意した。
+# -------------------------------------------------------
+
+on right click holding firework rocket:
+    if name of player's tool is "&d&lテスト花火 &7(右クリック)":
+        cancel event
+
+        if player has permission "fje.tool.test_firework":
+            play sound "entity.firework_rocket.launch" to player
+            send "&a[FJエコノミー] &fテストツールが動作しました！(fje.tool.test_firework)" to player
+        else:
+            send "&c[FJエコノミー] &fこのツールはマーケットプレイスで購入していません。" to player

@@ -1,0 +1,83 @@
+# 右手にたんぽぽを持って右クリックした時の処理
+on rightclick:
+    # オフハンド（左手）での右クリックイベントを無視する
+#    if event-hand is off-hand:
+#        stop
+
+    if player's held item is dandelion:
+        # ★ 超短時間のクールダウン（2回連続で実行されるのを物理的に防ぐ）
+        set {_waited} to difference between {shop_cooldown::%player's uuid%} and now
+        if {_waited} is less than 0.5 seconds:
+            stop
+        set {shop_cooldown::%player's uuid%} to now
+
+        # ホットバーの1番目のスロット（スロット0）のアイテムを取得
+        set {_item} to slot 0 of player's inventory
+        
+        if {_item} is air:
+            send "§cホットバーの1番目に売りたいアイテムを置いてください！" to player
+            stop
+            
+        # 進行状況をリセットして新しくセット
+        delete {shop_setup::%player's uuid%::*}
+        
+        # ターゲットしたブロックの座標を取得し、高さを0.5（半ブロック分）上に微調整
+        set {_loc} to location of player's target block
+        add 0.5 to y-coordinate of {_loc}
+        
+        # プレイヤーの反対方向（プレイヤーの顔を見る向き）を90度単位で計算して設定
+        set {_yaw} to player's yaw
+        set {_yaw} to round(({_yaw} + 180) / 90) * 90
+        set yaw of {_loc} to {_yaw}
+        set pitch of {_loc} to 0 # 首の上下角度を真っ直ぐにリセット
+        
+        # 微調整＆角度調整した座標に村人を出現させる
+        spawn 1 villager at {_loc}
+        set {_npc} to last spawned villager
+        set ai of {_npc} to false
+        
+        # 必要な情報を変数に一時保存
+        set {shop_setup::%player's uuid%::npc_uuid} to uuid of {_npc}
+        
+        # アイテムの種類名を取得し、スペースをすべてアンダーバー(_)に置き換える
+        set {_raw_name} to "%type of {_item}%"
+        replace all " " with "_" in {_raw_name}
+        set {shop_setup::%player's uuid%::item_name} to {_raw_name}
+        
+        # ② 最初の質問（価格）
+        set {shop_setup::%player's uuid%::step} to "waiting_for_price"
+        send "§a[ショップ作成] §e商品の価格をチャットに入力してください。" to player
+
+# チャットに入力された文字を読み取る処理
+on chat:
+    # 価格の入力を待っているとき
+    if {shop_setup::%player's uuid%::step} is "waiting_for_price":
+        cancel event # チャットを全員に見せないように非表示にする
+        
+        set {shop_setup::%player's uuid%::price} to message
+        
+        # ③ 次の質問（在庫）
+        set {shop_setup::%player's uuid%::step} to "waiting_for_stock"
+        send "§a[ショップ作成] §e初期の在庫数量をチャットに入力してください。" to player
+        stop
+
+    # 在庫の入力を待っているとき（ここで最終実行）
+    if {shop_setup::%player's uuid%::step} is "waiting_for_stock":
+        cancel event
+        
+        set {_stock} to message
+        
+        # 保存しておいたデータを全部取り出す
+        set {_uuid} to {shop_setup::%player's uuid%::npc_uuid}
+        set {_item} to {shop_setup::%player's uuid%::item_name}
+        set {_price} to {shop_setup::%player's uuid%::price}
+        
+        # 実際に実行されるコマンドを、自分だけのチャット欄に表示する
+        send "§7[Debug] 実行コマンド: /shop create %{_uuid}% %{_item}% %{_price}% %{_stock}%" to player
+        
+        # ④ コマンドをプレイヤーの代わりに実行
+        execute player command "/shop create %{_uuid}% %{_item}% %{_price}% %{_stock}%"
+        
+        # 終了時一時保存データを消す
+        delete {shop_setup::%player's uuid%::*}
+        send "§a[ショップ作成] スクリプトの自動実行が完了しました！" to player

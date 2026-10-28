@@ -1,0 +1,50 @@
+# ==========================================
+# 剣メラン (Sword Boomerang) - 忠誠トライデントベース
+# 見た目(custom_model_data)は未割り当て。機能先行実装。
+# 仕様: 構え速度1.25秒、殴り1.6、攻撃力9、投擲16、帰ってくる時もダメージ(範囲)
+#
+# 注意: 「投げて帰ってくる瞬間」を正確に検知するのは実装が難しいため、
+# ここでは以下の近似で実装している(要実験・要調整):
+#   - 右クリック(素手で構えてすぐ離す想定) = 近接の「殴り」判定として周囲に軽いダメージ(1.6)
+#   - 投擲(忠誠エンチャント付きで通常投げ) = 着弾時に周囲へ範囲ダメージ(16)
+#     本来の「行きと帰りの両方で当たる」は未実装。トライデントが戻ってきたタイミングの
+#     検知(on projectile hitがプレイヤーへの着地でも飛ぶか等)は実機で要確認。
+# ==========================================
+
+command /getswordboomerang:
+    permission: op
+    trigger:
+        set {_item} to a trident
+        enchant {_item} with loyalty 3
+        set name of {_item} to "&b&l剣メラン&7(右クリック=殴り/投擲=飛ばす)"
+        set lore of {_item} to "&fしゃがみ+右クリックで軽く殴ります" and "&f通常の右クリックで投げると帰ってきます(忠誠)"
+        give {_item} to player
+        send "&b[Weapon] &f剣メランを配布しました。" to player
+
+# 近接の「殴り」(しゃがみながら右クリック)。しゃがんでない通常の右クリックは
+# ここでイベントをキャンセルしない = バニラのトライデント投擲(構え→離して投げる)をそのまま通す。
+on right click holding trident:
+    if name of player's tool is "&b&l剣メラン&7(右クリック=殴り/投擲=飛ばす)":
+        if player is sneaking:
+            cancel event
+
+            if {weapon.cooldown.swordboomerang::%player's uuid%} is set:
+                stop
+
+            set {weapon.cooldown.swordboomerang::%player's uuid%} to true
+
+            play sound "entity.player.attack.weak" with volume 1 and pitch 1.2 to player
+            loop all entities within 2 blocks of player:
+                if loop-entity is not player:
+                    damage loop-entity by 1.6
+
+            wait 1.25 seconds
+            delete {weapon.cooldown.swordboomerang::%player's uuid%}
+
+# 投擲時(着弾ダメージ + 範囲)
+on projectile hit:
+    if projectile is a trident:
+        if name of projectile is "&b&l剣メラン&7(右クリック=殴り/投擲=飛ばす)":
+            loop all entities within 2.5 blocks of projectile:
+                if loop-entity is not shooter:
+                    damage loop-entity by 16

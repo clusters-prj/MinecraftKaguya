@@ -1,0 +1,34 @@
+on right click holding book:
+    if name of player's tool is "&b&lBookmark Manager&7(右クリック)":
+        cancel event
+        set {_mgui} to a new chest inventory with 1 row named "ブックマーク管理"
+        set slot 2 of {_mgui} to ender pearl named "&a&l現在地を登録" with lore "&f空きスロットに保存します" and "&7(最大3つまで)"
+        set slot 6 of {_mgui} to barrier named "&c&l全登録を削除" with lore "&f保存した地点をすべて消去します"
+        open {_mgui} to player
+
+on inventory click:
+    if name of event-inventory is "ブックマーク管理":
+        cancel event
+        if event-item is ender pearl:
+            close player's inventory
+            set {_found} to false
+            loop 3 times:
+                if {bm::%player%::%loop-value%} is not set:
+                    set {bm::%player%::%loop-value%} to player's location
+                    send "&a&l[BM] &f地点 %loop-value% を登録しました。" to player
+                    play sound "block.note_block.chime" to player
+                    set {_found} to true
+                    stop loop
+            if {_found} is false:
+                send "&c&l[Error] &f登録上限(3箇所)に達しています。削除してから登録してください。" to player
+                play sound "block.conduit.deactivate" with volume 0.5 and pitch 0.5 to player
+        
+        if event-item is barrier:
+            close player's inventory
+            delete {bm::%player%::*}
+            send "&c&l[BM] &fすべてのブックマークを削除しました。" to player
+            play sound "block.iron_trapdoor.close" to player
+
+command /getbm:
+    trigger:
+        give 1 of book named "&b&lBookmark Manager&7(右クリック)" with lore "&fクリックでtp先を登録・削除します" to player

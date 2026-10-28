@@ -1,0 +1,38 @@
+# ==========================================
+# WorldEdit Helper GUI for Bedrock / Controller Players
+# ==========================================
+
+# 1. ダイヤモンドを右クリックした際にGUIを開く
+on right click holding diamond:
+    if name of player's tool is "&b&lWorldEdit command&7(右クリック)":
+        cancel event
+        
+        # 9スロット（1列）のチェストメニューを作成
+        open chest inventory with 1 rows named "&b&lWorldEdit Menu" to player
+        
+        # 各操作のアイテムを配置
+        set slot 1 of player's open inventory to structure block named "&a&lCopy" with lore "&f//copy を実行します"
+        set slot 3 of player's open inventory to sticky piston named "&e&lPaste" with lore "&f//paste を実行します"
+        set slot 5 of player's open inventory to repeater named "&c&lUndo" with lore "&f//undo を実行します"
+        set slot 7 of player's open inventory to comparator named "&b&lRedo" with lore "&f//redo を実行します"
+
+# 2. GUI内のクリック検知とコマンド実行
+on inventory click:
+    if name of event-inventory is "&b&lWorldEdit Menu":
+        cancel event # アイテムの持ち出し・移動を防止
+        
+        if index of clicked slot is 1:
+            close player's inventory
+            make player execute command "//copy"
+            
+        else if index of clicked slot is 3:
+            close player's inventory
+            make player execute command "//paste"
+            
+        else if index of clicked slot is 5:
+            close player's inventory
+            make player execute command "//undo"
+            
+        else if index of clicked slot is 7:
+            close player's inventory
+            make player execute command "//redo"

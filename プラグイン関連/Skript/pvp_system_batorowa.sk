@@ -1,0 +1,272 @@
+options:
+    prefix: &8[&cPvP&8]&r
+    objective: pvp_score
+    drop-items: false
+    # true: 死亡時に持ち物をその場に落とす / false: 持ち物は落とさず保持
+
+# Minecraft Java/Paper 26.2 + Skript 2.15.2
+# 対象は Minecraft の scoreboard tag "pvp" を持つプレイヤーのみ。
+#
+# /pvpstart : 開始・得点リセット
+# /pvpstop  : 終了・1～3位発表
+# /pvpshow  : サイドバー表示
+# /pvphide  : サイドバー非表示
+
+on load:
+    execute console command "scoreboard objectives add {@objective} dummy ""PvP Score"""
+    execute console command "scoreboard objectives setdisplay sidebar"
+    set {pvp.running} to false
+    delete {pvp.score::*}
+    delete {pvp.lastAttacker::*}
+    delete {pvp.lastAttackerTime::*}
+    delete {pvp.alarm::*}
+
+command /pvpstart:
+    permission: pvp.admin
+    trigger:
+        set {pvp.running} to true
+        delete {pvp.lastAttacker::*}
+        delete {pvp.lastAttackerTime::*}
+        delete {pvp.alarm::*}
+
+        loop all players:
+            if loop-player has scoreboard tag "pvp":
+                set {pvp.score::%uuid of loop-player%} to 0
+                execute console command "scoreboard players set %loop-player% {@objective} 0"
+                if loop-player's gamemode is spectator:
+                    set loop-player's gamemode to survival
+
+        broadcast "{@prefix} &aPvPを開始しました。"
+
+command /pvpstop:
+    permission: pvp.admin
+    trigger:
+        if {pvp.running} is not true:
+            send "{@prefix} &ePvPは現在停止中です。" to player
+            stop
+
+        set {pvp.running} to false
+
+        delete {pvp.rankCandidates::*}
+        loop all players:
+            if loop-player has scoreboard tag "pvp":
+                add loop-player to {pvp.rankCandidates::*}
+
+        # 1位
+        set {_bestScore} to -999999999
+        delete {_bestPlayer}
+        loop {pvp.rankCandidates::*}:
+            set {_s} to {pvp.score::%uuid of loop-value%} otherwise 0
+            if {_s} > {_bestScore}:
+                set {_bestScore} to {_s}
+                set {_bestPlayer} to loop-value
+        if {_bestPlayer} is set:
+            set {_rank1Name} to name of {_bestPlayer}
+            set {_rank1Score} to {_bestScore}
+            remove {_bestPlayer} from {pvp.rankCandidates::*}
+        else:
+            set {_rank1Name} to "なし"
+            set {_rank1Score} to 0
+
+        # 2位
+        set {_bestScore} to -999999999
+        delete {_bestPlayer}
+        loop {pvp.rankCandidates::*}:
+            set {_s} to {pvp.score::%uuid of loop-value%} otherwise 0
+            if {_s} > {_bestScore}:
+                set {_bestScore} to {_s}
+                set {_bestPlayer} to loop-value
+        if {_bestPlayer} is set:
+            set {_rank2Name} to name of {_bestPlayer}
+            set {_rank2Score} to {_bestScore}
+            remove {_bestPlayer} from {pvp.rankCandidates::*}
+        else:
+            set {_rank2Name} to "なし"
+            set {_rank2Score} to 0
+
+        # 3位
+        set {_bestScore} to -999999999
+        delete {_bestPlayer}
+        loop {pvp.rankCandidates::*}:
+            set {_s} to {pvp.score::%uuid of loop-value%} otherwise 0
+            if {_s} > {_bestScore}:
+                set {_bestScore} to {_s}
+                set {_bestPlayer} to loop-value
+        if {_bestPlayer} is set:
+            set {_rank3Name} to name of {_bestPlayer}
+            set {_rank3Score} to {_bestScore}
+        else:
+            set {_rank3Name} to "なし"
+            set {_rank3Score} to 0
+
+        broadcast "&8&m-----------------------------"
+        broadcast "&c&lPvP終了！"
+        broadcast "&6 1位 &f%{_rank1Name}% &7- &e%{_rank1Score}%点"
+        broadcast "&7 2位 &f%{_rank2Name}% &7- &e%{_rank2Score}%点"
+        broadcast "&f 3位 &f%{_rank3Name}% &7- &e%{_rank3Score}%点"
+        broadcast "&8&m-----------------------------"
+
+        delete {pvp.rankCandidates::*}
+        delete {pvp.lastAttacker::*}
+        delete {pvp.lastAttackerTime::*}
+        delete {pvp.alarm::*}
+
+command /pvpshow:
+    permission: pvp.admin
+    trigger:
+        execute console command "scoreboard objectives setdisplay sidebar {@objective}"
+        send "{@prefix} &aスコアボードを表示しました。" to player
+
+command /pvphide:
+    permission: pvp.admin
+    trigger:
+        execute console command "scoreboard objectives setdisplay sidebar"
+        send "{@prefix} &eスコアボードを非表示にしました。" to player
+
+# 死亡時の得点処理(キル +10 / それ以外の死亡 -5)
+function pvpApplyDeath(v: player):
+    set {_killer} to {pvp.lastAttacker::%uuid of {_v}%}
+    set {_playerKill} to false
+
+    if {_killer} is set:
+        if difference between now and {pvp.lastAttackerTime::%uuid of {_v}%} is less than 6 seconds:
+            if {_killer} is online:
+                if {_killer} has scoreboard tag "pvp":
+                    if {_killer} is not {_v}:
+                        set {_playerKill} to true
+
+    if {_playerKill} is true:
+        add 10 to {pvp.score::%uuid of {_killer}%}
+        execute console command "scoreboard players add %{_killer}% {@objective} 10"
+    else:
+        remove 5 from {pvp.score::%uuid of {_v}%}
+        execute console command "scoreboard players remove %{_v}% {@objective} 5"
+
+    delete {pvp.lastAttacker::%uuid of {_v}%}
+    delete {pvp.lastAttackerTime::%uuid of {_v}%}
+
+# 直近のプレイヤー由来ダメージを記録。
+# projectile の場合は shooter をたどる。
+# 致死ダメージだった場合は、死なせずにその場でスペクテイターにする(リスポーン画面を出さない)。
+on damage of player:
+    if {pvp.running} is not true:
+        stop
+    if victim does not have scoreboard tag "pvp":
+        stop
+
+    delete {_damager}
+
+    if attacker is a player:
+        if attacker has scoreboard tag "pvp":
+            set {_damager} to attacker
+    else:
+        # attacker は entity 型のため、一度変数に入れてから shooter を取る
+        set {_proj} to attacker
+        if {_proj} is a projectile:
+            set {_shooter} to shooter of {_proj}
+            if {_shooter} is a player:
+                if {_shooter} has scoreboard tag "pvp":
+                    set {_damager} to {_shooter}
+
+    if {_damager} is set:
+        set {pvp.lastAttacker::%uuid of victim%} to {_damager}
+        set {pvp.lastAttackerTime::%uuid of victim%} to now
+
+    # ---- 致死ダメージ判定 ----
+    if victim's gamemode is spectator:
+        stop
+    if victim's gamemode is creative:
+        stop
+    # トーテム所持時は通常のトーテム処理に任せる
+    if victim's tool is totem of undying:
+        stop
+    if offhand tool of victim is totem of undying:
+        stop
+    if final damage is less than victim's health:
+        stop
+
+    cancel event
+    set {_v} to victim
+
+    pvpApplyDeath({_v})
+    set {pvp.spectating::%uuid of {_v}%} to true
+
+    if {@drop-items} is true:
+        loop all items in inventory of {_v}:
+            drop loop-item at location of {_v}
+        clear inventory of {_v}
+
+    # 状態を整えてその場でスペクテイターへ
+    heal {_v}
+    set {_v}'s food level to 20
+    extinguish {_v}
+    set {_v}'s gamemode to spectator
+
+    wait 15 seconds
+    if {_v} is online:
+        if {pvp.running} is true:
+            if {_v} has scoreboard tag "pvp":
+                heal {_v}
+                set {_v}'s food level to 20
+                set {_v}'s gamemode to survival
+        delete {pvp.spectating::%uuid of {_v}%}
+
+# 予備: 上の処理をすり抜けた死亡(/kill など)は従来どおり扱う
+on death of player:
+    if {pvp.running} is not true:
+        stop
+    if victim does not have scoreboard tag "pvp":
+        stop
+
+    pvpApplyDeath(victim)
+
+    set {pvp.spectating::%uuid of victim%} to true
+    wait 1 tick
+    if victim is online:
+        set victim's gamemode to spectator
+        wait 15 seconds
+        if victim is online:
+            if {pvp.running} is true:
+                if victim has scoreboard tag "pvp":
+                    set victim's gamemode to survival
+            delete {pvp.spectating::%uuid of victim%}
+
+# 接近警報：1秒ごとに確認。
+# 警報音は「接近されたサバイバル側」にだけ送る。
+
+# p の15ブロック以内に、スペクテイター(pvpタグ持ち)がいるか。
+# ループが入れ子になると loop-player が曖昧になるため、関数に分けている。
+function pvpNearSpectator(p: player) :: boolean:
+    loop all players:
+        if loop-player is not {_p}:
+            if loop-player has scoreboard tag "pvp":
+                if loop-player's gamemode is spectator:
+                    if world of loop-player is world of {_p}:
+                        if distance between loop-player and {_p} <= 15:
+                            return true
+    return false
+
+every 1 second:
+    if {pvp.running} is not true:
+        stop
+
+    loop all players:
+        if loop-player has scoreboard tag "pvp":
+            if loop-player's gamemode is survival:
+                if pvpNearSpectator(loop-player) is true:
+                    if {pvp.alarm::%uuid of loop-player%} is not set:
+                        play sound "block.note_block.bell" with volume 1 and pitch 1.2 to loop-player
+                        set {pvp.alarm::%uuid of loop-player%} to now
+                    else:
+                        if difference between now and {pvp.alarm::%uuid of loop-player%} is not less than 0.9 seconds:
+                            play sound "block.note_block.bell" with volume 1 and pitch 1.2 to loop-player
+                            set {pvp.alarm::%uuid of loop-player%} to now
+                else:
+                    delete {pvp.alarm::%uuid of loop-player%}
+
+on join:
+    if {pvp.running} is true:
+        if player has scoreboard tag "pvp":
+            if {pvp.score::%uuid of player%} is not set:
+                set {pvp.score::%uuid of player%} to 0
+            execute console command "scoreboard players set %player% {@objective} %{pvp.score::%uuid of player%}%"

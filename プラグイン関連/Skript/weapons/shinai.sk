@@ -1,0 +1,32 @@
+# ==========================================
+# 竹刀 (Bamboo Sword) - 剣ベース
+# 見た目: custom_model_data 2003(リソースパック weapons.zip / CustomWeaponsPack.mcpack と対応)
+# 仕様: 剣ベース、最速で振る、ダメージ1発8
+# ==========================================
+
+command /getshinai:
+    permission: op
+    trigger:
+        set {_item} to 1 of wooden sword
+        set name of {_item} to "&f&l竹刀&7(右クリック)"
+        set lore of {_item} to "&f右クリックで素早く斬りつけます"
+        set custom model data of {_item} to 2003
+        give {_item} to player
+        send "&f[Weapon] &f竹刀を配布しました。" to player
+
+on right click holding wooden sword:
+    if name of player's tool is "&f&l竹刀&7(右クリック)":
+        cancel event
+
+        if {weapon.cooldown.shinai::%player's uuid%} is set:
+            stop
+
+        set {weapon.cooldown.shinai::%player's uuid%} to true
+
+        play sound "entity.player.attack.sweep" with volume 1 and pitch 1.5 to player
+        loop all entities within 2.5 blocks of player:
+            if loop-entity is not player:
+                damage loop-entity by 8
+
+        wait 0.3 seconds
+        delete {weapon.cooldown.shinai::%player's uuid%}

@@ -1,0 +1,50 @@
+command /givefeatherall:
+    permission: my.flystick.admin
+    trigger:
+        set {_item} to feather
+        set name of {_item} to "&b&lFlySpeed&7(右クリック)"
+        
+        loop all players:
+            give {_item} to loop-player
+        
+        broadcast "&b[FlySpeed] &f全プレイヤーに魔法の羽を配布しました！"
+
+on right click holding a feather:
+    if player has permission "my.flystick":
+        if {flylevel::%player's uuid%} is not set:
+            set {flylevel::%player's uuid%} to 0
+            
+        add 1 to {flylevel::%player's uuid%}
+        
+        if {flylevel::%player's uuid%} > 5:
+            set {flylevel::%player's uuid%} to 0
+            
+        if {flylevel::%player's uuid%} is 0:
+            set player's fly speed to 0.1
+        else if {flylevel::%player's uuid%} is 1:
+            set player's fly speed to 0.2
+        else if {flylevel::%player's uuid%} is 2:
+            set player's fly speed to 0.4
+        else if {flylevel::%player's uuid%} is 3:
+            set player's fly speed to 0.6
+        else if {flylevel::%player's uuid%} is 4:
+            set player's fly speed to 0.8
+        else if {flylevel::%player's uuid%} is 5:
+            set player's fly speed to 1.0
+
+every 10 ticks:
+    loop all players:
+        if loop-player's tool is a feather:
+            if loop-player has permission "my.flystick":
+                if {flylevel::%loop-player's uuid%} is 0:
+                    send action bar "&7&l✖ 飛行速度: 通常" to loop-player
+                else if {flylevel::%loop-player's uuid%} is 1:
+                    send action bar "&6&l✔ 飛行速度: 高速 lv.1" to loop-player
+                else if {flylevel::%loop-player's uuid%} is 2:
+                    send action bar "&6&l✔ 飛行速度: 高速 lv.2" to loop-player
+                else if {flylevel::%loop-player's uuid%} is 3:
+                    send action bar "&e&l✔ 飛行速度: 高速 lv.3" to loop-player
+                else if {flylevel::%loop-player's uuid%} is 4:
+                    send action bar "&c&l✔ 飛行速度: 高速 lv.4" to loop-player
+                else if {flylevel::%loop-player's uuid%} is 5:
+                    send action bar "&4&l&n⚠ 飛行速度: 最大 lv.5 (制御注意) ⚠" to loop-player

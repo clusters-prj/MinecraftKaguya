@@ -1,0 +1,34 @@
+# ==========================================
+# ガンランス (Gun Lance) - 斧ベース
+# 見た目: custom_model_data 2001(リソースパック weapons.zip / CustomWeaponsPack.mcpack と対応)
+# 仕様: ダメージ1発22(体力60想定)、リロード(クールタイム) 0.6〜0.7秒想定 → 0.65秒で実装。要実験。
+# ==========================================
+
+command /getgunlance:
+    permission: op
+    trigger:
+        set {_item} to 1 of netherite pickaxe
+        set name of {_item} to "&7&lガンランス&7(右クリック)"
+        set lore of {_item} to "&f右クリックで前方に射撃します" and "&8リロード: 約0.65秒"
+        set custom model data of {_item} to 2001
+        give {_item} to player
+        give 1 of shield to player
+        send "&7[Weapon] &fガンランスと盾を配布しました。" to player
+
+on right click holding netherite pickaxe:
+    if name of player's tool is "&7&lガンランス&7(右クリック)":
+        cancel event
+
+        if {weapon.cooldown.gunlance::%player's uuid%} is set:
+            send action bar "&c装填中..." to player
+            stop
+
+        set {weapon.cooldown.gunlance::%player's uuid%} to true
+
+        play sound "entity.generic.explode" with volume 0.6 and pitch 1.6 to player
+        loop all entities within 3 blocks of player:
+            if loop-entity is not player:
+                damage loop-entity by 22
+
+        wait 0.65 seconds
+        delete {weapon.cooldown.gunlance::%player's uuid%}
