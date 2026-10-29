@@ -66,6 +66,9 @@ command /pvpstop:
         loop all players:
             if loop-player has scoreboard tag "pvp":
                 add loop-player to {pvp.rankCandidates::*}
+                # 開始時に変更した最大体力を戻し、発光も解除する
+                execute console command "attribute %loop-player% minecraft:max_health base reset"
+                execute console command "effect clear %loop-player% minecraft:glowing"
 
         # 1位
         set {_bestScore} to -999999999
@@ -140,14 +143,30 @@ command /pvphide:
         execute console command "scoreboard objectives setdisplay sidebar"
         send "{@prefix} &eスコアボードを非表示にしました。" to sender
 
+# PvP停止中に参加したpvpタグ持ちの最大体力を戻す(終了時にオフラインだった人向け)。
+on join:
+    if {pvp.running} is not true:
+        if player has scoreboard tag "pvp":
+            execute console command "attribute %player% minecraft:max_health base reset"
+            execute console command "effect clear %player% minecraft:glowing"
+
+# 持ち物の中から、名前(色コードを除く)に key を含むポーションの個数を数える。
+# 配布時の名前の付け方(コンポーネント/レガシー)の違いに左右されないよう、
+# 色を取り除いた文字列で比較する。
+function pvpCountNamedPotions(p: player, key: text) :: integer:
+    set {_n} to 0
+    loop all items in inventory of {_p}:
+        if loop-item is a potion:
+            set {_name} to name of loop-item
+            if {_name} is set:
+                if uncolored {_name} contains {_key}:
+                    add 1 to {_n}
+    return {_n}
+
 # 発光ポーション: インベントリに1個もない場合だけ補給する。
 # 水入り瓶に専用名を付け、飲用イベントで発光効果を付与する。
 function pvpGiveGlowPotion(p: player):
-    set {_hasPotion} to false
-    loop all items in inventory of {_p}:
-        if loop-item is a water bottle named "&e発光ポーション":
-            set {_hasPotion} to true
-    if {_hasPotion} is false:
+    if pvpCountNamedPotions({_p}, "発光ポーション") is 0:
         give a water bottle named "&e発光ポーション" with lore "&7飲むと8分間発光する" to {_p}
 
 # 開始時の属性初期化: プレイヤー系の属性ベース値を全て初期値に戻し、最大体力だけ60にする。
@@ -162,10 +181,7 @@ function pvpSetupAttributes(p: player):
 # 即時回復IIIポーション: 持ち物に3個未満のとき、3個になるまで補給する。
 # 名前付きポーションを数えて不足分だけ渡す(飲むと空き瓶が残る)。
 function pvpGiveHealPotions(p: player):
-    set {_have} to 0
-    loop all items in inventory of {_p}:
-        if loop-item is a potion named "&c即時回復III":
-            add 1 to {_have}
+    set {_have} to pvpCountNamedPotions({_p}, "即時回復III")
     set {_need} to 3 - {_have}
     if {_need} > 0:
         loop {_need} times:
@@ -202,6 +218,34 @@ function pvpApplyDeath(v: player):
 
     delete {pvp.lastAttacker::%uuid of {_v}%}
     delete {pvp.lastAttackerTime::%uuid of {_v}%}
+
+# 復活の継続条件: オンライン・PvP実行中・pvpタグ持ち。
+function pvpCanRespawn(v: player) :: boolean:
+    if {_v} is not online:
+        return false
+    if {pvp.running} is not true:
+        return false
+    if {_v} does not have scoreboard tag "pvp":
+        return false
+    return true
+
+# 復活カウントダウン(15秒)と復活処理。on damage / on respawn の両方から呼ぶ。
+# 秒数や配布物を変えるときはここだけを直せばよい。
+function pvpRespawnCountdown(v: player):
+    loop 15 times:
+        if pvpCanRespawn({_v}) is true:
+            if {_v}'s gamemode is spectator:
+                set {_remaining} to 16 - loop-number
+                send action bar "&eRespawning in %{_remaining}%s" to {_v}
+        wait 1 second
+
+    if pvpCanRespawn({_v}) is true:
+        heal {_v}
+        set {_v}'s food level to 20
+        set {_v}'s gamemode to survival
+        pvpGiveGlowPotion({_v})
+        pvpGiveHealPotions({_v})
+    delete {pvp.spectating::%uuid of {_v}%}
 
 # 直近のプレイヤー由来ダメージを記録。
 # projectile の場合は shooter をたどる。
@@ -249,7 +293,8 @@ on damage of player with priority highest:
     pvpApplyDeath({_v})
     set {pvp.spectating::%uuid of {_v}%} to true
 
-    if {@drop-items} is true:
+    set {_dropItems} to {@drop-items}
+    if {_dropItems} is true:
         loop all items in inventory of {_v}:
             drop loop-item at location of {_v}
         clear inventory of {_v}
@@ -260,25 +305,7 @@ on damage of player with priority highest:
     extinguish {_v}
     set {_v}'s gamemode to spectator
 
-    # スペクテイター中の参加者に復活までの残り時間をアクションバー表示
-    loop 15 times:
-        if {_v} is online:
-            if {pvp.running} is true:
-                if {_v} has scoreboard tag "pvp":
-                    if {_v}'s gamemode is spectator:
-                        set {_remaining} to 16 - loop-number
-                        send action bar "&eRespawning in %{_remaining}%s" to {_v}
-        wait 1 second
-
-    if {_v} is online:
-        if {pvp.running} is true:
-            if {_v} has scoreboard tag "pvp":
-                heal {_v}
-                set {_v}'s food level to 20
-                set {_v}'s gamemode to survival
-                pvpGiveGlowPotion({_v})
-                pvpGiveHealPotions({_v})
-        delete {pvp.spectating::%uuid of {_v}%}
+    pvpRespawnCountdown({_v})
 
 # 予備: 上の処理をすり抜けた死亡(/kill、他プラグインによるダメージなど)
 # 死亡地点を覚えておき、リスポーン時にその位置へ戻してスペクテイターにする。
@@ -311,22 +338,7 @@ on respawn:
     wait 1 tick
     if {_v} is online:
         set {_v}'s gamemode to spectator
-        # スペクテイター中の参加者に復活までの残り時間をアクションバー表示
-        loop 15 times:
-            if {_v} is online:
-                if {pvp.running} is true:
-                    if {_v} has scoreboard tag "pvp":
-                        if {_v}'s gamemode is spectator:
-                            set {_remaining} to 16 - loop-number
-                            send action bar "&eRespawning in %{_remaining}%s" to {_v}
-            wait 1 second
-        if {_v} is online:
-            if {pvp.running} is true:
-                if {_v} has scoreboard tag "pvp":
-                    set {_v}'s gamemode to survival
-                    pvpGiveGlowPotion({_v})
-                    pvpGiveHealPotions({_v})
-            delete {pvp.spectating::%uuid of {_v}%}
+        pvpRespawnCountdown({_v})
 
 # 接近警報：1秒ごとに確認。
 # 警報音は「接近されたサバイバル側」にだけ送る。
@@ -450,34 +462,45 @@ command /pvparea <text> [<number>] [<number>] [<number>]:
                     stop
 
         # 座標省略時はプレイヤーの現在位置のみ使用可能。
-        if argument 2 is set:
-            if argument 3 is not set or argument 4 is not set:
+        if arg-2 is set:
+            if arg-3 is not set:
                 send "{@prefix} &c座標は x y z の3つを入力してください。" to sender
                 stop
-            set {_loc} to location(argument 2, argument 3, argument 4, {_areaWorld})
-            set {_spawn} to location(argument 2 + 0.5, argument 3, argument 4 + 0.5, {_areaWorld})
+            if arg-4 is not set:
+                send "{@prefix} &c座標は x y z の3つを入力してください。" to sender
+                stop
+            set {_loc} to location(arg-2, arg-3, arg-4, {_areaWorld})
+            set {_spawn} to location(arg-2 + 0.5, arg-3, arg-4 + 0.5, {_areaWorld})
         else:
             if sender is not a player:
-                if argument 1 is not "on" and argument 1 is not "off" and argument 1 is not "info":
+                set {_mode} to arg-1
+                set {_needCoord} to true
+                if {_mode} is "on":
+                    set {_needCoord} to false
+                if {_mode} is "off":
+                    set {_needCoord} to false
+                if {_mode} is "info":
+                    set {_needCoord} to false
+                if {_needCoord} is true:
                     send "{@prefix} &cコマンドブロック/コンソールでは座標 x y z を指定してください。" to sender
                     stop
             else:
                 set {_loc} to location of sender
                 set {_spawn} to location of sender
 
-        if argument 1 is "pos1":
+        if arg-1 is "pos1":
             set {pvp.area.p1} to {_loc}
             set {pvp.area.world} to {_areaWorld}
             send "{@prefix} &a角1を設定しました: %floor(x-coordinate of {_loc})%, %floor(y-coordinate of {_loc})%, %floor(z-coordinate of {_loc})% (ワールド: %{_areaWorld}%)" to sender
-        else if argument 1 is "pos2":
+        else if arg-1 is "pos2":
             set {pvp.area.p2} to {_loc}
             set {pvp.area.world} to {_areaWorld}
             send "{@prefix} &a角2を設定しました: %floor(x-coordinate of {_loc})%, %floor(y-coordinate of {_loc})%, %floor(z-coordinate of {_loc})% (ワールド: %{_areaWorld}%)" to sender
-        else if argument 1 is "spawn":
+        else if arg-1 is "spawn":
             set {pvp.area.spawn} to {_spawn}
             set {pvp.area.world} to {_areaWorld}
             send "{@prefix} &a戻り座標を設定しました: %x-coordinate of {_spawn}%, %y-coordinate of {_spawn}%, %z-coordinate of {_spawn}% (ワールド: %{_areaWorld}%)" to sender
-        else if argument 1 is "on":
+        else if arg-1 is "on":
             if {pvp.area.p1} is not set:
                 send "{@prefix} &c先に /pvparea pos1 と pos2 で範囲を設定してください。" to sender
                 stop
@@ -498,10 +521,10 @@ command /pvparea <text> [<number>] [<number>] [<number>]:
                 stop
             set {pvp.area.on} to true
             send "{@prefix} &a活動範囲の制限を有効にしました。" to sender
-        else if argument 1 is "off":
+        else if arg-1 is "off":
             set {pvp.area.on} to false
             send "{@prefix} &e活動範囲の制限を無効にしました。" to sender
-        else if argument 1 is "info":
+        else if arg-1 is "info":
             if {pvp.area.on} is true:
                 send "{@prefix} &a制限: 有効" to sender
             else:
