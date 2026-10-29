@@ -1,0 +1,65 @@
+on load:
+    delete {timer::running}
+    delete {timer::stop}
+
+# ボスバーあり
+command /timer <integer> <text>:
+    permission: op
+    usage: /timer <分> <終了時に実行するコマンド>
+    description: ボスバー付きタイマー
+    trigger:
+        if {timer::running} is true:
+            send "&cすでにタイマーが動いています" to player
+            stop
+        runTimer(arg-1, arg-2, true)
+
+# ボスバーなし
+command /timerq <integer> <text>:
+    permission: op
+    usage: /timerq <分> <終了時に実行するコマンド>
+    description: ボスバーなしタイマー
+    trigger:
+        if {timer::running} is true:
+            send "&cすでにタイマーが動いています" to player
+            stop
+        runTimer(arg-1, arg-2, false)
+
+command /timerstop:
+    permission: op
+    description: タイマーを中止
+    trigger:
+        if {timer::running} is not true:
+            send "&cタイマーは動いていません" to player
+            stop
+        set {timer::stop} to true
+        send "&aタイマーを停止します" to player
+
+function runTimer(minutes: integer, cmd: text, bar: boolean):
+    set {timer::running} to true
+    delete {timer::stop}
+    set {_total} to {_minutes} * 60
+
+    if {_bar} is true:
+        execute console command "bossbar add timer:bar ""残り時間"""
+        execute console command "bossbar set timer:bar max %{_total}%"
+        execute console command "bossbar set timer:bar color red"
+        execute console command "bossbar set timer:bar players @a"
+
+    set {_left} to {_total}
+    while {_left} > 0:
+        if {timer::stop} is set:
+            exit loop
+        if {_bar} is true:
+            set {_m} to floor({_left} / 60)
+            set {_s} to {_left} - ({_m} * 60)
+            execute console command "bossbar set timer:bar name ""残り %{_m}%分%{_s}%秒"""
+            execute console command "bossbar set timer:bar value %{_left}%"
+        wait 1 second
+        remove 1 from {_left}
+
+    if {_bar} is true:
+        execute console command "bossbar remove timer:bar"
+    if {timer::stop} is not set:
+        execute console command {_cmd}
+    delete {timer::running}
+    delete {timer::stop}
