@@ -1,15 +1,22 @@
 on load:
     delete {timer::running}
     delete {timer::stop}
+    # リロード前に動いていたタイマーのボスバーが残らないようにする
+    execute console command "bossbar remove timer:bar"
 
 # ボスバーあり
+# コンソール・コマンドブロックからも実行できる(終了時コマンドの連鎖用)
 command /timer <integer> <text>:
     permission: op
     usage: /timer <分> <終了時に実行するコマンド>
     description: ボスバー付きタイマー
+    executable by: players, console and command blocks
     trigger:
         if {timer::running} is true:
-            send "&cすでにタイマーが動いています" to player
+            send "&cすでにタイマーが動いています" to sender
+            stop
+        if arg-1 < 1:
+            send "&c分数は1以上で指定してください" to sender
             stop
         runTimer(arg-1, arg-2, true)
 
@@ -18,21 +25,26 @@ command /timerq <integer> <text>:
     permission: op
     usage: /timerq <分> <終了時に実行するコマンド>
     description: ボスバーなしタイマー
+    executable by: players, console and command blocks
     trigger:
         if {timer::running} is true:
-            send "&cすでにタイマーが動いています" to player
+            send "&cすでにタイマーが動いています" to sender
+            stop
+        if arg-1 < 1:
+            send "&c分数は1以上で指定してください" to sender
             stop
         runTimer(arg-1, arg-2, false)
 
 command /timerstop:
     permission: op
     description: タイマーを中止
+    executable by: players, console and command blocks
     trigger:
         if {timer::running} is not true:
-            send "&cタイマーは動いていません" to player
+            send "&cタイマーは動いていません" to sender
             stop
         set {timer::stop} to true
-        send "&aタイマーを停止します" to player
+        send "&aタイマーを停止します" to sender
 
 function runTimer(minutes: integer, cmd: text, bar: boolean):
     set {timer::running} to true
@@ -40,10 +52,11 @@ function runTimer(minutes: integer, cmd: text, bar: boolean):
     set {_total} to {_minutes} * 60
 
     if {_bar} is true:
+        # 前回の残骸があっても失敗しないよう、先に消してから作る
+        execute console command "bossbar remove timer:bar"
         execute console command "bossbar add timer:bar ""残り時間"""
         execute console command "bossbar set timer:bar max %{_total}%"
         execute console command "bossbar set timer:bar color red"
-        execute console command "bossbar set timer:bar players @a"
 
     set {_left} to {_total}
     while {_left} > 0:
@@ -54,6 +67,8 @@ function runTimer(minutes: integer, cmd: text, bar: boolean):
             set {_s} to {_left} - ({_m} * 60)
             execute console command "bossbar set timer:bar name ""残り %{_m}%分%{_s}%秒"""
             execute console command "bossbar set timer:bar value %{_left}%"
+            # 途中参加の人にも見えるよう、毎秒対象を更新する
+            execute console command "bossbar set timer:bar players @a"
         wait 1 second
         remove 1 from {_left}
 
