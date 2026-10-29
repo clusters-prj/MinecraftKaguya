@@ -27,6 +27,8 @@ options:
     # true: 配置前に中身を空にする(上書き) / false: 配置するスロットだけ上書き
     max-volume: 5000000
     # 指定できる範囲の最大ブロック数（旧上限の10倍）
+    scan-per-tick: 10000
+    # 1tickあたりに走査するブロック数の目安。これを超えるたびに1tick待つ(サーバー停止の防止)
     chance-ingot: 15
     chance-gapple: 2.5
     chance-egapple: 1
@@ -54,18 +56,30 @@ function tkbLootPotions() :: strings:
     # 再生I/II（45秒 / 22秒）
     if chance of {@chance-potion}%:
         if chance of 50%:
-            add "potion[potion_contents={custom_effects:[{id:""minecraft:regeneration"",duration:900,amplifier:0}]}]" to {_out::*}
+            add "potion[potion_contents={custom_effects:[{id:'minecraft:regeneration',duration:900,amplifier:0}]}]" to {_out::*}
         else:
-            add "potion[potion_contents={custom_effects:[{id:""minecraft:regeneration"",duration:440,amplifier:1}]}]" to {_out::*}
+            add "potion[potion_contents={custom_effects:[{id:'minecraft:regeneration',duration:440,amplifier:1}]}]" to {_out::*}
 
     # 耐性I/II（カスタム効果、各90秒）
     if chance of {@chance-potion}%:
         if chance of 50%:
-            add "potion[potion_contents={custom_effects:[{id:""minecraft:resistance"",duration:1800,amplifier:0}]}]" to {_out::*}
+            add "potion[potion_contents={custom_effects:[{id:'minecraft:resistance',duration:1800,amplifier:0}]}]" to {_out::*}
         else:
-            add "potion[potion_contents={custom_effects:[{id:""minecraft:resistance"",duration:1800,amplifier:1}]}]" to {_out::*}
+            add "potion[potion_contents={custom_effects:[{id:'minecraft:resistance',duration:1800,amplifier:1}]}]" to {_out::*}
 
     return {_out::*}
+
+# レベルnの重みをnにして、1〜top のレベルを抽選する(高レベルほど出やすい)。
+# 入れ子ループによる loop-value の曖昧さを避けるため、関数に分けている。
+function tkbLootPickLevel(top: integer) :: integer:
+    set {_total} to {_top} * ({_top} + 1) / 2
+    set {_roll} to a random integer between 1 and {_total}
+    set {_sum} to 0
+    loop integers from 1 to {_top}:
+        add loop-value to {_sum}
+        if {_roll} <= {_sum}:
+            return loop-value
+    return {_top}
 
 function tkbLootBooks() :: strings:
     # 名前:最大レベル (呪いは除外)
@@ -75,22 +89,30 @@ function tkbLootBooks() :: strings:
             set {_parts::*} to split loop-value at ":"
             set {_max} to {_parts::2} parsed as integer
             # レベルnの重みをnにする（高レベルほど出やすい）
-            set {_totalWeight} to {_max} * ({_max} + 1) / 2
-            set {_roll} to a random integer between 1 and {_totalWeight}
-            set {_weightSum} to 0
-            set {_lv} to 0
-            # {_lv} を1ずつ上げ、重みの累計が {_roll} 以上になった時点のレベルを採用する
-            while {_roll} is greater than {_weightSum}:
-                add 1 to {_lv}
-                add {_lv} to {_weightSum}
+            set {_lv} to tkbLootPickLevel({_max})
             add "enchanted_book[stored_enchantments={%{_parts::1}%:%{_lv}%}]" to {_out::*}
     return {_out::*}
 
 # ------------------------------------------------------------
-#  1つの入れ物にルートを配置する
-#  p: 実行者(コマンドの実行元/ワールド判定に使う)
+#  ワールド → ディメンションID(execute in 用)
+#  標準の3ワールド以外は "minecraft:<ワールド名(小文字)>" を使う。
+#  合わない場合はここを書き換える。
 # ------------------------------------------------------------
-function tkbLootFill(p: player, b: block):
+function tkbLootDim(w: world) :: text:
+    set {_n} to name of {_w}
+    if {_n} is "world":
+        return "minecraft:overworld"
+    if {_n} is "world_nether":
+        return "minecraft:the_nether"
+    if {_n} is "world_the_end":
+        return "minecraft:the_end"
+    return "minecraft:%lowercase {_n}%"
+
+# ------------------------------------------------------------
+#  1つの入れ物にルートを配置する
+#  dim: 範囲のワールドのディメンションID(tkbLootDim で求める)。実行者には依存しない
+# ------------------------------------------------------------
+function tkbLootFill(dim: text, b: block):
     set {_x} to floor(x-coordinate of {_b})
     set {_y} to floor(y-coordinate of {_b})
     set {_z} to floor(z-coordinate of {_b})
@@ -118,9 +140,10 @@ function tkbLootFill(p: player, b: block):
     add shuffled {_single::*} to {_place::*}
 
     # ---- 中身をリセット ----
-    if {@reset-containers} is true:
+    set {_reset} to {@reset-containers}
+    if {_reset} is true:
         loop integers from 0 to 26:
-            execute console command "execute as %uuid of {_p}% at @s run item replace block %{_x}% %{_y}% %{_z}% container.%loop-value% with air"
+            execute console command "execute in %{_dim}% run item replace block %{_x}% %{_y}% %{_z}% container.%loop-value% with air"
 
     # ---- ランダムなスロットへ配置 ----
     set {_slots::*} to shuffled (integers from 0 to 26)
@@ -129,17 +152,17 @@ function tkbLootFill(p: player, b: block):
         add 1 to {_i}
         if {_i} > 27:
             exit loop
-        execute console command "execute as %uuid of {_p}% at @s run item replace block %{_x}% %{_y}% %{_z}% container.%{_slots::%{_i}%}% with minecraft:%loop-value%"
+        execute console command "execute in %{_dim}% run item replace block %{_x}% %{_y}% %{_z}% container.%{_slots::%{_i}%}% with minecraft:%loop-value%"
 
 # ------------------------------------------------------------
 #  1つの入れ物の中身を全て消す
 # ------------------------------------------------------------
-function tkbLootClear(p: player, b: block):
+function tkbLootClear(dim: text, b: block):
     set {_x} to floor(x-coordinate of {_b})
     set {_y} to floor(y-coordinate of {_b})
     set {_z} to floor(z-coordinate of {_b})
     loop integers from 0 to 26:
-        execute console command "execute as %uuid of {_p}% at @s run item replace block %{_x}% %{_y}% %{_z}% container.%loop-value% with air"
+        execute console command "execute in %{_dim}% run item replace block %{_x}% %{_y}% %{_z}% container.%loop-value% with air"
 
 # ------------------------------------------------------------
 #  コマンド
@@ -163,7 +186,7 @@ command /lootpos <integer> <world> <number> <number> <number>:
 command /lootfill:
     description: 設定した範囲内の樽・チェスト・トラップチェストにルートを配置する
     permission: tukuyomi.loot.admin
-    executable by: players
+    executable by: players, console and command blocks
     trigger:
         set {_pa} to {tkb::loot::pos1}
         set {_pb} to {tkb::loot::pos2}
@@ -176,11 +199,9 @@ command /lootfill:
         if world of {_pa} is not world of {_pb}:
             send "{@prefix}&c角1と角2が別のワールドです。"
             stop
-        if world of player is not world of {_pa}:
-            send "{@prefix}&c範囲と同じワールドで実行してください。"
-            stop
 
         set {_w} to world of {_pa}
+        set {_dim} to tkbLootDim({_w})
         set {_x1} to floor(min(x-coordinate of {_pa}, x-coordinate of {_pb}))
         set {_x2} to floor(max(x-coordinate of {_pa}, x-coordinate of {_pb}))
         set {_y1} to floor(min(y-coordinate of {_pa}, y-coordinate of {_pb}))
@@ -195,6 +216,7 @@ command /lootfill:
 
         send "{@prefix}&e配置を開始します(%{_vol}% ブロックを走査)..."
         set {_count} to 0
+        set {_scan} to 0
         set {_x} to {_x1}
         while {_x} <= {_x2}:
             set {_y} to {_y1}
@@ -203,18 +225,21 @@ command /lootfill:
                 while {_z} <= {_z2}:
                     set {_blk} to block at location({_x}, {_y}, {_z}, {_w})
                     if {_blk} is a chest, a trapped chest or a barrel:
-                        tkbLootFill(player, {_blk})
+                        tkbLootFill({_dim}, {_blk})
                         add 1 to {_count}
                     add 1 to {_z}
                 add 1 to {_y}
+                add ({_z2} - {_z1} + 1) to {_scan}
+                if {_scan} >= {@scan-per-tick}:
+                    set {_scan} to 0
+                    wait 1 tick
             add 1 to {_x}
-            wait 1 tick
         send "{@prefix}&a完了: %{_count}% 個の入れ物にルートを配置しました。"
 
 command /lootclear:
     description: 設定した範囲内の樽・チェスト・トラップチェストの中身を全て消す
     permission: tukuyomi.loot.admin
-    executable by: players
+    executable by: players, console and command blocks
     trigger:
         set {_pa} to {tkb::loot::pos1}
         set {_pb} to {tkb::loot::pos2}
@@ -227,11 +252,9 @@ command /lootclear:
         if world of {_pa} is not world of {_pb}:
             send "{@prefix}&c角1と角2が別のワールドです。"
             stop
-        if world of player is not world of {_pa}:
-            send "{@prefix}&c範囲と同じワールドで実行してください。"
-            stop
 
         set {_w} to world of {_pa}
+        set {_dim} to tkbLootDim({_w})
         set {_x1} to floor(min(x-coordinate of {_pa}, x-coordinate of {_pb}))
         set {_x2} to floor(max(x-coordinate of {_pa}, x-coordinate of {_pb}))
         set {_y1} to floor(min(y-coordinate of {_pa}, y-coordinate of {_pb}))
@@ -246,6 +269,7 @@ command /lootclear:
 
         send "{@prefix}&e中身の消去を開始します(%{_vol}% ブロックを走査)..."
         set {_count} to 0
+        set {_scan} to 0
         set {_x} to {_x1}
         while {_x} <= {_x2}:
             set {_y} to {_y1}
@@ -254,10 +278,13 @@ command /lootclear:
                 while {_z} <= {_z2}:
                     set {_blk} to block at location({_x}, {_y}, {_z}, {_w})
                     if {_blk} is a chest, a trapped chest or a barrel:
-                        tkbLootClear(player, {_blk})
+                        tkbLootClear({_dim}, {_blk})
                         add 1 to {_count}
                     add 1 to {_z}
                 add 1 to {_y}
+                add ({_z2} - {_z1} + 1) to {_scan}
+                if {_scan} >= {@scan-per-tick}:
+                    set {_scan} to 0
+                    wait 1 tick
             add 1 to {_x}
-            wait 1 tick
         send "{@prefix}&a完了: %{_count}% 個の入れ物の中身を消しました。"
