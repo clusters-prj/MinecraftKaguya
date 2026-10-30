@@ -2,7 +2,10 @@ on load:
     delete {timer::running}
     delete {timer::stop}
     # リロード前に動いていたタイマーのボスバーが残らないようにする
-    execute console command "bossbar remove timer:bar"
+    # (存在するときだけ消す: 無いときに Unknown bossbar のエラーを出さないため)
+    if {timer::barExists} is true:
+        execute console command "bossbar remove timer:bar"
+        delete {timer::barExists}
 
 # ボスバーあり
 # コンソール・コマンドブロックからも実行できる(終了時コマンドの連鎖用)
@@ -52,9 +55,11 @@ function runTimer(minutes: integer, cmd: text, bar: boolean):
     set {_total} to {_minutes} * 60
 
     if {_bar} is true:
-        # 前回の残骸があっても失敗しないよう、先に消してから作る
-        execute console command "bossbar remove timer:bar"
+        # 前回の残骸があっても失敗しないよう、あるときだけ先に消してから作る
+        if {timer::barExists} is true:
+            execute console command "bossbar remove timer:bar"
         execute console command "bossbar add timer:bar ""残り時間"""
+        set {timer::barExists} to true
         execute console command "bossbar set timer:bar max %{_total}%"
         execute console command "bossbar set timer:bar color red"
 
@@ -74,6 +79,7 @@ function runTimer(minutes: integer, cmd: text, bar: boolean):
 
     if {_bar} is true:
         execute console command "bossbar remove timer:bar"
+        delete {timer::barExists}
     if {timer::stop} is not set:
         execute console command {_cmd}
     delete {timer::running}
