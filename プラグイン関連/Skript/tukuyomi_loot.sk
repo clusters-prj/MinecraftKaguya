@@ -106,7 +106,8 @@ function tkbLootDim(w: world) :: text:
         return "minecraft:the_nether"
     if {_n} is "world_the_end":
         return "minecraft:the_end"
-    return "minecraft:%lowercase {_n}%"
+    set {_lower} to {_n} in lowercase
+    return "minecraft:%{_lower}%"
 
 # ------------------------------------------------------------
 #  1つの入れ物にルートを配置する
