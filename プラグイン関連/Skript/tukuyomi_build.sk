@@ -42,71 +42,73 @@ on load:
     delete {tkb::owner::*}
     delete {tkb::items::*}
 
-# --- プレイヤー名(小文字) → BuildID ---
-# 統合版は先頭に「.」を付けた名前で登録
-set {tkb::owner::reivuns} to "BUILD-001"
-set {tkb::owner::.reivunn} to "BUILD-002"
-set {tkb::owner::test} to "BUILD-003"
-set {tkb::owner::pino2122} to "BUILD-004"
-set {tkb::owner::no1} to "BUILD-005"
-set {tkb::owner::.no2} to "BUILD-006"
-set {tkb::owner::.tonkatuk666} to "BUILD-007"
-set {tkb::owner::jhon_duo} to "BUILD-008"
-set {tkb::owner::.nimo_cg7} to "BUILD-009"
+    # >>> GENERATED-BUILDS START (Excelから make_build.py が自動で書き換える範囲。手で直さない)
+    # --- プレイヤー名(小文字) → BuildID ---
+    # 統合版は先頭に「.」を付けた名前で登録
+    set {tkb::owner::reivuns} to "BUILD-001"
+    set {tkb::owner::.reivunn} to "BUILD-002"
+    set {tkb::owner::test} to "BUILD-003"
+    set {tkb::owner::pino2122} to "BUILD-004"
+    set {tkb::owner::no1} to "BUILD-005"
+    set {tkb::owner::.no2} to "BUILD-006"
+    set {tkb::owner::.tonkatuk666} to "BUILD-007"
+    set {tkb::owner::jhon_duo} to "BUILD-008"
+    set {tkb::owner::.nimo_cg7} to "BUILD-009"
 
-# --- BUILD-001 / reivuns ---  (コスト合計 1915 / 判定 OK)
-# 防具: ネザライト一式 / メイン: 鋸ナタ / ウルト: 古狩人の遺骨
-# バニラ: なし / 矢: なし
-# サブ: スーパーノヴァ、拒絶、FUSHI爆弾、もと光るダムダム弾、自律稼働無人爆弾「月人」
-set {tkb::items::BUILD-001::*} to "armor:netherite", "custom:saw_cleaver", "custom:old_hunter_bone", "custom:light_sword", "custom:rejection", "custom:fushi_bomb", "custom:timed_bomb" and "custom:tsukibito_bomb"
+    # --- BUILD-001 / reivuns ---  (コスト合計 1915 / 判定 OK)
+    # 防具: ネザライト一式 / メイン: 鋸ナタ / ウルト: 古狩人の遺骨
+    # バニラ: なし / 矢: なし
+    # サブ: スーパーノヴァ、拒絶、FUSHI爆弾、もと光るダムダム弾、自律稼働無人爆弾「月人」
+    set {tkb::items::BUILD-001::*} to "armor:netherite", "custom:saw_cleaver", "custom:old_hunter_bone", "custom:light_sword", "custom:rejection", "custom:fushi_bomb", "custom:timed_bomb" and "custom:tsukibito_bomb"
 
-# --- BUILD-002 / .reivunn ---  (コスト合計 3320 / 判定 コストオーバー)
-# 防具: ダイヤ一式 / メイン: スーパーノヴァ / ウルト: 光の剣
-# バニラ: 石の剣、ネザライトの剣、木の斧 / 矢: なし
-# サブ: 獣肉断ち、仕込み杖、自律稼働無人爆弾「月人」、ギター「共振波動」、ガンランス「MIKA-D0」
-set {tkb::items::BUILD-002::*} to "armor:diamond", "vanilla:shield", "vanilla:elytra", "vanilla:stone sword", "vanilla:netherite sword", "vanilla:wooden axe", "custom:light_sword", "custom:light_sword_ult", "custom:beast_cleaver", "custom:cane_sheathed", "custom:tsukibito_bomb", "custom:guitar_resonance" and "custom:gunlance_mika_d0"
+    # --- BUILD-002 / .reivunn ---  (コスト合計 3320 / 判定 コストオーバー)
+    # 防具: ダイヤ一式 / メイン: スーパーノヴァ / ウルト: 光の剣
+    # バニラ: 石の剣、ネザライトの剣、木の斧 / 矢: なし
+    # サブ: 獣肉断ち、仕込み杖、自律稼働無人爆弾「月人」、ギター「共振波動」、ガンランス「MIKA-D0」
+    set {tkb::items::BUILD-002::*} to "armor:diamond", "vanilla:shield", "vanilla:elytra", "vanilla:stone sword", "vanilla:netherite sword", "vanilla:wooden axe", "custom:light_sword", "custom:light_sword_ult", "custom:beast_cleaver", "custom:cane_sheathed", "custom:tsukibito_bomb", "custom:guitar_resonance" and "custom:gunlance_mika_d0"
 
-# --- BUILD-003 / Test ---  (コスト合計 6625 / 判定 コストオーバー)
-# 防具: ネザライト一式 / メイン: スーパーノヴァ / ウルト: 光の剣
-# バニラ: 木の剣、石の剣、鉄の剣、ダイヤの剣、ネザライトの剣、木の斧、石の斧、鉄の斧、ダイヤの斧、ネザライトの斧、弓、クロスボウ、トライデント、メイス / 矢: あり
-# サブ: 鋸ナタ、拒絶、獣肉断ち、パイルハンマー、仕込み杖、FUSHI爆弾、もと光るダムダム弾、自律稼働無人爆弾「月人」、彩葉特製、毒素マシマシパンケーキ、ギター「共振波動」、ガンランス「MIKA-D0」、狩猟笛
-set {tkb::items::BUILD-003::*} to "armor:netherite", "vanilla:shield", "vanilla:elytra", "vanilla:wooden sword", "vanilla:stone sword", "vanilla:iron sword", "vanilla:diamond sword", "vanilla:netherite sword", "vanilla:wooden axe", "vanilla:stone axe", "vanilla:iron axe", "vanilla:diamond axe", "vanilla:netherite axe", "vanilla:bow", "vanilla:crossbow", "vanilla:trident", "vanilla:mace", "vanilla:arrow:64", "custom:light_sword", "custom:light_sword_ult", "custom:saw_cleaver", "custom:rejection", "custom:beast_cleaver", "custom:pile_hammer", "custom:cane_sheathed", "custom:fushi_bomb", "custom:timed_bomb", "custom:tsukibito_bomb", "custom:pancake", "custom:guitar_resonance", "custom:gunlance_mika_d0" and "custom:hunting_horn"
+    # --- BUILD-003 / Test ---  (コスト合計 6625 / 判定 コストオーバー)
+    # 防具: ネザライト一式 / メイン: スーパーノヴァ / ウルト: 光の剣
+    # バニラ: 木の剣、石の剣、鉄の剣、ダイヤの剣、ネザライトの剣、木の斧、石の斧、鉄の斧、ダイヤの斧、ネザライトの斧、弓、クロスボウ、トライデント、メイス / 矢: あり
+    # サブ: 鋸ナタ、拒絶、獣肉断ち、パイルハンマー、仕込み杖、FUSHI爆弾、もと光るダムダム弾、自律稼働無人爆弾「月人」、彩葉特製、毒素マシマシパンケーキ、ギター「共振波動」、ガンランス「MIKA-D0」、狩猟笛
+    set {tkb::items::BUILD-003::*} to "armor:netherite", "vanilla:shield", "vanilla:elytra", "vanilla:wooden sword", "vanilla:stone sword", "vanilla:iron sword", "vanilla:diamond sword", "vanilla:netherite sword", "vanilla:wooden axe", "vanilla:stone axe", "vanilla:iron axe", "vanilla:diamond axe", "vanilla:netherite axe", "vanilla:bow", "vanilla:crossbow", "vanilla:trident", "vanilla:mace", "vanilla:arrow:64", "custom:light_sword", "custom:light_sword_ult", "custom:saw_cleaver", "custom:rejection", "custom:beast_cleaver", "custom:pile_hammer", "custom:cane_sheathed", "custom:fushi_bomb", "custom:timed_bomb", "custom:tsukibito_bomb", "custom:pancake", "custom:guitar_resonance", "custom:gunlance_mika_d0" and "custom:hunting_horn"
 
-# --- BUILD-004 / pino2122 ---  (コスト合計 1885 / 判定 OK)
-# 防具: ダイヤ一式 / メイン: 狩猟笛 / ウルト: 音撃震
-# バニラ: 鉄の剣、鉄の斧、弓 / 矢: あり
-# サブ: 拒絶、獣肉断ち、仕込み杖、FUSHI爆弾
-set {tkb::items::BUILD-004::*} to "armor:diamond", "vanilla:iron sword", "vanilla:iron axe", "vanilla:bow", "vanilla:arrow:64", "custom:hunting_horn", "custom:sonic_quake", "custom:rejection", "custom:beast_cleaver", "custom:cane_sheathed" and "custom:fushi_bomb"
+    # --- BUILD-004 / pino2122 ---  (コスト合計 1885 / 判定 OK)
+    # 防具: ダイヤ一式 / メイン: 狩猟笛 / ウルト: 音撃震
+    # バニラ: 鉄の剣、鉄の斧、弓 / 矢: あり
+    # サブ: 拒絶、獣肉断ち、仕込み杖、FUSHI爆弾
+    set {tkb::items::BUILD-004::*} to "armor:diamond", "vanilla:iron sword", "vanilla:iron axe", "vanilla:bow", "vanilla:arrow:64", "custom:hunting_horn", "custom:sonic_quake", "custom:rejection", "custom:beast_cleaver", "custom:cane_sheathed" and "custom:fushi_bomb"
 
-# --- BUILD-005 / NO1 ---  (コスト合計 1885 / 判定 OK)
-# 防具: ダイヤ一式 / メイン: 鋸ナタ / ウルト: 古狩人の遺骨
-# バニラ: ネザライトの斧、弓 / 矢: あり
-# サブ: 拒絶、FUSHI爆弾、もと光るダムダム弾、彩葉特製、毒素マシマシパンケーキ、狩猟笛
-set {tkb::items::BUILD-005::*} to "armor:diamond", "vanilla:netherite axe", "vanilla:bow", "vanilla:arrow:64", "custom:saw_cleaver", "custom:old_hunter_bone", "custom:rejection", "custom:fushi_bomb", "custom:timed_bomb", "custom:pancake" and "custom:hunting_horn"
+    # --- BUILD-005 / NO1 ---  (コスト合計 1885 / 判定 OK)
+    # 防具: ダイヤ一式 / メイン: 鋸ナタ / ウルト: 古狩人の遺骨
+    # バニラ: ネザライトの斧、弓 / 矢: あり
+    # サブ: 拒絶、FUSHI爆弾、もと光るダムダム弾、彩葉特製、毒素マシマシパンケーキ、狩猟笛
+    set {tkb::items::BUILD-005::*} to "armor:diamond", "vanilla:netherite axe", "vanilla:bow", "vanilla:arrow:64", "custom:saw_cleaver", "custom:old_hunter_bone", "custom:rejection", "custom:fushi_bomb", "custom:timed_bomb", "custom:pancake" and "custom:hunting_horn"
 
-# --- BUILD-006 / .NO2 ---  (コスト合計 2060 / 判定 コストオーバー)
-# 防具: 鉄一式 / メイン: スーパーノヴァ / ウルト: 光の剣
-# バニラ: ネザライトの斧 / 矢: なし
-# サブ: もと光るダムダム弾、自律稼働無人爆弾「月人」
-set {tkb::items::BUILD-006::*} to "armor:iron", "vanilla:shield", "vanilla:netherite axe", "custom:light_sword", "custom:light_sword_ult", "custom:timed_bomb" and "custom:tsukibito_bomb"
+    # --- BUILD-006 / .NO2 ---  (コスト合計 2060 / 判定 コストオーバー)
+    # 防具: 鉄一式 / メイン: スーパーノヴァ / ウルト: 光の剣
+    # バニラ: ネザライトの斧 / 矢: なし
+    # サブ: もと光るダムダム弾、自律稼働無人爆弾「月人」
+    set {tkb::items::BUILD-006::*} to "armor:iron", "vanilla:shield", "vanilla:netherite axe", "custom:light_sword", "custom:light_sword_ult", "custom:timed_bomb" and "custom:tsukibito_bomb"
 
-# --- BUILD-007 / .tonkatuK666 ---  (コスト合計 2000 / 判定 OK)
-# 防具: ダイヤ一式 / メイン: ギター「共振波動」 / ウルト: 共鳴震
-# バニラ: なし / 矢: なし
-# サブ: 鋸ナタ、拒絶、獣肉断ち
-set {tkb::items::BUILD-007::*} to "armor:diamond", "vanilla:shield", "custom:guitar_resonance", "custom:resonance_quake", "custom:saw_cleaver", "custom:rejection" and "custom:beast_cleaver"
+    # --- BUILD-007 / .tonkatuK666 ---  (コスト合計 2000 / 判定 OK)
+    # 防具: ダイヤ一式 / メイン: ギター「共振波動」 / ウルト: 共鳴震
+    # バニラ: なし / 矢: なし
+    # サブ: 鋸ナタ、拒絶、獣肉断ち
+    set {tkb::items::BUILD-007::*} to "armor:diamond", "vanilla:shield", "custom:guitar_resonance", "custom:resonance_quake", "custom:saw_cleaver", "custom:rejection" and "custom:beast_cleaver"
 
-# --- BUILD-008 / Jhon Duo ---  (コスト合計 2065 / 判定 コストオーバー)
-# 防具: ネザライト一式 / メイン: 鋸ナタ / ウルト: 古狩人の遺骨
-# バニラ: なし / 矢: なし
-# サブ: 獣肉断ち、FUSHI爆弾、もと光るダムダム弾、自律稼働無人爆弾「月人」、彩葉特製、毒素マシマシパンケーキ、狩猟笛
-set {tkb::items::BUILD-008::*} to "armor:netherite", "vanilla:elytra", "custom:saw_cleaver", "custom:old_hunter_bone", "custom:beast_cleaver", "custom:fushi_bomb", "custom:timed_bomb", "custom:tsukibito_bomb", "custom:pancake" and "custom:hunting_horn"
+    # --- BUILD-008 / Jhon Duo ---  (コスト合計 2065 / 判定 コストオーバー)
+    # 防具: ネザライト一式 / メイン: 鋸ナタ / ウルト: 古狩人の遺骨
+    # バニラ: なし / 矢: なし
+    # サブ: 獣肉断ち、FUSHI爆弾、もと光るダムダム弾、自律稼働無人爆弾「月人」、彩葉特製、毒素マシマシパンケーキ、狩猟笛
+    set {tkb::items::BUILD-008::*} to "armor:netherite", "vanilla:elytra", "custom:saw_cleaver", "custom:old_hunter_bone", "custom:beast_cleaver", "custom:fushi_bomb", "custom:timed_bomb", "custom:tsukibito_bomb", "custom:pancake" and "custom:hunting_horn"
 
-# --- BUILD-009 / .Nimo_cg7 ---  (コスト合計 1900 / 判定 OK)
-# 防具: ダイヤ一式 / メイン: スーパーノヴァ / ウルト: 光の剣
-# バニラ: ダイヤの剣 / 矢: なし
-# サブ: 狩猟笛
-set {tkb::items::BUILD-009::*} to "armor:diamond", "vanilla:shield", "vanilla:diamond sword", "custom:light_sword", "custom:light_sword_ult" and "custom:hunting_horn"
+    # --- BUILD-009 / .Nimo_cg7 ---  (コスト合計 1900 / 判定 OK)
+    # 防具: ダイヤ一式 / メイン: スーパーノヴァ / ウルト: 光の剣
+    # バニラ: ダイヤの剣 / 矢: なし
+    # サブ: 狩猟笛
+    set {tkb::items::BUILD-009::*} to "armor:diamond", "vanilla:shield", "vanilla:diamond sword", "custom:light_sword", "custom:light_sword_ult" and "custom:hunting_horn"
+    # <<< GENERATED-BUILDS END
 
 # ------------------------------------------------------------
 #  関数
