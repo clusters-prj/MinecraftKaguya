@@ -159,7 +159,8 @@ function pvpCountNamedPotions(p: player, key: text) :: integer:
         if loop-item is a potion:
             set {_name} to name of loop-item
             if {_name} is set:
-                if uncolored {_name} contains {_key}:
+                set {_plain} to uncolored {_name}
+                if {_plain} contains {_key}:
                     add 1 to {_n}
     return {_n}
 
@@ -378,6 +379,10 @@ on join:
         if player has scoreboard tag "pvp":
             if {pvp.score::%uuid of player%} is not set:
                 set {pvp.score::%uuid of player%} to 0
+                # 開始時にオフラインだった人: /pvpstart と同じ初期状態にそろえる
+                pvpSetupAttributes(player)
+                pvpGiveGlowPotion(player)
+                pvpGiveHealPotions(player)
             execute console command "scoreboard players set %player% {@objective} %{pvp.score::%uuid of player%}%"
 
 # タグとスコアボードの同期(1秒ごと)
@@ -390,6 +395,10 @@ every 1 second:
                 if {pvp.score::%uuid of loop-player%} is not set:
                     set {pvp.score::%uuid of loop-player%} to 0
                     execute console command "scoreboard players set %loop-player% {@objective} 0"
+                    # 途中参加: /pvpstart と同じ初期状態にそろえる
+                    pvpSetupAttributes(loop-player)
+                    pvpGiveGlowPotion(loop-player)
+                    pvpGiveHealPotions(loop-player)
         else:
             if {pvp.score::%uuid of loop-player%} is set:
                 execute console command "scoreboard players reset %loop-player% {@objective}"
