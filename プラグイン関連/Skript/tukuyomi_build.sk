@@ -2,17 +2,23 @@
 #  ツクヨミPvP ビルド配布スクリプト   (Skript 2.15.2)
 #  plugins/Skript/scripts/tukuyomi_build.sk に置いて /sk reload tukuyomi_build
 #
-#  /mybuild                  自分のプレイヤー名に紐づくビルドを全部受け取る
+#  /mybuild                  自分のプレイヤー名に紐づくビルドを全部受け取る(管理者のみ)
 #  /buildid <BuildID> [名前]  指定ビルドIDのアイテムを渡す(省略時は自分)
 #  /buildarea <半径>          周囲のプレイヤー全員に、各自のビルドを配る
-#  /refill [名前]            ビルドに含む投げ物を3個ずつ・矢(含む人のみ)を5本、補給する(矢1スタック/投げ物2スタックが上限)
+#  /refill [名前]            ビルドに含む投げ物を3個ずつ・矢(含む人のみ)を5本、補給する(矢1スタック/投げ物2スタックが上限。管理者のみ)
 #  /refillarea <半径>         周囲のプレイヤー全員に、各自のビルド分を補給する
 #  /refillauto start <秒>    指定した間隔(秒)ごとに、pvpタグ持ちを自動で補給し続ける
 #  /refillauto stop|status   自動補給の停止 / 状態確認
+#  /buildsupply [半径]        ビルドに投げ物・矢を含む人へ補給する(/refill と同じ所持上限つき。半径を省くと全員)
 #  /buildwho [名前]          ビルドの名前照合を確認する(登録名の一覧も表示。原因調査用)
 #
 #  ※カスタム武器は TukuyomiWeapons の /weapon をコンソール実行して渡します。
 #    変形武器はすべて変形前で配布します。
+#
+#  ※ビルドの登録(下の GENERATED-BUILDS の範囲)は、Excelの申請から make_build.py で自動生成します。
+#    ジェネレーターの置き場所: リポジトリの  プラグイン関連/BuildGenerator/  (make_build.py / make_build.bat / README.txt)
+#    実行: 申請のxlsx とこのファイルを make_build.bat にドラッグ&ドロップ → /sk reload tukuyomi_build
+#    この範囲を直接編集しても、次の生成で上書きされます(直すときは、Excelか make_build.py の対応表を直す)。
 # ============================================================
 
 options:
@@ -52,8 +58,9 @@ on load:
     set {tkb::owner::no1} to "BUILD-005"
     set {tkb::owner::.no2} to "BUILD-006"
     set {tkb::owner::.tonkatuk666} to "BUILD-007"
-    set {tkb::owner::jhon_duo} to "BUILD-008"
+    set {tkb::owner::no3} to "BUILD-008"
     set {tkb::owner::.nimo_cg7} to "BUILD-009"
+    set {tkb::owner::.jhon_duo} to "BUILD-010"
 
     # --- BUILD-001 / reivuns ---  (コスト合計 1915 / 判定 OK)
     # 防具: ネザライト一式 / メイン: 鋸ナタ / ウルト: 古狩人の遺骨
@@ -97,7 +104,7 @@ on load:
     # サブ: 鋸ナタ、拒絶、獣肉断ち
     set {tkb::items::BUILD-007::*} to "armor:diamond", "vanilla:shield", "custom:guitar_resonance", "custom:resonance_quake", "custom:saw_cleaver", "custom:rejection" and "custom:beast_cleaver"
 
-    # --- BUILD-008 / Jhon Duo ---  (コスト合計 2065 / 判定 コストオーバー)
+    # --- BUILD-008 / NO3 ---  (コスト合計 2065 / 判定 コストオーバー)
     # 防具: ネザライト一式 / メイン: 鋸ナタ / ウルト: 古狩人の遺骨
     # バニラ: なし / 矢: なし
     # サブ: 獣肉断ち、FUSHI爆弾、もと光るダムダム弾、自律稼働無人爆弾「月人」、彩葉特製、毒素マシマシパンケーキ、狩猟笛
@@ -108,6 +115,12 @@ on load:
     # バニラ: ダイヤの剣 / 矢: なし
     # サブ: 狩猟笛
     set {tkb::items::BUILD-009::*} to "armor:diamond", "vanilla:shield", "vanilla:diamond sword", "custom:light_sword", "custom:light_sword_ult" and "custom:hunting_horn"
+
+    # --- BUILD-010 / .jhon_duo ---  (コスト合計 1915 / 判定 OK)
+    # 防具: ネザライト一式 / メイン: 狩猟笛 / ウルト: 音撃震
+    # バニラ: なし / 矢: なし
+    # サブ: 獣肉断ち、FUSHI爆弾、もと光るダムダム弾、自律稼働無人爆弾「月人」、彩葉特製、毒素マシマシパンケーキ
+    set {tkb::items::BUILD-010::*} to "armor:netherite", "vanilla:elytra", "custom:hunting_horn", "custom:sonic_quake", "custom:beast_cleaver", "custom:fushi_bomb", "custom:timed_bomb", "custom:tsukibito_bomb" and "custom:pancake"
     # <<< GENERATED-BUILDS END
 
 # ------------------------------------------------------------
@@ -131,23 +144,6 @@ function tkbAmount(id: text) :: number:
     if tkbIsThrowable({_id}) is true:
         return 3
     return 1
-
-# 補給: ビルドに含まれる投げ物を3個ずつ、矢を5本渡す (渡した種類の数を返す)
-function tkbSupply(p: player, id: text) :: number:
-    set {_id} to {_id} in uppercase
-    set {_count} to 0
-    loop {tkb::items::%{_id}%::*}:
-        delete {_parts::*}
-        set {_parts::*} to split loop-value at ":"
-        if {_parts::1} is "custom":
-            if tkbIsThrowable({_parts::2}) is true:
-                execute console command "weapon %{_parts::2}% %name of {_p}% 3"
-                add 1 to {_count}
-        else if {_parts::1} is "vanilla":
-            if {_parts::2} is "arrow":
-                give 5 of arrow to {_p}
-                add 1 to {_count}
-    return {_count}
 
 # プレイヤー名 → BuildID (未登録なら "")
 function tkbBuildOf(p: player) :: text:
@@ -201,8 +197,8 @@ function tkbGive(p: player, id: text) :: boolean:
 
 # 自分のビルドを受け取る
 command /mybuild:
-    description: 自分のプレイヤー名に紐づくビルドのアイテムを全て受け取る
-    permission: tukuyomi.build.self
+    description: 自分のプレイヤー名に紐づくビルドのアイテムを全て受け取る(管理者のみ)
+    permission: tukuyomi.build.admin
     executable by: players
     trigger:
         set {_id} to tkbBuildOf(player)
@@ -258,7 +254,7 @@ command /buildarea <number>:
 #   /buildsupply          … オンライン全員が対象
 #   /buildsupply <半径>    … 実行者の周囲の半径内が対象
 command /buildsupply [<number>]:
-    description: ビルドに投げ物・矢を含むプレイヤーへ、投げ物3個ずつ・矢5本を補給する
+    description: ビルドに投げ物・矢を含むプレイヤーへ、所持上限まで補給する(/refill と同じ)
     usage: /buildsupply [半径]
     permission: tukuyomi.build.admin
     executable by: players and console
@@ -278,9 +274,9 @@ command /buildsupply [<number>]:
             set {_id} to tkbBuildOf(loop-value)
             if {_id} is "":
                 continue
-            if tkbSupply(loop-value, {_id}) > 0:
+            if tkbRefill(loop-value, {_id}) is true:
                 add 1 to {_given}
-                send "{@prefix}&a投げ物3個・矢5本(ビルドに含むもののみ)を補給しました。" to loop-value
+                send "{@prefix}&a投げ物・矢(ビルドに含むもののみ)を、所持上限まで補給しました。" to loop-value
         send "{@prefix}&a%{_given}% 人に補給しました。"
 
 # ------------------------------------------------------------
@@ -344,15 +340,11 @@ function tkbRefill(p: player, id: text) :: boolean:
 
 # 自分(または指定プレイヤー)を補給
 command /refill [<player>]:
-    description: ビルドに含む投げ物(3個ずつ)と矢(5本)を補給する
-    permission: tukuyomi.build.self
+    description: ビルドに含む投げ物(3個ずつ)と矢(5本)を補給する(管理者のみ)
+    permission: tukuyomi.build.admin
     executable by: players and console
     trigger:
         if arg-1 is set:
-            if sender is a player:
-                if player does not have permission "tukuyomi.build.admin":
-                    send "{@prefix}&c他のプレイヤーを補給する権限がありません。"
-                    stop
             set {_target} to arg-1
         else if sender is a player:
             set {_target} to player
