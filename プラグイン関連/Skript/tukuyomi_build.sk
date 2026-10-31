@@ -1,0 +1,489 @@
+# ============================================================
+#  ツクヨミPvP ビルド配布スクリプト   (Skript 2.15.2)
+#  plugins/Skript/scripts/tukuyomi_build.sk に置いて /sk reload tukuyomi_build
+#
+#  /mybuild                  自分のプレイヤー名に紐づくビルドを全部受け取る(管理者のみ)
+#  /buildid <BuildID> [名前]  指定ビルドIDのアイテムを渡す(省略時は自分)
+#  /buildarea <半径>          周囲のプレイヤー全員に、各自のビルドを配る
+#  /refill [名前]            ビルドに含む投げ物を3個ずつ・矢(含む人のみ)を5本、補給する(矢1スタック/投げ物2スタックが上限。管理者のみ)
+#  /refillarea <半径>         周囲のプレイヤー全員に、各自のビルド分を補給する
+#  /refillauto start <秒>    指定した間隔(秒)ごとに、pvpタグ持ちを自動で補給し続ける
+#  /refillauto stop|status   自動補給の停止 / 状態確認
+#  /buildsupply [半径]        ビルドに投げ物・矢を含む人へ補給する(/refill と同じ所持上限つき。半径を省くと全員)
+#  /buildwho [名前]          ビルドの名前照合を確認する(登録名の一覧も表示。原因調査用)
+#
+#  ※カスタム武器は TukuyomiWeapons の /weapon をコンソール実行して渡します。
+#    変形武器はすべて変形前で配布します。
+#
+#  ※ビルドの登録(下の GENERATED-BUILDS の範囲)は、Excelの申請から make_build.py で自動生成します。
+#    ジェネレーターの置き場所: リポジトリの  プラグイン関連/BuildGenerator/  (make_build.py / make_build.bat / README.txt)
+#    実行: 申請のxlsx とこのファイルを make_build.bat にドラッグ&ドロップ → /sk reload tukuyomi_build
+#    この範囲を直接編集しても、次の生成で上書きされます(直すときは、Excelか make_build.py の対応表を直す)。
+# ============================================================
+
+options:
+    prefix: &8[&bBuild&8]&r 
+    auto-equip: true
+    # 防具を自動で装備させるか(false ならインベントリに入れるだけ)
+    max-radius: 100
+    # /buildarea, /refillarea で指定できる最大半径
+    throw-amount: 3
+    # 投げ物(カスタム爆弾系)を渡す個数
+    refill-arrow: 5
+    # /refill で渡す矢の本数
+    max-arrow: 64
+    # 矢の所持上限(1スタック)
+    max-throw: 32
+    # 投げ物の所持上限(雪玉は1スタック16個 × 2スタック、種類ごと)
+
+# ------------------------------------------------------------
+#  ビルドデータ
+#  形式:  "種類:名前"  または  "種類:名前:個数"
+#    armor:<素材>     … leather / golden / chainmail / iron / diamond / netherite
+#    vanilla:<アイテム名>[:個数] … Skriptのアイテム名(スペース区切り)
+#    custom:<武器ID>  … TukuyomiWeapons の武器ID
+# ------------------------------------------------------------
+on load:
+    # ルート範囲 {tkb::loot::*} を巻き込まないよう、ビルド用の変数だけ消す
+    delete {tkb::owner::*}
+    delete {tkb::items::*}
+
+    # >>> GENERATED-BUILDS START (Excelから make_build.py が自動で書き換える範囲。手で直さない)
+    # --- プレイヤー名(小文字) → BuildID ---
+    # 統合版は先頭に「.」を付けた名前で登録
+    set {tkb::owner::reivuns} to "BUILD-001"
+    set {tkb::owner::.reivunn} to "BUILD-002"
+    set {tkb::owner::test} to "BUILD-003"
+    set {tkb::owner::pino2122} to "BUILD-004"
+    set {tkb::owner::no1} to "BUILD-005"
+    set {tkb::owner::.no2} to "BUILD-006"
+    set {tkb::owner::.tonkatuk666} to "BUILD-007"
+    set {tkb::owner::no3} to "BUILD-008"
+    set {tkb::owner::.nimo_cg7} to "BUILD-009"
+    set {tkb::owner::.jhon_duo} to "BUILD-010"
+
+    # --- BUILD-001 / reivuns ---  (コスト合計 1915 / 判定 OK)
+    # 防具: ネザライト一式 / メイン: 鋸ナタ / ウルト: 古狩人の遺骨
+    # バニラ: なし / 矢: なし
+    # サブ: スーパーノヴァ、拒絶、FUSHI爆弾、もと光るダムダム弾、自律稼働無人爆弾「月人」
+    set {tkb::items::BUILD-001::*} to "armor:netherite", "custom:saw_cleaver", "custom:old_hunter_bone", "custom:light_sword", "custom:rejection", "custom:fushi_bomb", "custom:timed_bomb" and "custom:tsukibito_bomb"
+
+    # --- BUILD-002 / .reivunn ---  (コスト合計 3320 / 判定 コストオーバー)
+    # 防具: ダイヤ一式 / メイン: スーパーノヴァ / ウルト: 光の剣
+    # バニラ: 石の剣、ネザライトの剣、木の斧 / 矢: なし
+    # サブ: 獣肉断ち、仕込み杖、自律稼働無人爆弾「月人」、ギター「共振波動」、ガンランス「MIKA-D0」
+    set {tkb::items::BUILD-002::*} to "armor:diamond", "vanilla:shield", "vanilla:elytra", "vanilla:stone sword", "vanilla:netherite sword", "vanilla:wooden axe", "custom:light_sword", "custom:light_sword_ult", "custom:beast_cleaver", "custom:cane_sheathed", "custom:tsukibito_bomb", "custom:guitar_resonance" and "custom:gunlance_mika_d0"
+
+    # --- BUILD-003 / Test ---  (コスト合計 6625 / 判定 コストオーバー)
+    # 防具: ネザライト一式 / メイン: スーパーノヴァ / ウルト: 光の剣
+    # バニラ: 木の剣、石の剣、鉄の剣、ダイヤの剣、ネザライトの剣、木の斧、石の斧、鉄の斧、ダイヤの斧、ネザライトの斧、弓、クロスボウ、トライデント、メイス / 矢: あり
+    # サブ: 鋸ナタ、拒絶、獣肉断ち、パイルハンマー、仕込み杖、FUSHI爆弾、もと光るダムダム弾、自律稼働無人爆弾「月人」、彩葉特製、毒素マシマシパンケーキ、ギター「共振波動」、ガンランス「MIKA-D0」、狩猟笛
+    set {tkb::items::BUILD-003::*} to "armor:netherite", "vanilla:shield", "vanilla:elytra", "vanilla:wooden sword", "vanilla:stone sword", "vanilla:iron sword", "vanilla:diamond sword", "vanilla:netherite sword", "vanilla:wooden axe", "vanilla:stone axe", "vanilla:iron axe", "vanilla:diamond axe", "vanilla:netherite axe", "vanilla:bow", "vanilla:crossbow", "vanilla:trident", "vanilla:mace", "vanilla:arrow:64", "custom:light_sword", "custom:light_sword_ult", "custom:saw_cleaver", "custom:rejection", "custom:beast_cleaver", "custom:pile_hammer", "custom:cane_sheathed", "custom:fushi_bomb", "custom:timed_bomb", "custom:tsukibito_bomb", "custom:pancake", "custom:guitar_resonance", "custom:gunlance_mika_d0" and "custom:hunting_horn"
+
+    # --- BUILD-004 / pino2122 ---  (コスト合計 1885 / 判定 OK)
+    # 防具: ダイヤ一式 / メイン: 狩猟笛 / ウルト: 音撃震
+    # バニラ: 鉄の剣、鉄の斧、弓 / 矢: あり
+    # サブ: 拒絶、獣肉断ち、仕込み杖、FUSHI爆弾
+    set {tkb::items::BUILD-004::*} to "armor:diamond", "vanilla:iron sword", "vanilla:iron axe", "vanilla:bow", "vanilla:arrow:64", "custom:hunting_horn", "custom:sonic_quake", "custom:rejection", "custom:beast_cleaver", "custom:cane_sheathed" and "custom:fushi_bomb"
+
+    # --- BUILD-005 / NO1 ---  (コスト合計 1885 / 判定 OK)
+    # 防具: ダイヤ一式 / メイン: 鋸ナタ / ウルト: 古狩人の遺骨
+    # バニラ: ネザライトの斧、弓 / 矢: あり
+    # サブ: 拒絶、FUSHI爆弾、もと光るダムダム弾、彩葉特製、毒素マシマシパンケーキ、狩猟笛
+    set {tkb::items::BUILD-005::*} to "armor:diamond", "vanilla:netherite axe", "vanilla:bow", "vanilla:arrow:64", "custom:saw_cleaver", "custom:old_hunter_bone", "custom:rejection", "custom:fushi_bomb", "custom:timed_bomb", "custom:pancake" and "custom:hunting_horn"
+
+    # --- BUILD-006 / .NO2 ---  (コスト合計 2060 / 判定 コストオーバー)
+    # 防具: 鉄一式 / メイン: スーパーノヴァ / ウルト: 光の剣
+    # バニラ: ネザライトの斧 / 矢: なし
+    # サブ: もと光るダムダム弾、自律稼働無人爆弾「月人」
+    set {tkb::items::BUILD-006::*} to "armor:iron", "vanilla:shield", "vanilla:netherite axe", "custom:light_sword", "custom:light_sword_ult", "custom:timed_bomb" and "custom:tsukibito_bomb"
+
+    # --- BUILD-007 / .tonkatuK666 ---  (コスト合計 2000 / 判定 OK)
+    # 防具: ダイヤ一式 / メイン: ギター「共振波動」 / ウルト: 共鳴震
+    # バニラ: なし / 矢: なし
+    # サブ: 鋸ナタ、拒絶、獣肉断ち
+    set {tkb::items::BUILD-007::*} to "armor:diamond", "vanilla:shield", "custom:guitar_resonance", "custom:resonance_quake", "custom:saw_cleaver", "custom:rejection" and "custom:beast_cleaver"
+
+    # --- BUILD-008 / NO3 ---  (コスト合計 2065 / 判定 コストオーバー)
+    # 防具: ネザライト一式 / メイン: 鋸ナタ / ウルト: 古狩人の遺骨
+    # バニラ: なし / 矢: なし
+    # サブ: 獣肉断ち、FUSHI爆弾、もと光るダムダム弾、自律稼働無人爆弾「月人」、彩葉特製、毒素マシマシパンケーキ、狩猟笛
+    set {tkb::items::BUILD-008::*} to "armor:netherite", "vanilla:elytra", "custom:saw_cleaver", "custom:old_hunter_bone", "custom:beast_cleaver", "custom:fushi_bomb", "custom:timed_bomb", "custom:tsukibito_bomb", "custom:pancake" and "custom:hunting_horn"
+
+    # --- BUILD-009 / .Nimo_cg7 ---  (コスト合計 1900 / 判定 OK)
+    # 防具: ダイヤ一式 / メイン: スーパーノヴァ / ウルト: 光の剣
+    # バニラ: ダイヤの剣 / 矢: なし
+    # サブ: 狩猟笛
+    set {tkb::items::BUILD-009::*} to "armor:diamond", "vanilla:shield", "vanilla:diamond sword", "custom:light_sword", "custom:light_sword_ult" and "custom:hunting_horn"
+
+    # --- BUILD-010 / .jhon_duo ---  (コスト合計 1915 / 判定 OK)
+    # 防具: ネザライト一式 / メイン: 狩猟笛 / ウルト: 音撃震
+    # バニラ: なし / 矢: なし
+    # サブ: 獣肉断ち、FUSHI爆弾、もと光るダムダム弾、自律稼働無人爆弾「月人」、彩葉特製、毒素マシマシパンケーキ
+    set {tkb::items::BUILD-010::*} to "armor:netherite", "vanilla:elytra", "custom:hunting_horn", "custom:sonic_quake", "custom:beast_cleaver", "custom:fushi_bomb", "custom:timed_bomb", "custom:tsukibito_bomb" and "custom:pancake"
+    # <<< GENERATED-BUILDS END
+
+# ------------------------------------------------------------
+#  関数
+# ------------------------------------------------------------
+
+# 投擲系カスタム武器か
+function tkbIsThrowable(id: text) :: boolean:
+    if {_id} is "fushi_bomb":
+        return true
+    if {_id} is "timed_bomb":
+        return true
+    if {_id} is "tsukibito_bomb":
+        return true
+    if {_id} is "pancake":
+        return true
+    return false
+
+# 投擲系カスタム武器は3個、それ以外は1個
+function tkbAmount(id: text) :: number:
+    if tkbIsThrowable({_id}) is true:
+        return 3
+    return 1
+
+# プレイヤー名 → BuildID (未登録なら "")
+function tkbBuildOf(p: player) :: text:
+    set {_n} to "%name of {_p}%" in lowercase
+    if {tkb::owner::%{_n}%} is not set:
+        return ""
+    return {tkb::owner::%{_n}%}
+
+# BuildID のアイテムを全部渡す (BuildIDが存在しなければ false)
+function tkbGive(p: player, id: text) :: boolean:
+    set {_id} to {_id} in uppercase
+    if {tkb::items::%{_id}%::*} is not set:
+        return false
+    loop {tkb::items::%{_id}%::*}:
+        delete {_parts::*}
+        delete {_amt}
+        set {_parts::*} to split loop-value at ":"
+        set {_type} to {_parts::1}
+        set {_name} to {_parts::2}
+
+        if {_type} is "armor":
+            set {_h} to "%{_name}% helmet" parsed as itemtype
+            set {_c} to "%{_name}% chestplate" parsed as itemtype
+            set {_l} to "%{_name}% leggings" parsed as itemtype
+            set {_b} to "%{_name}% boots" parsed as itemtype
+            if {@auto-equip} is true:
+                set helmet of {_p} to {_h}
+                set chestplate of {_p} to {_c}
+                set leggings of {_p} to {_l}
+                set boots of {_p} to {_b}
+            else:
+                give {_h}, {_c}, {_l} and {_b} to {_p}
+
+        else if {_type} is "vanilla":
+            set {_amt} to 1
+            if {_parts::3} is set:
+                set {_amt} to {_parts::3} parsed as integer
+            set {_item} to {_name} parsed as itemtype
+            if {_item} is set:
+                give {_amt} of {_item} to {_p}
+            else:
+                send "{@prefix}&c不明なアイテム: %{_name}%" to {_p}
+
+        else if {_type} is "custom":
+            execute console command "weapon %{_name}% %name of {_p}% %tkbAmount({_name})%"
+    return true
+
+# ------------------------------------------------------------
+#  コマンド
+# ------------------------------------------------------------
+
+# 自分のビルドを受け取る
+command /mybuild:
+    description: 自分のプレイヤー名に紐づくビルドのアイテムを全て受け取る(管理者のみ)
+    permission: tukuyomi.build.admin
+    executable by: players
+    trigger:
+        set {_id} to tkbBuildOf(player)
+        if {_id} is "":
+            send "{@prefix}&cあなたのプレイヤー名(%name of player%)に紐づくビルドが見つかりません。"
+            stop
+        if tkbGive(player, {_id}) is true:
+            send "{@prefix}&a%{_id}% のアイテムを配布しました。"
+
+# BuildIDを指定して渡す
+command /buildid <text> [<player>]:
+    description: 指定したBuildIDのアイテムを渡す
+    usage: /buildid <BuildID> [プレイヤー]
+    permission: tukuyomi.build.admin
+    executable by: players and console
+    trigger:
+        if arg-2 is set:
+            set {_target} to arg-2
+        else if sender is a player:
+            set {_target} to player
+        else:
+            send "プレイヤー名を指定してください。"
+            stop
+        if tkbGive({_target}, arg-1) is true:
+            send "{@prefix}&a%arg-1% のアイテムを %name of {_target}% に配布しました。"
+        else:
+            send "{@prefix}&cBuildID「%arg-1%」は登録されていません。"
+
+# 周囲のプレイヤー全員に、各自のビルドを配る
+command /buildarea <number>:
+    description: 指定半径内のプレイヤー全員に、各自のビルドを配布する
+    usage: /buildarea <半径>
+    permission: tukuyomi.build.admin
+    executable by: players
+    trigger:
+        if arg-1 is not between 1 and {@max-radius}:
+            send "{@prefix}&c半径は 1〜{@max-radius} で指定してください。"
+            stop
+        set {_given} to 0
+        loop all players in radius arg-1 around location of player:
+            set {_id} to tkbBuildOf(loop-player)
+            if {_id} is "":
+                add name of loop-player to {_none::*}
+            else:
+                if tkbGive(loop-player, {_id}) is true:
+                    add 1 to {_given}
+                    send "{@prefix}&a%{_id}% のアイテムが配布されました。" to loop-player
+        send "{@prefix}&a%{_given}% 人に配布しました。"
+        if {_none::*} is set:
+            send "{@prefix}&eビルド未登録(配布なし): %join {_none::*} with ", "%"
+
+# 補給: ビルドに投げ物/矢が含まれる人に、投げ物3個ずつ・矢5本を渡す
+#   /buildsupply          … オンライン全員が対象
+#   /buildsupply <半径>    … 実行者の周囲の半径内が対象
+command /buildsupply [<number>]:
+    description: ビルドに投げ物・矢を含むプレイヤーへ、所持上限まで補給する(/refill と同じ)
+    usage: /buildsupply [半径]
+    permission: tukuyomi.build.admin
+    executable by: players and console
+    trigger:
+        if arg-1 is set:
+            if sender is not a player:
+                send "コンソールからは半径を指定できません。"
+                stop
+            if arg-1 is not between 1 and {@max-radius}:
+                send "{@prefix}&c半径は 1〜{@max-radius} で指定してください。"
+                stop
+            set {_targets::*} to all players in radius arg-1 around location of player
+        else:
+            set {_targets::*} to all players
+        set {_given} to 0
+        loop {_targets::*}:
+            set {_id} to tkbBuildOf(loop-value)
+            if {_id} is "":
+                continue
+            if tkbRefill(loop-value, {_id}) is true:
+                add 1 to {_given}
+                send "{@prefix}&a投げ物・矢(ビルドに含むもののみ)を、所持上限まで補給しました。" to loop-value
+        send "{@prefix}&a%{_given}% 人に補給しました。"
+
+# ------------------------------------------------------------
+#  補給 (投げ物 3個ずつ / 矢 5本)
+# ------------------------------------------------------------
+
+# 投げ物のカスタムモデルデータ値 (TukuyomiWeapons の Weapon と同じ)
+function tkbCmd(id: text) :: number:
+    if {_id} is "fushi_bomb":
+        return 1008
+    if {_id} is "timed_bomb":
+        return 1009
+    if {_id} is "tsukibito_bomb":
+        return 1010
+    if {_id} is "pancake":
+        return 1011
+    return 0
+
+# インベントリ内の、そのカスタムモデルデータの雪玉の合計数
+function tkbCountThrow(p: player, id: text) :: number:
+    set {_cmd} to tkbCmd({_id})
+    set {_n} to 0
+    loop all items in inventory of {_p}:
+        if loop-item is snowball:
+            if custom model data of loop-item is {_cmd}:
+                add amount of loop-item to {_n}
+    return {_n}
+
+# インベントリ内の矢の合計数
+function tkbCountArrow(p: player) :: number:
+    set {_n} to 0
+    loop all items in inventory of {_p}:
+        if loop-item is arrow:
+            add amount of loop-item to {_n}
+    return {_n}
+
+# ビルドに含まれる投げ物と矢だけを、上限(矢1スタック/投げ物2スタック)まで補給する。何か渡したら true
+function tkbRefill(p: player, id: text) :: boolean:
+    set {_id} to {_id} in uppercase
+    if {tkb::items::%{_id}%::*} is not set:
+        return false
+    set {_arrow} to false
+    set {_any} to false
+    loop {tkb::items::%{_id}%::*}:
+        delete {_parts::*}
+        set {_parts::*} to split loop-value at ":"
+        if {_parts::1} is "custom":
+            if tkbIsThrowable({_parts::2}) is true:
+                # 所持数の確認と上限の判定は、プラグイン側(/weapon の4つ目の引数)で行う
+                execute console command "weapon %{_parts::2}% %name of {_p}% {@throw-amount} {@max-throw}"
+                set {_any} to true
+        else if {_parts::1} is "vanilla":
+            if {_parts::2} is "arrow":
+                set {_arrow} to true
+    if {_arrow} is true:
+        set {_give} to min({@refill-arrow}, {@max-arrow} - tkbCountArrow({_p}))
+        if {_give} > 0:
+            give {_give} of arrow to {_p}
+            set {_any} to true
+    return {_any}
+
+# 自分(または指定プレイヤー)を補給
+command /refill [<player>]:
+    description: ビルドに含む投げ物(3個ずつ)と矢(5本)を補給する(管理者のみ)
+    permission: tukuyomi.build.admin
+    executable by: players and console
+    trigger:
+        if arg-1 is set:
+            set {_target} to arg-1
+        else if sender is a player:
+            set {_target} to player
+        else:
+            send "プレイヤー名を指定してください。"
+            stop
+        set {_id} to tkbBuildOf({_target})
+        if {_id} is "":
+            send "{@prefix}&c%name of {_target}% に紐づくビルドがありません。"
+            stop
+        if tkbRefill({_target}, {_id}) is true:
+            send "{@prefix}&a%name of {_target}% に補給しました。"
+        else:
+            send "{@prefix}&e補給できるアイテムがありません(ビルドに無い、または上限まで所持済み)。"
+
+# 周囲全員を補給
+command /refillarea <number>:
+    description: 指定半径内のプレイヤー全員に、各自のビルド分を補給する
+    usage: /refillarea <半径>
+    permission: tukuyomi.build.admin
+    executable by: players
+    trigger:
+        if arg-1 is not between 1 and {@max-radius}:
+            send "{@prefix}&c半径は 1〜{@max-radius} で指定してください。"
+            stop
+        set {_given} to 0
+        loop all players in radius arg-1 around location of player:
+            set {_id} to tkbBuildOf(loop-player)
+            if {_id} is not "":
+                if tkbRefill(loop-player, {_id}) is true:
+                    add 1 to {_given}
+                    send "{@prefix}&a投げ物・矢を補給しました。" to loop-player
+        send "{@prefix}&a%{_given}% 人に補給しました。"
+
+# 所持数の確認用(カスタムモデルデータの判定が合っているかのテスト)
+command /refillcheck:
+    permission: tukuyomi.build.admin
+    executable by: players
+    trigger:
+        send "{@prefix}矢: %tkbCountArrow(player)%"
+        send "{@prefix}FUSHI: %tkbCountThrow(player, "fushi_bomb")% / ダムダム: %tkbCountThrow(player, "timed_bomb")% / 月人: %tkbCountThrow(player, "tsukibito_bomb")% / パンケーキ: %tkbCountThrow(player, "pancake")%"
+
+# ------------------------------------------------------------
+#  自動補給 (指定した間隔ごとに /refill 相当を全員へ)
+#  ・開始から指定秒数が経ってから最初の補給が行われる
+#  ・pvp タグを持ち、ビルド登録のあるオンラインのプレイヤーが対象。スペクテイターは除く
+#  ・補給内容・上限は /refill と同じ(投げ物3個・矢5本、上限あり)
+#  ・スクリプトをリロードすると停止する
+# ------------------------------------------------------------
+on load:
+    set {tkbauto::running} to false
+    delete {tkbauto::next}
+    delete {tkbauto::sec}
+
+# ------------------------------------------------------------
+#  ウルト自動チャージ
+#  /refillauto start と同時に開始し、対象参加者へ毎秒 0.1% 加算する
+#  /refillauto stop で補給と同時に停止する
+#  TukuyomiWeapons 側の発動後20秒ロックアウト等の条件はそのまま適用
+# ------------------------------------------------------------
+every 1 second:
+    if {tkbauto::running} is not true:
+        stop
+    loop all players:
+        if loop-player has scoreboard tag "pvp":
+            if loop-player's gamemode is not spectator:
+                set {_id} to tkbBuildOf(loop-player)
+                if {_id} is not "":
+                    execute console command "ultcharge %loop-player% 0.1"
+
+every 1 second:
+    if {tkbauto::running} is not true:
+        stop
+    if {tkbauto::next} is in the future:
+        stop
+    set {tkbauto::next} to now
+    set {_wait} to "%{tkbauto::sec}% seconds" parsed as timespan
+    add {_wait} to {tkbauto::next}
+    loop all players:
+        if loop-player has scoreboard tag "pvp":
+            if loop-player's gamemode is not spectator:
+                set {_id} to tkbBuildOf(loop-player)
+                if {_id} is not "":
+                    if tkbRefill(loop-player, {_id}) is true:
+                        send "{@prefix}&a自動補給しました。" to loop-player
+
+# 名前の照合状況を確認する(「認識されない」ときの原因調査用)
+command /buildwho [<player>]:
+    description: ビルド登録名との照合状況を表示する
+    usage: /buildwho [プレイヤー名]
+    permission: tukuyomi.build.admin
+    executable by: players and console
+    trigger:
+        if arg-1 is set:
+            set {_t} to arg-1
+        else if sender is a player:
+            set {_t} to sender
+        else:
+            send "{@prefix}&cプレイヤー名を指定してください。"
+            stop
+        set {_key} to "%name of {_t}%" in lowercase
+        send "{@prefix}&7プレイヤー名: &f%name of {_t}%"
+        send "{@prefix}&7照合に使う名前(小文字): &f%{_key}%"
+        set {_id} to tkbBuildOf({_t})
+        if {_id} is "":
+            send "{@prefix}&c登録されていません。下の登録名と同じ綴りか確認してください。"
+        else:
+            send "{@prefix}&a登録あり: &f%{_id}%"
+        send "{@prefix}&7登録されている名前(小文字):"
+        loop {tkb::owner::*}:
+            send "{@prefix}&8 - &f%loop-index% &7→ &f%loop-value%"
+
+command /refillauto <text> [<number>]:
+    description: 指定した間隔で全プレイヤーを自動補給する
+    usage: /refillauto <start 秒数|stop|status>
+    permission: tukuyomi.build.admin
+    executable by: players and console
+    trigger:
+        if arg-1 is "start":
+            if arg-2 is not set:
+                send "{@prefix}&c間隔(秒)を指定してください。例: /refillauto start 60"
+                stop
+            if arg-2 is not between 1 and 86400:
+                send "{@prefix}&c間隔は 1〜86400 秒で指定してください。"
+                stop
+            set {tkbauto::sec} to arg-2
+            set {tkbauto::next} to now
+            set {_wait} to "%{tkbauto::sec}% seconds" parsed as timespan
+            add {_wait} to {tkbauto::next}
+            set {tkbauto::running} to true
+            send "{@prefix}&a自動補給(%{tkbauto::sec}% 秒ごと)とウルト自動チャージ(毎秒0.1%%)を開始しました。最初の補給は %{tkbauto::sec}% 秒後です。"
+        else if arg-1 is "stop":
+            set {tkbauto::running} to false
+            send "{@prefix}&e自動補給とウルト自動チャージを停止しました。"
+        else if arg-1 is "status":
+            if {tkbauto::running} is true:
+                send "{@prefix}&a自動補給: 稼働中(%{tkbauto::sec}% 秒ごと)。ウルト: 毎秒0.1%%チャージ中。"
+                send "{@prefix}&7次回の補給まで %difference between now and {tkbauto::next}%"
+            else:
+                send "{@prefix}&e停止中です。"
+        else:
+            send "{@prefix}&c使い方: /refillauto start <秒> | stop | status"
