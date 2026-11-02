@@ -16,7 +16,7 @@
 #    変形武器はすべて変形前で配布します。
 #
 #  ※ビルドの登録(下の GENERATED-BUILDS の範囲)は、Excelの申請から make_build.py で自動生成します。
-#    ジェネレーターの置き場所: リポジトリの  プラグイン関連/BuildGenerator/  (make_build.py / make_build.bat / README.txt)
+#    ジェネレーターの置き場所: リポジトリの  プラグイン関連/TukuyomiWeapons/BuildGenerator/  (make_build.py / make_build.bat / README.txt)
 #    実行: 申請のxlsx とこのファイルを make_build.bat にドラッグ&ドロップ → /sk reload tukuyomi_build
 #    この範囲を直接編集しても、次の生成で上書きされます(直すときは、Excelか make_build.py の対応表を直す)。
 # ============================================================
