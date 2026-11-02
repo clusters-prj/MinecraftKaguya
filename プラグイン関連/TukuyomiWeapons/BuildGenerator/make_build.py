@@ -208,6 +208,8 @@ def main():
         key = name.lower().replace(" ", "_")
         if " " in name:
             warnings.append(f"{rownum}行目: 名前「{name}」に空白があります。統合版は空白が _ に変わる設定のため _ にしました(実際の名前と合わせて確認してください)")
+        if not re.fullmatch(r"\.?[A-Za-z0-9_ ]{1,32}", name):
+            errors.append(f"{rownum}行目: 名前「{name!r}」に使えない文字があります(英数字・_・先頭の . のみ)")
         if re.search(r"[%{}:]", key):
             errors.append(f"{rownum}行目: 名前「{name}」にSkriptで使えない文字(% {{ }} :)があります")
         bid = s(row[C_ID])
