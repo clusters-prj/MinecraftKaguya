@@ -48,4 +48,3 @@ Excelの前提
   make_build.py                       本体
   make_build.bat                      Windows用(ドラッグ&ドロップ)
 ビルドのスプレッドシート、ここからxlsx出力をする
-　https://docs.google.com/spreadsheets/d/12v7hSvgB5WQq2JKcUjXfugAiJWrOQTmln75Cmv7a6-E/edit?usp=sharing
